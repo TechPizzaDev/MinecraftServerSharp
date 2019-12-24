@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29519.181
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpMinecraftServer", "SharpMinecraftServer\SharpMinecraftServer.csproj", "{B16753C7-2D74-4AFC-84E5-A6AC10C223CC}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B16753C7-2D74-4AFC-84E5-A6AC10C223CC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B16753C7-2D74-4AFC-84E5-A6AC10C223CC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B16753C7-2D74-4AFC-84E5-A6AC10C223CC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B16753C7-2D74-4AFC-84E5-A6AC10C223CC}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {B6680800-0E76-47CC-B6B2-E6F4CB757E68}
+	EndGlobalSection
+EndGlobal
