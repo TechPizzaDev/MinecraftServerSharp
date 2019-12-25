@@ -5,17 +5,23 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using SharpMinecraftServer.Network;
 
 namespace SharpMinecraftServer
 {
     internal class Program
     {
+        private static NetProcessor _processor;
+
         private static void Main(string[] args)
         {
             Console.WriteLine("Hello World!");
 
-            var listener = new ConnectionListener(new IPEndPoint(IPAddress.Any, 25565));
+            _processor = new NetProcessor();
+
+            var listener = new NetListener(new IPEndPoint(IPAddress.Any, 25565));
             listener.Connection += Listener_Connection;
+            listener.Disconnection += Listener_Disconnection;
 
             listener.Start(backlog: 100);
 
@@ -41,51 +47,17 @@ namespace SharpMinecraftServer
             }
         }
 
-        private static void Listener_Connection(UserToken connection)
+        private static void Listener_Connection(NetListener sender, NetConnection connection)
         {
-            Console.WriteLine("Connection: " + connection.Socket.RemoteEndPoint);
+            Console.WriteLine("Connection: " + connection.RemoteEndPoint);
             //Task.Run(() => PlayerConnectionLoop(connection));
+
+            _processor.AddConnection(connection);
         }
 
-        /*
-        private static async ValueTask PlayerConnectionLoop(UserToken connection)
+        private static void Listener_Disconnection(NetListener sender, NetConnection connection)
         {
-            try
-            {
-                var args = connection.Awaitable.EventArgs;
-                while (true)
-                {
-                    int bytesRead = await connection.ReceiveAsync();
-                    if (bytesRead <= 0)
-                        break;
-
-                    //string request = Encoding.UTF8.GetString(args.MemoryBuffer.Span.Slice(0, bytesRead));
-                    //Console.WriteLine(bytesRead + ": " + request);
-
-                    //var output = new MemoryStream();
-                    //var writer = new StreamWriter(output);
-                    //writer.WriteLine("HTTP/1.0 200 OK");
-                    //writer.WriteLine("Content-Type: text/html");
-                    //writer.WriteLine("Connection: close");
-                    //writer.WriteLine();
-                    //
-                    //writer.Write("well hello there");
-                    //
-                    //writer.Flush();
-                    //connection.Socket.Send(output.GetBuffer().AsSpan(0, (int)output.Length));
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(nameof(PlayerConnectionLoop) + ": " + ex.Message);
-            }
-            finally
-            {
-                // do stuff on exit :P
-
-                connection.Close();
-            }
+            Console.WriteLine("Disconnection: " + connection.RemoteEndPoint);
         }
-        */
     }
 }
