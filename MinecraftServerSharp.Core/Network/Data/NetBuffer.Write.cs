@@ -1,8 +1,9 @@
 ﻿using System;
+using MinecraftServerSharp.DataTypes;
 
-namespace SharpMinecraftServer.Network
+namespace MinecraftServerSharp.Network.Data
 {
-    public partial class NetBuffer
+    public partial class NetBuffer : INetBinaryWriter
     {
         public void Write(ulong value) => _writer.Write(value);
         public void Write(uint value) => _writer.Write(value);
@@ -16,19 +17,12 @@ namespace SharpMinecraftServer.Network
         public void Write(int value) => _writer.Write(value);
         public void Write(double value) => _writer.Write(value);
         public void Write(decimal value) => _writer.Write(value);
-
-        public void Write(char[] chars, int index, int count) => _writer.Write(chars, index, count);
-        public void Write(char[] chars) => _writer.Write(chars);
-
-        public void Write(byte[] buffer, int index, int count) => _writer.Write(buffer, index, count);
-        public void Write(byte[] buffer) => _writer.Write(buffer);
-
         public void Write(byte value) => _writer.Write(value);
         public void Write(bool value) => _writer.Write(value);
         public void Write(short value) => _writer.Write(value);
         public void Write(char value) => _writer.Write(value);
 
-        public void WriteVar(int value) => _writer.WriteVar(value);
-        public void WriteVar(long value) => _writer.WriteVar(value);
+        public void WriteVar(VarInt32 value) => _writer.WriteVar(value);
+        public void WriteVar(VarInt64 value) => _writer.WriteVar(value);
     }
 }

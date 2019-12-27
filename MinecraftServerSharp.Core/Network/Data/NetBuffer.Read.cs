@@ -1,22 +1,16 @@
 ﻿using System;
-using System.IO;
+using MinecraftServerSharp.DataTypes;
 
-namespace SharpMinecraftServer.Network
+namespace MinecraftServerSharp.Network.Data
 {
-    public partial class NetBuffer
+	public partial class NetBuffer : INetBinaryReader
 	{
 		public int Read() => _reader.Read();
 		public int Read(Span<byte> buffer) => _reader.Read(buffer);
 		public int Read(Span<char> buffer) => _reader.Read(buffer);
 		public bool ReadBoolean() => _reader.ReadBoolean();
-
 		public byte ReadByte() => _reader.ReadByte();
-		public byte[] ReadBytes(int count) => _reader.ReadBytes(count);
-		public int ReadBytes(int count, Stream output) => _reader.ReadBytes(count, output);
-
 		public char ReadChar() => _reader.ReadChar();
-		public char[] ReadChars(int count) => _reader.ReadChars(count);
-
 		public decimal ReadDecimal() => _reader.ReadDecimal();
 		public double ReadDouble() => _reader.ReadDouble();
 		public short ReadInt16() => _reader.ReadInt16();
@@ -28,7 +22,8 @@ namespace SharpMinecraftServer.Network
 		public ushort ReadUInt16() => _reader.ReadUInt16();
 		public uint ReadUInt32() => _reader.ReadUInt32();
 		public ulong ReadUInt64() => _reader.ReadUInt64();
-		public int ReadVarInt32() => _reader.ReadVarInt32();
-		public long ReadVarInt64 => _reader.ReadVarInt64();
+
+		public VarInt32 ReadVarInt32() => _reader.ReadVarInt32();
+		public VarInt64 ReadVarInt64() => _reader.ReadVarInt64();
 	}
 }

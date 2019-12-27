@@ -4,10 +4,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 
-namespace SharpMinecraftServer.Utility
+namespace MinecraftServerSharp.Utility
 {
     /// <summary>
-    /// Manages pools of RecyclableMemoryStream objects.
+    /// Manages pools of array objects.
     /// </summary>
     /// <remarks>
     /// There are two pools managed in here. The small pool contains same-sized buffers that are handed to streams
@@ -580,7 +580,6 @@ namespace SharpMinecraftServer.Utility
         /// <summary>
         /// Retrieve a new MemoryStream object with the given tag and at least the given capacity.
         /// </summary>
-        /// <param name="id">A unique identifier which can be used to trace usages of the stream.</param>
         /// <param name="tag">A tag which can be used to track the source of the stream.</param>
         /// <param name="requiredSize">The minimum desired capacity for the stream.</param>
         /// <returns>A MemoryStream.</returns>
@@ -588,6 +587,13 @@ namespace SharpMinecraftServer.Utility
         {
             return new RecyclableMemoryStream(this, tag, requiredSize);
         }
+
+        /// <summary>
+        /// Retrieve a new MemoryStream object with the given tag and at least the given capacity.
+        /// </summary>
+        /// <param name="requiredSize">The minimum desired capacity for the stream.</param>
+        /// <returns>A MemoryStream.</returns>
+        public RecyclableMemoryStream GetStream(int requiredSize) => GetStream(null, requiredSize);
 
         /// <summary>
         /// Retrieve a new MemoryStream object with the given tag and at least the given capacity.

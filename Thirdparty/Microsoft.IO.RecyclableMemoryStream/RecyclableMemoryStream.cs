@@ -5,7 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Threading;
 
-namespace SharpMinecraftServer.Utility
+namespace MinecraftServerSharp.Utility
 {
 
     /// <summary>
@@ -136,7 +136,9 @@ namespace SharpMinecraftServer.Utility
         /// </summary>
         /// <param name="memoryManager">The memory manager</param>
         public RecyclableMemoryStream(RecyclableMemoryManager memoryManager)
-            : this(memoryManager, Guid.NewGuid(), null, 0, null) { }
+            : this(memoryManager, Guid.NewGuid(), null, 0, null) 
+        {
+        }
 
         /// <summary>
         /// Allocate a new RecyclableMemoryStream object.
@@ -144,7 +146,9 @@ namespace SharpMinecraftServer.Utility
         /// <param name="memoryManager">The memory manager</param>
         /// <param name="id">A unique identifier which can be used to trace usages of the stream.</param>
         public RecyclableMemoryStream(RecyclableMemoryManager memoryManager, Guid id)
-            : this(memoryManager, id, null, 0, null) { }
+            : this(memoryManager, id, null, 0, null)
+        {
+        }
 
         /// <summary>
         /// Allocate a new RecyclableMemoryStream object
@@ -152,7 +156,9 @@ namespace SharpMinecraftServer.Utility
         /// <param name="memoryManager">The memory manager</param>
         /// <param name="tag">A string identifying this stream for logging and debugging purposes</param>
         public RecyclableMemoryStream(RecyclableMemoryManager memoryManager, string tag)
-            : this(memoryManager, Guid.NewGuid(), tag, 0, null) { }
+            : this(memoryManager, Guid.NewGuid(), tag, 0, null) 
+        {
+        }
 
         /// <summary>
         /// Allocate a new RecyclableMemoryStream object
@@ -161,7 +167,9 @@ namespace SharpMinecraftServer.Utility
         /// <param name="id">A unique identifier which can be used to trace usages of the stream.</param>
         /// <param name="tag">A string identifying this stream for logging and debugging purposes</param>
         public RecyclableMemoryStream(RecyclableMemoryManager memoryManager, Guid id, string tag)
-            : this(memoryManager, id, tag, 0, null) { }
+            : this(memoryManager, id, tag, 0, null)
+        {
+        }
 
         /// <summary>
         /// Allocate a new RecyclableMemoryStream object
@@ -170,7 +178,9 @@ namespace SharpMinecraftServer.Utility
         /// <param name="tag">A string identifying this stream for logging and debugging purposes</param>
         /// <param name="requestedSize">The initial requested size to prevent future allocations</param>
         public RecyclableMemoryStream(RecyclableMemoryManager memoryManager, string tag, int requestedSize)
-            : this(memoryManager, Guid.NewGuid(), tag, requestedSize, null) { }
+            : this(memoryManager, Guid.NewGuid(), tag, requestedSize, null)
+        {
+        }
 
         /// <summary>
         /// Allocate a new RecyclableMemoryStream object
@@ -181,7 +191,9 @@ namespace SharpMinecraftServer.Utility
         /// <param name="requestedSize">The initial requested size to prevent future allocations</param>
         public RecyclableMemoryStream(
             RecyclableMemoryManager memoryManager, Guid id, string tag, int requestedSize)
-            : this(memoryManager, id, tag, requestedSize, null) { }
+            : this(memoryManager, id, tag, requestedSize, null) 
+        {
+        }
 
         /// <summary>
         /// Allocate a new RecyclableMemoryStream object
@@ -303,7 +315,8 @@ namespace SharpMinecraftServer.Utility
         /// <summary>
         /// Gets or sets the capacity
         /// </summary>
-        /// <remarks>Capacity is always in multiples of the memory manager's block size, unless
+        /// <remarks>
+        /// Capacity is always in multiples of the memory manager's block size, unless
         /// the large buffer is in use.  Capacity never decreases during a stream's lifetime. 
         /// Explicitly setting the capacity to a lower value than the current value will have no effect. 
         /// This is because the buffers are all pooled by chunks and there's little reason to 
@@ -323,6 +336,8 @@ namespace SharpMinecraftServer.Utility
             }
             set
             {
+                // TODO: implement truncation (supplying a lower capacity than the current one)
+
                 CheckDisposed();
                 EnsureCapacity(value);
             }
@@ -723,24 +738,24 @@ namespace SharpMinecraftServer.Utility
         /// Sets the position to the offset from the seek location
         /// </summary>
         /// <param name="offset">How many bytes to move</param>
-        /// <param name="loc">From where</param>
+        /// <param name="origin">From where</param>
         /// <returns>The new position</returns>
         /// <exception cref="ObjectDisposedException">Object has been disposed</exception>
         /// <exception cref="ArgumentOutOfRangeException">offset is larger than MaxStreamLength</exception>
         /// <exception cref="ArgumentException">Invalid seek origin</exception>
         /// <exception cref="IOException">Attempt to set negative position</exception>
-        public override long Seek(long offset, SeekOrigin loc)
+        public override long Seek(long offset, SeekOrigin origin)
         {
             CheckDisposed();
             if (offset > MaxStreamLength)
                 throw new ArgumentOutOfRangeException(nameof(offset), "offset cannot be larger than " + MaxStreamLength);
 
-            int newPosition = loc switch
+            int newPosition = origin switch
             {
                 SeekOrigin.Begin => (int)offset,
                 SeekOrigin.Current => (int)offset + _position,
                 SeekOrigin.End => (int)offset + _length,
-                _ => throw new ArgumentException("Invalid seek origin", nameof(loc)),
+                _ => throw new ArgumentException("Invalid seek origin", nameof(origin)),
             };
             if (newPosition < 0)
                 throw new IOException("Seek before beginning");

@@ -1,5 +1,5 @@
 ﻿
-namespace SharpMinecraftServer.Utility
+namespace MinecraftServerSharp.Utility
 {
     using System;
     using System.Diagnostics.Tracing;

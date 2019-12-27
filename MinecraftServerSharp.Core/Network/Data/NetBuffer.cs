@@ -1,14 +1,17 @@
 ﻿using System.IO;
 
-namespace SharpMinecraftServer.Network
+namespace MinecraftServerSharp.Network.Data
 {
-	// TODO: pool netbuffers
-
-	public partial class NetBuffer
+	// TODO: split NetBuffer into NetIncomingPacket and NetOutgoingPacket or something
+	
+	public partial class NetBuffer : INetBinaryReader, INetBinaryWriter, ISeekable
 	{
 		private MemoryStream _buffer;
 		private NetBinaryReader _reader;
 		private NetBinaryWriter _writer;
+
+		public long Position => _buffer.Position;
+		public long Length => _buffer.Length;
 
 		public NetBuffer(MemoryStream backingBuffer)
 		{
