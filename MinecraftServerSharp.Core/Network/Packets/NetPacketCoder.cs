@@ -6,28 +6,14 @@ using System.Text;
 
 namespace MinecraftServerSharp.Network.Packets
 {
-    public partial class NetPacketCoder
+    public abstract partial class NetPacketCoder
     {
-        private static Dictionary<NetTextEncoding, Encoding> _textEncodings;
-
         private Dictionary<Type, PacketStructInfo> _registeredTypes;
 
         public int RegisteredTypeCount => _registeredTypes.Count;
         public int PreparedTypeCount => 0;
 
         #region Constructors
-
-        static NetPacketCoder()
-        {
-            _textEncodings = new Dictionary<NetTextEncoding, Encoding>
-            {
-                { NetTextEncoding.Utf8, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false) },
-                { NetTextEncoding.BigUtf16, new UnicodeEncoding(bigEndian: true, byteOrderMark: false) },
-                { NetTextEncoding.BigUtf32, new UTF32Encoding(bigEndian: true, byteOrderMark: false) },
-                { NetTextEncoding.LittleUtf16, new UnicodeEncoding(bigEndian: false, byteOrderMark: false) },
-                { NetTextEncoding.LittleUtf32, new UTF32Encoding(bigEndian: false, byteOrderMark: false) },
-            };
-        }
 
         public NetPacketCoder()
         {
@@ -36,79 +22,100 @@ namespace MinecraftServerSharp.Network.Packets
 
         #endregion
 
-        public void RegisterPacketFromCallingAssembly(Func<PacketStructInfo, bool> predicate)
+        public void RegisterPacketTypesFromCallingAssembly(Func<PacketStructInfo, bool> predicate)
         {
             var assembly = Assembly.GetCallingAssembly();
-            var structTypes = PacketStructInfo.GetPacketTypes(assembly);
-            RegisterTypes(structTypes.Where(predicate));
+            var packetTypes = PacketStructInfo.GetPacketTypes(assembly);
+            RegisterPacketTypes(packetTypes.Where(predicate));
         }
 
-        public void RegisterTypes(IEnumerable<PacketStructInfo> infos)
+        public void RegisterPacketTypes(IEnumerable<PacketStructInfo> infos)
         {
             foreach (var info in infos)
             {
-                RegisterType(info);
+                RegisterPacketType(info);
             }
         }
 
-        public void RegisterType(PacketStructInfo info)
+        public void RegisterPacketType(PacketStructInfo info)
         {
             _registeredTypes.Add(info.Type, info);
         }
 
-        public void PrepareTypes()
+        public void PreparePacketTypes()
         {
             foreach (var registeredType in _registeredTypes)
             {
-                PrepareType(registeredType.Value);
+                PreparePacketType(registeredType.Value);
             }
         }
 
-        private void PrepareType(PacketStructInfo info)
+        private void PreparePacketType(PacketStructInfo packetInfo)
         {
-            var publicProperties = info.Type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
-            var packetProperties = publicProperties.Select(x =>
+            var publicProperties = packetInfo.Type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+            var packetProperties = publicProperties.Select(property =>
             {
-                var propertyAttribute = x.GetCustomAttribute<PacketPropertyAttribute>();
+                var propertyAttribute = property.GetCustomAttribute<PacketPropertyAttribute>();
                 if (propertyAttribute == null)
                     return null;
 
-                var lengthAttribute = x.GetCustomAttribute<PacketPropertyLengthAttribute>();
-                return new PacketPropertyInfo(x, propertyAttribute, lengthAttribute);
+                var lengthAttribute = property.GetCustomAttribute<PacketPropertyLengthAttribute>();
+                return new PacketPropertyInfo(property, propertyAttribute, lengthAttribute);
             });
 
-            // cache list for quick access
+            // cache property list for quick access
             var packetPropertyList = packetProperties.Where(x => x != null).ToList();
             packetPropertyList.Sort((x, y) => x.SerializationOrder.CompareTo(y.SerializationOrder));
 
-            var lengthAttributeInfos = GetLengthAttributeInfos(packetPropertyList);
+            var lengthAttributeInfoList = GetLengthAttributeInfos(packetPropertyList).ToList();
 
-            Console.WriteLine("todo");
+            PreparePacketTypeCore(packetInfo, packetPropertyList, lengthAttributeInfoList);
         }
 
+        protected abstract void PreparePacketTypeCore(
+            PacketStructInfo packetInfo,
+            List<PacketPropertyInfo> propertyList,
+            List<PacketPropertyLengthAttributeInfo> lengthAttributeList);
+
         /// <summary>
-        /// Validates and returns all property length attributes together with their targets.
+        /// Validates and returns all property length attributes
+        /// together with their sources and targets.
         /// </summary>
-        private static IEnumerable<PropertyLengthAttributeInfo> GetLengthAttributeInfos(
+        private static IEnumerable<PacketPropertyLengthAttributeInfo> GetLengthAttributeInfos(
             List<PacketPropertyInfo> packetProperties)
         {
-            var propertyNameList = packetProperties.Select(x => x.PropertyInfo.Name).ToList();
+            var propertyNameList = packetProperties.Select(x => x.Name).ToList();
 
-            foreach (var targetProperty in packetProperties)
+            for (int targetPropertyIndex = 0;
+                targetPropertyIndex < packetProperties.Count;
+                targetPropertyIndex++)
             {
+                var targetProperty = packetProperties[targetPropertyIndex];
+
                 var lengthAttribute = targetProperty.LengthAttribute;
                 if (lengthAttribute == null)
                     continue;
 
-                int lengthPropertyIndex = propertyNameList.IndexOf(lengthAttribute.LengthPropertyName);
-                if (lengthPropertyIndex == -1)
+                int sourcePropertyIndex = propertyNameList.IndexOf(lengthAttribute.SourcePropertyName);
+                if (sourcePropertyIndex == -1)
                     throw new Exception(
                         string.Format("{0} has unknown property name: \"{1}\".",
                         nameof(PacketPropertyLengthAttribute),
-                        lengthAttribute.LengthPropertyName));
+                        lengthAttribute.SourcePropertyName));
 
-                var sourceProperty = packetProperties[lengthPropertyIndex];
-                yield return new PropertyLengthAttributeInfo(sourceProperty, targetProperty);
+                var sourceProperty = packetProperties[sourcePropertyIndex];
+
+                if (targetPropertyIndex < sourcePropertyIndex)
+                    throw new Exception(
+                        string.Format(
+                            "The target property \"{0}\" with index {1} preceds " +
+                            "the source property \"{2}\" with index {3}.",
+                        targetProperty.Name,
+                        targetPropertyIndex,
+                        sourceProperty.Name,
+                        sourcePropertyIndex));
+
+                yield return new PacketPropertyLengthAttributeInfo(sourceProperty, targetProperty);
             }
         }
     }

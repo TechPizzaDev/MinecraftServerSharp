@@ -81,14 +81,14 @@ namespace MinecraftServerSharp.Network
             MessageLengthBytes = -1;
         }
 
-        public void Close()
+        public bool Close()
         {
             if (_closeAction == null)
-                throw new InvalidOperationException(
-                    "The connection has already been closed.");
-                    
+                return false;
+
             _closeAction.Invoke(this);
             _closeAction = null;
+            return true;
         }
     }
 }

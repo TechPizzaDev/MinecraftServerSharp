@@ -74,12 +74,11 @@ namespace MinecraftServerSharp.Network
             try
             {
                 connection.Socket.Shutdown(SocketShutdown.Send);
+                connection.Socket.Close();
             }
             catch (Exception) // throws if client process has already closed
             {
             }
-
-            connection.Socket.Close();
 
             // m_readWritePool.Push(e); // TODO: pool
 

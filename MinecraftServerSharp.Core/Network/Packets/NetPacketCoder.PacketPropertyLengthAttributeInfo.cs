@@ -2,14 +2,14 @@
 
 namespace MinecraftServerSharp.Network.Packets
 {
-    public partial class NetPacketCoder
+    public abstract partial class NetPacketCoder
     {
-        public readonly struct PropertyLengthAttributeInfo
+        public class PacketPropertyLengthAttributeInfo
         {
             public PacketPropertyInfo SourceProperty { get; }
             public PacketPropertyInfo TargetProperty { get; }
 
-            public PropertyLengthAttributeInfo(
+            public PacketPropertyLengthAttributeInfo(
                 PacketPropertyInfo sourceProperty, PacketPropertyInfo targetProperty)
             {
                 SourceProperty = sourceProperty ?? throw new ArgumentNullException(nameof(sourceProperty));

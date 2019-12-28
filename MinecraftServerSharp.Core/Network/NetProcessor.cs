@@ -27,11 +27,11 @@ namespace MinecraftServerSharp.Network
         private void SetupDecoder()
         {
             Console.WriteLine("Registering client packet types...");
-            _packetDecoder.RegisterClientPacketsFromCallingAssembly();
+            _packetDecoder.RegisterClientPacketTypesFromCallingAssembly();
             Console.WriteLine("Registered " + _packetDecoder.RegisteredTypeCount + " client packet types");
 
             Console.WriteLine("Preparing client packet types...");
-            _packetDecoder.PrepareTypes();
+            _packetDecoder.PreparePacketTypes();
             Console.WriteLine("Prepared " + _packetDecoder.PreparedTypeCount + " client packet types");
         }
 
@@ -90,7 +90,9 @@ namespace MinecraftServerSharp.Network
                     msgBuffer.Seek(0, SeekOrigin.Begin);
                     if (connection.MessageLength == -1)
                     {
-                        if (msgBuffer.ReadByte() == 0xfe)
+                        if (msgBuffer.ReadByte() == 0xfe &&
+                            msgBuffer.ReadByte() == 0x01 &&
+                            msgBuffer.ReadByte() == 0xfa)
                         {
                             int length = ReadLegacyServerListPing(connection);
                             connection.TrimMessageBuffer(length);
@@ -141,27 +143,36 @@ namespace MinecraftServerSharp.Network
             catch (Exception ex)
             {
                 Console.WriteLine(nameof(ProcessReceive) + ": " + ex);
+                connection.Close();
             }
         }
 
         private static void ProcessSend(NetConnection connection)
         {
-            var e = connection.SocketEvent;
-
-            if (e.SocketError == SocketError.Success)
+            try
             {
+                var e = connection.SocketEvent;
+                var msgBuffer = connection.MessageBuffer;
 
+                if (e.SocketError == SocketError.Success)
+                {
+
+                }
+                else
+                {
+                    connection.Close();
+                }
             }
-            else
+            catch (Exception ex)
             {
+                Console.WriteLine(nameof(ProcessReceive) + ": " + ex);
                 connection.Close();
             }
         }
 
         private static int ReadLegacyServerListPing(NetConnection connection)
         {
-            Console.WriteLine("LEGACY PING");
-            throw new NotImplementedException();
+            throw new NotImplementedException("LEGACY PING");
         }
     }
 }

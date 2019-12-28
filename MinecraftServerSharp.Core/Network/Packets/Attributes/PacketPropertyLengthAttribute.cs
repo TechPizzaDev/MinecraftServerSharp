@@ -8,12 +8,12 @@ namespace MinecraftServerSharp.Network.Packets
     [AttributeUsage(AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
     public sealed class PacketPropertyLengthAttribute : Attribute
     {
-        public string LengthPropertyName { get; }
+        public string SourcePropertyName { get; }
 
-        public PacketPropertyLengthAttribute(string lengthPropertyName)
+        public PacketPropertyLengthAttribute(string sourcePropertyName)
         {
-            LengthPropertyName = lengthPropertyName ?? 
-                throw new ArgumentNullException(nameof(lengthPropertyName));
+            SourcePropertyName = sourcePropertyName ?? 
+                throw new ArgumentNullException(nameof(sourcePropertyName));
         }
     }
 }

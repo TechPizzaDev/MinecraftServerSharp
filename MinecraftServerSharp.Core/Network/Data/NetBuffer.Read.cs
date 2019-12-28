@@ -19,6 +19,9 @@ namespace MinecraftServerSharp.Network.Data
 		public sbyte ReadSByte() => _reader.ReadSByte();
 		public float ReadSingle() => _reader.ReadSingle();
 		public string ReadString() => _reader.ReadString();
+		public string ReadString(int length) => _reader.ReadString(length);
+		public Utf8String ReadUtf8String() => _reader.ReadUtf8String();
+		public Utf8String ReadUtf8String(int length) => _reader.ReadUtf8String(length);
 		public ushort ReadUInt16() => _reader.ReadUInt16();
 		public uint ReadUInt32() => _reader.ReadUInt32();
 		public ulong ReadUInt64() => _reader.ReadUInt64();

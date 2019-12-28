@@ -9,6 +9,9 @@ namespace MinecraftServerSharp.Network.Data
         public void Write(uint value);
         public void Write(ushort value);
         public void Write(string value);
+        public void Write(Utf8String value);
+        public void WriteRaw(string value);
+        public void WriteRaw(Utf8String value);
         public void Write(float value);
         public void Write(sbyte value);
         public void Write(ReadOnlySpan<char> chars);

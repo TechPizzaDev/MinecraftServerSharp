@@ -3,7 +3,7 @@ using System.Reflection;
 
 namespace MinecraftServerSharp.Network.Packets
 {
-    public partial class NetPacketCoder
+    public abstract partial class NetPacketCoder
     {
         public class PacketPropertyInfo
         {
@@ -11,8 +11,11 @@ namespace MinecraftServerSharp.Network.Packets
             public PacketPropertyAttribute PropertyAttribute { get; }
             public PacketPropertyLengthAttribute LengthAttribute { get; }
 
+            public string Name => PropertyInfo.Name;
             public int SerializationOrder => PropertyAttribute.SerializationOrder;
 
+            public Type Type => PropertyInfo.PropertyType;
+            
             public PacketPropertyInfo(
                 PropertyInfo propertyInfo,
                 PacketPropertyAttribute propertyAttribute,
