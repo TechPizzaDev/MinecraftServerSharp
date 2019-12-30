@@ -29,7 +29,7 @@ namespace MinecraftServerSharp
             Listener.Connection += Listener_Connection;
             Listener.Disconnection += Listener_Disconnection;
 
-            Listener.Start(backlog);
+            Listener.Start(backlog, this);
         }
 
         private void Listener_Connection(NetListener sender, NetConnection connection)

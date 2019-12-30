@@ -1,4 +1,4 @@
-﻿using MinecraftServerSharp.Network.Packets;
+﻿ using MinecraftServerSharp.Network.Packets;
 
 namespace MinecraftServerSharp.Network
 {
@@ -7,35 +7,26 @@ namespace MinecraftServerSharp.Network
         [PacketStruct(ClientPacketID.LegacyServerListPing, ProtocolState.Handshaking)]
         public readonly struct ClientLegacyServerListPing
         {
-            [PacketProperty(0)] public byte Payload { get; }
-            [PacketProperty(1)] public byte PluginIdentifier { get; }
-            [PacketProperty(2)] public short MagicStringLength { get; }
-            [PacketProperty(4)] public short DataLength { get; }
-            [PacketProperty(5)] public byte ProtocolVersion { get; }
-            [PacketProperty(6)] public short HostnameLength { get; }
-            [PacketProperty(8)] public int Port { get; }
-
-            [PacketProperty(3)]
-            [PacketPropertyLength(nameof(MagicStringLength))]
+            public byte PluginIdentifier { get; }
+            public short MagicStringLength { get; }
             public string MagicString { get; }
-
-            [PacketProperty(7)]
-            [PacketPropertyLength(nameof(HostnameLength))]
+            public short DataLength { get; }
+            public byte ProtocolVersion { get; }
+            public short HostnameLength { get; }
             public string Hostname { get; }
+            public int Port { get; }
 
             [PacketConstructor]
             public ClientLegacyServerListPing(
-                byte payload, 
-                byte pluginIdentifier, 
-                short magicStringLength, 
-                string magicString, 
+                byte pluginIdentifier,
+                [LengthConstraint(Constant = 11)] short magicStringLength,
+                [LengthFrom(-1)] string magicString, 
                 short dataLength, 
                 byte protocolVersion, 
-                short hostnameLength, 
-                string hostname,
+                short hostnameLength,
+                [LengthFrom(-1)] string hostname,
                 int port)
             {
-                Payload = payload;
                 PluginIdentifier = pluginIdentifier;
                 MagicStringLength = magicStringLength;
                 MagicString = magicString;

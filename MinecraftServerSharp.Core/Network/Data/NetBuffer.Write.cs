@@ -3,6 +3,7 @@ using MinecraftServerSharp.DataTypes;
 
 namespace MinecraftServerSharp.Network.Data
 {
+    /*
     public partial class NetBuffer : INetBinaryWriter
     {
         public void Write(ulong value) => _writer.Write(value);
@@ -28,4 +29,5 @@ namespace MinecraftServerSharp.Network.Data
         public void WriteVar(VarInt32 value) => _writer.WriteVar(value);
         public void WriteVar(VarInt64 value) => _writer.WriteVar(value);
     }
+    */
 }

@@ -1,12 +1,10 @@
 ﻿using System;
-using System.Text;
+using MinecraftServerSharp.Network;
 
 namespace MinecraftServerSharp.DataTypes
 {
     public readonly struct Utf8String
     {
-        public static UTF8Encoding Encoding { get; } = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
-
         private readonly string _value;
 
         public Utf8String(string value)
@@ -16,7 +14,7 @@ namespace MinecraftServerSharp.DataTypes
 
         public Utf8String(ReadOnlySpan<byte> bytes)
         {
-            _value = Encoding.GetString(bytes);
+            _value = NetTextHelper.Utf8.GetString(bytes);
         }
 
         /// <summary>

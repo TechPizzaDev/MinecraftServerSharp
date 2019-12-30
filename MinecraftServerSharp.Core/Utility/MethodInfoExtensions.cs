@@ -8,7 +8,8 @@ namespace MinecraftServerSharp
         public static TDelegate CreateDelegate<TDelegate>(this MethodInfo methodInfo)
             where TDelegate : Delegate
         {
-            return (TDelegate)methodInfo.CreateDelegate(typeof(TDelegate));
+            var type = typeof(TDelegate);
+            return (TDelegate)methodInfo.CreateDelegate(type);
         }
     }
 }

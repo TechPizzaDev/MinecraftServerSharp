@@ -30,13 +30,14 @@ namespace MinecraftServerSharp.Network
             Socket.Bind(localEndPoint);
         }
 
-        public void Start(int backlog)
+        public void Start(int backlog, NetManager manager)
         {
             Socket.Listen(backlog);
             Started?.Invoke(this);
 
             var acceptEvent = new SocketAsyncEventArgs();
             acceptEvent.Completed += (s, e) => ProcessAccept(e);
+            acceptEvent.UserToken = manager;
 
             StartAccept(acceptEvent);
         }
@@ -54,7 +55,10 @@ namespace MinecraftServerSharp.Network
         {
             var connectionEvent = new SocketAsyncEventArgs(); // TODO: pool 
             var connection = new NetConnection(
-                this, acceptEvent.AcceptSocket, connectionEvent, closeAction: CloseClientSocket);
+                (NetManager)acceptEvent.UserToken,
+                acceptEvent.AcceptSocket,
+                connectionEvent, 
+                closeAction: CloseClientSocket);
             
             byte[] buffer = new byte[4096]; // TODO: pool
             connectionEvent.SetBuffer(buffer, 0, buffer.Length);

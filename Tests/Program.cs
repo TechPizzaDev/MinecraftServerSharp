@@ -1,14 +1,25 @@
 ﻿using System;
 using MinecraftServerSharp.DataTypes;
+using MinecraftServerSharp.Network.Data;
 
 namespace Tests
 {
     internal class Program
     {
+        public delegate void Greet(NetBinaryReader reader);
+
         private static void Main(string[] args)
         {
+            var met = typeof(Program).GetMethod("whot", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            var dlg = Delegate.CreateDelegate(typeof(Greet), met);
+
             TestVarInt32();
             Console.WriteLine(nameof(TestVarInt32) + " passed");
+        }
+
+        private static void whot(NetBinaryReader reader)
+        {
+            Console.WriteLine("whot");
         }
 
         #region TestVarInt32

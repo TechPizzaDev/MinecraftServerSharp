@@ -50,8 +50,8 @@ namespace MinecraftServerSharp.Network.Packets
             }
         }
 
-        private void PreparePacketType(PacketStructInfo packetInfo)
-        {
+        /* Old PreparePacketType(), may be useful in NetPacketEncoder:
+         
             var publicProperties = packetInfo.Type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
             var packetProperties = publicProperties.Select(property =>
             {
@@ -68,54 +68,39 @@ namespace MinecraftServerSharp.Network.Packets
             packetPropertyList.Sort((x, y) => x.SerializationOrder.CompareTo(y.SerializationOrder));
 
             var lengthAttributeInfoList = GetLengthAttributeInfos(packetPropertyList).ToList();
+        */
 
-            PreparePacketTypeCore(packetInfo, packetPropertyList, lengthAttributeInfoList);
-        }
-
-        protected abstract void PreparePacketTypeCore(
-            PacketStructInfo packetInfo,
-            List<PacketPropertyInfo> propertyList,
-            List<PacketPropertyLengthAttributeInfo> lengthAttributeList);
+        protected abstract void PreparePacketType(PacketStructInfo structInfo);
 
         /// <summary>
         /// Validates and returns all property length attributes
         /// together with their sources and targets.
         /// </summary>
-        private static IEnumerable<PacketPropertyLengthAttributeInfo> GetLengthAttributeInfos(
-            List<PacketPropertyInfo> packetProperties)
+        public static IEnumerable<LengthFromAttributeInfo> GetLengthFromAttributeInfos(
+            IList<ParameterInfo> parameters)
         {
-            var propertyNameList = packetProperties.Select(x => x.Name).ToList();
-
-            for (int targetPropertyIndex = 0;
-                targetPropertyIndex < packetProperties.Count;
-                targetPropertyIndex++)
+            for (int targetIndex = 0; targetIndex < parameters.Count; targetIndex++)
             {
-                var targetProperty = packetProperties[targetPropertyIndex];
+                var targetParam = parameters[targetIndex];
 
-                var lengthAttribute = targetProperty.LengthAttribute;
-                if (lengthAttribute == null)
+                var lengthFromAttrib = targetParam.GetCustomAttribute<LengthFromAttribute>();
+                if (lengthFromAttrib == null)
                     continue;
 
-                int sourcePropertyIndex = propertyNameList.IndexOf(lengthAttribute.SourcePropertyName);
-                if (sourcePropertyIndex == -1)
+                ParameterInfo sourceParam;
+                try
+                {
+                    sourceParam = parameters[targetIndex + lengthFromAttrib.RelativeIndex];
+                }
+                catch(ArgumentOutOfRangeException)
+                {
                     throw new Exception(
-                        string.Format("{0} has unknown property name: \"{1}\".",
-                        nameof(PacketPropertyLengthAttribute),
-                        lengthAttribute.SourcePropertyName));
+                        string.Format("Relative index for {0} on parameter \"{1}\" is out of range.",
+                        nameof(LengthFromAttribute),
+                        targetParam.Name));
+                }
 
-                var sourceProperty = packetProperties[sourcePropertyIndex];
-
-                if (targetPropertyIndex < sourcePropertyIndex)
-                    throw new Exception(
-                        string.Format(
-                            "The target property \"{0}\" with index {1} preceds " +
-                            "the source property \"{2}\" with index {3}.",
-                        targetProperty.Name,
-                        targetPropertyIndex,
-                        sourceProperty.Name,
-                        sourcePropertyIndex));
-
-                yield return new PacketPropertyLengthAttributeInfo(sourceProperty, targetProperty);
+                yield return new LengthFromAttributeInfo(sourceParam, targetParam);
             }
         }
     }

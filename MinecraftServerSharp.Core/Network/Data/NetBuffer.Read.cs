@@ -3,6 +3,7 @@ using MinecraftServerSharp.DataTypes;
 
 namespace MinecraftServerSharp.Network.Data
 {
+	/*
 	public partial class NetBuffer : INetBinaryReader
 	{
 		public int Read() => _reader.Read();
@@ -29,4 +30,5 @@ namespace MinecraftServerSharp.Network.Data
 		public VarInt32 ReadVarInt32() => _reader.ReadVarInt32();
 		public VarInt64 ReadVarInt64() => _reader.ReadVarInt64();
 	}
+	*/
 }

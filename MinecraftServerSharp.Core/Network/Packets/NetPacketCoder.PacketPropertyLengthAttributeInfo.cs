@@ -1,19 +1,23 @@
 ﻿using System;
+using System.Reflection;
 
 namespace MinecraftServerSharp.Network.Packets
 {
     public abstract partial class NetPacketCoder
     {
-        public class PacketPropertyLengthAttributeInfo
+        public readonly struct LengthFromAttributeInfo
         {
-            public PacketPropertyInfo SourceProperty { get; }
-            public PacketPropertyInfo TargetProperty { get; }
+            public ParameterInfo Source { get; }
+            public ParameterInfo Target { get; }
 
-            public PacketPropertyLengthAttributeInfo(
-                PacketPropertyInfo sourceProperty, PacketPropertyInfo targetProperty)
+            public bool HasValue => Source != null;
+
+            public LengthFromAttributeInfo(
+                ParameterInfo sourceProperty,
+                ParameterInfo targetProperty)
             {
-                SourceProperty = sourceProperty ?? throw new ArgumentNullException(nameof(sourceProperty));
-                TargetProperty = targetProperty ?? throw new ArgumentNullException(nameof(targetProperty));
+                Source = sourceProperty ?? throw new ArgumentNullException(nameof(sourceProperty));
+                Target = targetProperty ?? throw new ArgumentNullException(nameof(targetProperty));
             }
         }
     }

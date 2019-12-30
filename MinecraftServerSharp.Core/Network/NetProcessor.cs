@@ -8,11 +8,11 @@ namespace MinecraftServerSharp.Network
 {
     public partial class NetProcessor
     {
-        private NetPacketDecoder _packetDecoder;
+        public NetPacketDecoder PacketDecoder { get; }
 
         public NetProcessor()
         {
-            _packetDecoder = new NetPacketDecoder();
+            PacketDecoder = new NetPacketDecoder();
         }
 
         public void SetupCoders()
@@ -27,12 +27,12 @@ namespace MinecraftServerSharp.Network
         private void SetupDecoder()
         {
             Console.WriteLine("Registering client packet types...");
-            _packetDecoder.RegisterClientPacketTypesFromCallingAssembly();
-            Console.WriteLine("Registered " + _packetDecoder.RegisteredTypeCount + " client packet types");
+            PacketDecoder.RegisterClientPacketTypesFromCallingAssembly();
+            Console.WriteLine("Registered " + PacketDecoder.RegisteredTypeCount + " client packet types");
 
             Console.WriteLine("Preparing client packet types...");
-            _packetDecoder.PreparePacketTypes();
-            Console.WriteLine("Prepared " + _packetDecoder.PreparedTypeCount + " client packet types");
+            PacketDecoder.PreparePacketTypes();
+            Console.WriteLine("Prepared " + PacketDecoder.PreparedTypeCount + " client packet types");
         }
 
         private void SetupEncoder()
@@ -67,7 +67,7 @@ namespace MinecraftServerSharp.Network
             }
         }
 
-        private static void ProcessReceive(NetConnection connection)
+        private void ProcessReceive(NetConnection connection)
         {
             // TODO: this only reads uncompressed packets for now, 
             // this will require slight change when compressed packets are implemented
@@ -75,7 +75,7 @@ namespace MinecraftServerSharp.Network
             try
             {
                 var e = connection.SocketEvent;
-                var msgBuffer = connection.MessageBuffer;
+                var reader = connection.Reader;
 
             AfterReceive:
                 if (e.BytesTransferred > 0 &&
@@ -83,16 +83,15 @@ namespace MinecraftServerSharp.Network
                 {
                     // We process by the message length, 
                     // so don't worry if we received parts of the next message.
-                    msgBuffer.Seek(0, SeekOrigin.End);
-                    msgBuffer.Write(e.MemoryBuffer.Span.Slice(0, e.BytesTransferred));
+                    reader.Seek(0, SeekOrigin.End);
+                    connection.Buffer.Write(e.MemoryBuffer.Span.Slice(0, e.BytesTransferred));
 
                 TryRead:
-                    msgBuffer.Seek(0, SeekOrigin.Begin);
+                    reader.Seek(0, SeekOrigin.Begin);
                     if (connection.MessageLength == -1)
                     {
-                        if (msgBuffer.ReadByte() == 0xfe &&
-                            msgBuffer.ReadByte() == 0x01 &&
-                            msgBuffer.ReadByte() == 0xfa)
+                        if (reader.ReadByte() == 0xfe &&
+                            reader.ReadByte() == 0x01)
                         {
                             int length = ReadLegacyServerListPing(connection);
                             connection.TrimMessageBuffer(length);
@@ -100,11 +99,11 @@ namespace MinecraftServerSharp.Network
                         }
                         else
                         {
-                            msgBuffer.Seek(0, SeekOrigin.Begin);
+                            reader.Seek(0, SeekOrigin.Begin);
                         }
 
                         if (VarInt32.TryDecode(
-                            msgBuffer,
+                            reader.BaseStream,
                             out VarInt32 messageLength,
                             out int messageLengthBytes))
                         {
@@ -117,12 +116,12 @@ namespace MinecraftServerSharp.Network
                         }
                     }
 
-                    if (msgBuffer.Length >= connection.MessageLength)
+                    if (reader.Length >= connection.MessageLength)
                     {
-                        int rawPacketID = connection.MessageReader.ReadVarInt32();
+                        int rawPacketID = connection.Reader.ReadVarInt32();
 
                         // TODO: do stuff with packet (and look into NetBuffer),
-                        // like put it through that cool pipeline that doesn't exist yet
+                        // like put it through that cool pipeline that doesn't exist yet (it almost does)
                         Console.WriteLine(
                             "(" + connection.MessageLengthBytes + ") " +
                             connection.MessageLength + ": " +
@@ -147,12 +146,12 @@ namespace MinecraftServerSharp.Network
             }
         }
 
-        private static void ProcessSend(NetConnection connection)
+        private void ProcessSend(NetConnection connection)
         {
             try
             {
                 var e = connection.SocketEvent;
-                var msgBuffer = connection.MessageBuffer;
+                var msgBuffer = connection.Buffer;
 
                 if (e.SocketError == SocketError.Success)
                 {
@@ -170,8 +169,10 @@ namespace MinecraftServerSharp.Network
             }
         }
 
-        private static int ReadLegacyServerListPing(NetConnection connection)
+        private int ReadLegacyServerListPing(NetConnection connection)
         {
+            var packet = connection.ReadPacket<ClientLegacyServerListPing>();
+
             throw new NotImplementedException("LEGACY PING");
         }
     }

@@ -6,27 +6,24 @@ namespace MinecraftServerSharp.Network.Data
 	public interface INetBinaryReader : ISeekable
 	{
 		int Read();
-		int Read(Span<byte> buffer);
-		int Read(Span<char> buffer);
+		int TryRead(Span<byte> buffer);
 		bool ReadBoolean();
+		sbyte ReadSByte();
 		byte ReadByte();
-		char ReadChar();
-		decimal ReadDecimal();
-		double ReadDouble();
 		short ReadInt16();
+		ushort ReadUInt16();
 		int ReadInt32();
 		long ReadInt64();
-		sbyte ReadSByte();
+
+		int ReadVarInt32();
+		long ReadVarInt64();
+
 		float ReadSingle();
+		double ReadDouble();
+
 		string ReadString();
 		string ReadString(int length);
 		Utf8String ReadUtf8String();
 		Utf8String ReadUtf8String(int length);
-		ushort ReadUInt16();
-		uint ReadUInt32();
-		ulong ReadUInt64();
-
-		VarInt32 ReadVarInt32();
-		VarInt64 ReadVarInt64();
 	}
 }

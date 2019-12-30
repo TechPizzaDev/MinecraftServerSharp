@@ -4,6 +4,7 @@ namespace MinecraftServerSharp.Network.Data
 {
 	// TODO: split NetBuffer into NetIncomingPacket and NetOutgoingPacket or something
 	
+	/*
 	public partial class NetBuffer : INetBinaryReader, INetBinaryWriter, ISeekable
 	{
 		private MemoryStream _buffer;
@@ -22,4 +23,5 @@ namespace MinecraftServerSharp.Network.Data
 
 		public long Seek(int offset, SeekOrigin origin) => _buffer.Seek(offset, origin);
 	}
+	*/
 }
