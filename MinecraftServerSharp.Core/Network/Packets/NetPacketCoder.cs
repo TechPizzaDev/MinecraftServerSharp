@@ -1,26 +1,90 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
-using System.Text;
 
 namespace MinecraftServerSharp.Network.Packets
 {
     public abstract partial class NetPacketCoder
     {
-        private Dictionary<Type, PacketStructInfo> _registeredTypes;
+        protected Dictionary<Type, PacketStructInfo> RegisteredTypes { get; }
+        protected Dictionary<Type, MethodInfo> DataTypes { get; }
+        protected Dictionary<Type, MethodInfo> LengthPrefixedDataTypes { get; }
+        protected Dictionary<Type, Delegate> PreparedPacketCoders { get; }
 
-        public int RegisteredTypeCount => _registeredTypes.Count;
-        public int PreparedTypeCount => 0;
+        public int RegisteredTypeCount => RegisteredTypes.Count;
+        public int PreparedTypeCount => PreparedPacketCoders.Count;
 
         #region Constructors
 
         public NetPacketCoder()
         {
-            _registeredTypes = new Dictionary<Type, PacketStructInfo>();
+            RegisteredTypes = new Dictionary<Type, PacketStructInfo>();
+            DataTypes = new Dictionary<Type, MethodInfo>();
+            LengthPrefixedDataTypes = new Dictionary<Type, MethodInfo>();
+            PreparedPacketCoders = new Dictionary<Type, Delegate>();
         }
 
         #endregion
+
+        public Delegate GetPacketCoder(Type packetType)
+        {
+            if (!PreparedPacketCoders.TryGetValue(packetType, out var reader))
+            {
+                PreparePacketType(new PacketStructInfo(packetType));
+                reader = PreparedPacketCoders[packetType];
+            }
+            return reader;
+        }
+
+        protected void RegisterTypeReaderFromBinary(Type binaryType, string methodName, Type[] types = null)
+        {
+            try
+            {
+                var method = binaryType.GetMethod(methodName, types ?? Array.Empty<Type>());
+                if (types?.Length == 1 && types[0] == typeof(int))
+                    RegisterLengthPrefixedDataType(method);
+                else
+                    RegisterDataType(method);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception(
+                    $"Failed to create data type from {binaryType}.{methodName}().", ex);
+            }
+        }
+
+        [DebuggerHidden]
+        private static void ValidateDataTypeArgs(
+            Type type, MethodInfo method, params Type[] paramTypes)
+        {
+            if (type == null) throw new ArgumentNullException(nameof(type));
+            if (method == null) throw new ArgumentNullException(nameof(method));
+
+            // currently never throws
+            //if (method.ReturnType != type)
+            //    throw new ArgumentException("Method does not return the specified type.");
+
+            if (!method.GetParameters().Select(x => x.ParameterType).SequenceEqual(paramTypes))
+                throw new ArgumentException("Method contains undesired parameters.");
+        }
+
+        public void RegisterDataType(MethodInfo method)
+        {
+            ValidateDataTypeArgs(method.ReturnType, method, Array.Empty<Type>());
+
+            lock (DataTypes)
+                DataTypes.Add(method.ReturnType, method);
+        }
+
+        public void RegisterLengthPrefixedDataType(MethodInfo method)
+        {
+            ValidateDataTypeArgs(method.ReturnType, method, new[] { typeof(int) });
+
+            lock (LengthPrefixedDataTypes)
+                LengthPrefixedDataTypes.Add(method.ReturnType, method);
+        }
 
         public void RegisterPacketTypesFromCallingAssembly(Func<PacketStructInfo, bool> predicate)
         {
@@ -32,22 +96,18 @@ namespace MinecraftServerSharp.Network.Packets
         public void RegisterPacketTypes(IEnumerable<PacketStructInfo> infos)
         {
             foreach (var info in infos)
-            {
                 RegisterPacketType(info);
-            }
         }
 
         public void RegisterPacketType(PacketStructInfo info)
         {
-            _registeredTypes.Add(info.Type, info);
+            RegisteredTypes.Add(info.Type, info);
         }
 
         public void PreparePacketTypes()
         {
-            foreach (var registeredType in _registeredTypes)
-            {
+            foreach (var registeredType in RegisteredTypes)
                 PreparePacketType(registeredType.Value);
-            }
         }
 
         /* Old PreparePacketType(), may be useful in NetPacketEncoder:

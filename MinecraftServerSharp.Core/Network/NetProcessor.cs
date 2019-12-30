@@ -9,35 +9,34 @@ namespace MinecraftServerSharp.Network
     public partial class NetProcessor
     {
         public NetPacketDecoder PacketDecoder { get; }
+        public NetPacketEncoder PacketEncoder { get; }
 
         public NetProcessor()
         {
             PacketDecoder = new NetPacketDecoder();
+            PacketEncoder = new NetPacketEncoder();
         }
 
         public void SetupCoders()
         {
             SetupDecoder();
-            Console.WriteLine("Packet decoder is ready");
-
             SetupEncoder();
-            Console.WriteLine("Packet encoder is ready");
         }
 
         private void SetupDecoder()
         {
-            Console.WriteLine("Registering client packet types...");
             PacketDecoder.RegisterClientPacketTypesFromCallingAssembly();
             Console.WriteLine("Registered " + PacketDecoder.RegisteredTypeCount + " client packet types");
 
-            Console.WriteLine("Preparing client packet types...");
             PacketDecoder.PreparePacketTypes();
-            Console.WriteLine("Prepared " + PacketDecoder.PreparedTypeCount + " client packet types");
         }
 
         private void SetupEncoder()
         {
+            PacketEncoder.RegisterServerPacketTypesFromCallingAssembly();
+            Console.WriteLine("Registered " + PacketDecoder.RegisteredTypeCount + " server packet types");
 
+            PacketEncoder.PreparePacketTypes();
         }
 
         public void AddConnection(NetConnection connection)
@@ -84,7 +83,7 @@ namespace MinecraftServerSharp.Network
                     // We process by the message length, 
                     // so don't worry if we received parts of the next message.
                     reader.Seek(0, SeekOrigin.End);
-                    connection.Buffer.Write(e.MemoryBuffer.Span.Slice(0, e.BytesTransferred));
+                    connection.ReadBuffer.Write(e.MemoryBuffer.Span.Slice(0, e.BytesTransferred));
 
                 TryRead:
                     reader.Seek(0, SeekOrigin.Begin);
@@ -151,7 +150,7 @@ namespace MinecraftServerSharp.Network
             try
             {
                 var e = connection.SocketEvent;
-                var msgBuffer = connection.Buffer;
+                var msgBuffer = connection.ReadBuffer;
 
                 if (e.SocketError == SocketError.Success)
                 {
@@ -173,6 +172,8 @@ namespace MinecraftServerSharp.Network
         {
             var packet = connection.ReadPacket<ClientLegacyServerListPing>();
 
+            var answer = new ServerLegacyServerListPing();
+            answer.Write(connection.Writer);
             throw new NotImplementedException("LEGACY PING");
         }
     }

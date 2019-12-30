@@ -15,11 +15,29 @@ namespace MinecraftServerSharp.Network.Data
 
         public NetBinaryReader(Stream stream) => BaseStream = stream;
 
-        public long Seek(int offset, SeekOrigin origin) => BaseStream.Seek(offset, origin);
+        //private void AssertHasStream()
+        //{
+        //    if (BaseStream == null)
+        //        throw new InvalidOperationException("The underlying stream is null.");
+        //}
 
-        public int TryRead(Span<byte> buffer) => BaseStream.Read(buffer);
+        public long Seek(int offset, SeekOrigin origin)
+        {
+            //AssertHasStream();
+            return BaseStream.Seek(offset, origin);
+        }
 
-        public int Read() => BaseStream.ReadByte();
+        public int TryRead(Span<byte> buffer)
+        {
+            //AssertHasStream();
+            return BaseStream.Read(buffer);
+        }
+
+        public int Read()
+        {
+            //AssertHasStream();
+            return BaseStream.ReadByte();
+        }
 
         public bool ReadBoolean() => ReadByte() != 0;
 
@@ -67,12 +85,17 @@ namespace MinecraftServerSharp.Network.Data
 
         public VarInt32 ReadVarInt32()
         {
+            //AssertHasStream();
             if (!VarInt32.TryDecode(BaseStream, out var result, out _))
                 throw new EndOfStreamException();
             return result;
         }
 
-        public VarInt64 ReadVarInt64() => VarInt64.Decode(BaseStream);
+        public VarInt64 ReadVarInt64()
+        {
+            //AssertHasStream();
+            return VarInt64.Decode(BaseStream);
+        }
 
         #region ReadString
 

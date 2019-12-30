@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -9,129 +8,62 @@ using MinecraftServerSharp.Network.Data;
 namespace MinecraftServerSharp.Network.Packets
 {
     /// <summary>
-    /// Transforms network messages into comprehensible packets.
+    /// Gives access to transforms that turn network messages into packets.
     /// </summary>
     public partial class NetPacketDecoder : NetPacketCoder
     {
         public delegate TPacket PacketReaderDelegate<out TPacket>(NetBinaryReader reader);
 
-        private static ParameterExpression ReaderParameter { get; }
-        private static Dictionary<Type, MethodInfo> TypeReaders { get; }
-        private static Dictionary<Type, MethodInfo> LengthTypeReaders { get; }
-        private static Dictionary<Type, Delegate> PacketReaders { get; }
+        #region Constructors
 
-        static NetPacketDecoder()
+        public NetPacketDecoder() : base()
         {
-            ReaderParameter = Expression.Parameter(typeof(NetBinaryReader));
-            TypeReaders = new Dictionary<Type, MethodInfo>();
-            LengthTypeReaders = new Dictionary<Type, MethodInfo>();
-            PacketReaders = new Dictionary<Type, Delegate>();
-
-            RegisterTypeReadersFromBinaryReaders();
+            RegisterDataTypesFromBinaryReader();
         }
 
-        #region RegisterTypeReadersFromBinaryReaders
-
-        private static void RegisterTypeReadersFromBinaryReaders()
+        private void RegisterDataTypesFromBinaryReader()
         {
-            RegisterTypeReaderFromBinaryReader(nameof(NetBinaryReader.ReadBoolean));
-            RegisterTypeReaderFromBinaryReader(nameof(NetBinaryReader.ReadSByte));
-            RegisterTypeReaderFromBinaryReader(nameof(NetBinaryReader.ReadByte));
-            RegisterTypeReaderFromBinaryReader(nameof(NetBinaryReader.ReadInt16));
-            RegisterTypeReaderFromBinaryReader(nameof(NetBinaryReader.ReadUInt16));
-            RegisterTypeReaderFromBinaryReader(nameof(NetBinaryReader.ReadInt32));
-            RegisterTypeReaderFromBinaryReader(nameof(NetBinaryReader.ReadInt64));
-
-            RegisterTypeReaderFromBinaryReader(nameof(NetBinaryReader.ReadVarInt32));
-            RegisterTypeReaderFromBinaryReader(nameof(NetBinaryReader.ReadVarInt64));
-
-            RegisterTypeReaderFromBinaryReader(nameof(NetBinaryReader.ReadSingle));
-            RegisterTypeReaderFromBinaryReader(nameof(NetBinaryReader.ReadDouble));
-
-            RegisterTypeReaderFromBinaryReader(nameof(NetBinaryReader.ReadUtf8String));
-            RegisterTypeReaderFromBinaryReader(nameof(NetBinaryReader.ReadUtf8String), new[] { typeof(int) });
-
-            RegisterTypeReaderFromBinaryReader(nameof(NetBinaryReader.ReadString));
-            RegisterTypeReaderFromBinaryReader(nameof(NetBinaryReader.ReadString), new[] { typeof(int) });
-        }
-
-        private static void RegisterTypeReaderFromBinaryReader(string name, Type[] types = null)
-        {
-            try
+            void Register(string method, Type[] types = null)
             {
-                var method = typeof(NetBinaryReader).GetMethod(name, types ?? Array.Empty<Type>());
-                if (types?.Length == 1 && types[0] == typeof(int))
-                {
-                    RegisterLengthTypeReader(method);
-                }
-                else
-                {
-                    RegisterTypeReader(method);
-                }
+                RegisterTypeReaderFromBinary(typeof(NetBinaryReader), method, types);
             }
-            catch (Exception ex)
-            {
-                throw new Exception(
-                    $"Failed to create type reader from binary reader method \"{name}\".", ex);
-            }
+
+            Register(nameof(NetBinaryReader.ReadBoolean));
+            Register(nameof(NetBinaryReader.ReadSByte));
+            Register(nameof(NetBinaryReader.ReadByte));
+            Register(nameof(NetBinaryReader.ReadInt16));
+            Register(nameof(NetBinaryReader.ReadUInt16));
+            Register(nameof(NetBinaryReader.ReadInt32));
+            Register(nameof(NetBinaryReader.ReadInt64));
+
+            Register(nameof(NetBinaryReader.ReadVarInt32));
+            Register(nameof(NetBinaryReader.ReadVarInt64));
+
+            Register(nameof(NetBinaryReader.ReadSingle));
+            Register(nameof(NetBinaryReader.ReadDouble));
+
+            Register(nameof(NetBinaryReader.ReadUtf8String));
+            Register(nameof(NetBinaryReader.ReadUtf8String), new[] { typeof(int) });
+
+            Register(nameof(NetBinaryReader.ReadString));
+            Register(nameof(NetBinaryReader.ReadString), new[] { typeof(int) });
         }
 
         #endregion
-
-        [DebuggerHidden]
-        private static void ValidateTypeReaderArgs(
-            Type type, MethodInfo method, params Type[] paramTypes)
-        {
-            if (type == null) throw new ArgumentNullException(nameof(type));
-            if (method == null) throw new ArgumentNullException(nameof(method));
-
-            // currently never throws
-            //if (method.ReturnType != type)
-            //    throw new ArgumentException("Method does not return the specified type.");
-
-            if (!method.GetParameters().Select(x => x.ParameterType).SequenceEqual(paramTypes))
-                throw new ArgumentException("Method contains undesired parameters.");
-        }
-
-        public static void RegisterTypeReader(MethodInfo method)
-        {
-            ValidateTypeReaderArgs(method.ReturnType, method, Array.Empty<Type>());
-
-            lock (TypeReaders)
-                TypeReaders.Add(method.ReturnType, method);
-        }
-
-        public static void RegisterLengthTypeReader(MethodInfo method)
-        {
-            ValidateTypeReaderArgs(method.ReturnType, method, new[] { typeof(int) });
-
-            lock (LengthTypeReaders)
-                LengthTypeReaders.Add(method.ReturnType, method);
-        }
 
         public void RegisterClientPacketTypesFromCallingAssembly()
         {
             RegisterPacketTypesFromCallingAssembly(x => x.IsClientPacket);
         }
 
-        public Delegate GetPacketReader(Type packetType)
-        {
-            if (!PacketReaders.TryGetValue(packetType, out var reader))
-            {
-                PreparePacketType(new PacketStructInfo(packetType));
-                reader = PacketReaders[packetType];
-            }
-            return reader;
-        }
-
         public PacketReaderDelegate<TPacket> GetPacketReader<TPacket>()
         {
-            return (PacketReaderDelegate<TPacket>)GetPacketReader(typeof(TPacket));
+            return (PacketReaderDelegate<TPacket>)GetPacketCoder(typeof(TPacket));
         }
 
         protected override void PreparePacketType(PacketStructInfo packetInfo)
         {
-            if (PacketReaders.ContainsKey(packetInfo.Type))
+            if (PreparedPacketCoders.ContainsKey(packetInfo.Type))
                 return;
 
             var constructors = packetInfo.Type.GetConstructors();
@@ -176,12 +108,12 @@ namespace MinecraftServerSharp.Network.Packets
                     var lengthSourceExpression = variableList[sourceParamIndex];
                     var lengthReadIntResult = Expression.Convert(lengthSourceExpression, typeof(int));
 
-                    var readMethod = LengthTypeReaders[parameter.ParameterType];
+                    var readMethod = LengthPrefixedDataTypes[parameter.ParameterType];
                     resultExpression = CreateReadExpression(readMethod, lengthReadIntResult);
                 }
                 else
                 {
-                    var readMethod = TypeReaders[parameter.ParameterType];
+                    var readMethod = DataTypes[parameter.ParameterType];
                     resultExpression = CreateReadExpression(readMethod);
                 }
 
@@ -195,7 +127,7 @@ namespace MinecraftServerSharp.Network.Packets
             var packetReaderDelegate = typeof(PacketReaderDelegate<>).MakeGenericType(packetInfo.Type);
             var expressionBlock = Expression.Block(variableList, expressionList);
             var resultDelegate = Expression.Lambda(packetReaderDelegate, expressionBlock, readerParam).Compile();
-            PacketReaders.Add(packetInfo.Type, resultDelegate);
+            PreparedPacketCoders.Add(packetInfo.Type, resultDelegate);
         }
     }
 }

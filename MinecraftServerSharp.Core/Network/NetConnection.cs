@@ -11,14 +11,18 @@ namespace MinecraftServerSharp.Network
     {
         private Action<NetConnection> _closeAction;
         private NetPacketDecoder _packetDecoder; // cached from NetManager
+        private NetPacketEncoder _packetEncoder; // cached from NetManager
 
         public NetManager Manager { get; }
         public Socket Socket { get; }
         public SocketAsyncEventArgs SocketEvent { get; }
         public IPEndPoint RemoteEndPoint { get; }
 
-        public RecyclableMemoryStream Buffer { get; }
+        // TODO: make better use of the streams (recycle them better or something)
+        public RecyclableMemoryStream ReadBuffer { get; }
+        public RecyclableMemoryStream WriteBuffer { get; }
         public NetBinaryReader Reader { get; }
+        public NetBinaryWriter Writer { get; }
 
         public int MessageLength { get; set; } = -1;
         public int MessageLengthBytes { get; set; } = -1;
@@ -37,10 +41,13 @@ namespace MinecraftServerSharp.Network
             SocketEvent = socketAsyncEvent ?? throw new ArgumentNullException(nameof(socketAsyncEvent));
             _closeAction = closeAction ?? throw new ArgumentNullException(nameof(closeAction));
 
-            Buffer = RecyclableMemoryManager.Default.GetStream();
-            Reader = new NetBinaryReader(Buffer);
+            ReadBuffer = RecyclableMemoryManager.Default.GetStream();
+            WriteBuffer = RecyclableMemoryManager.Default.GetStream();
+            Reader = new NetBinaryReader(ReadBuffer);
+            Writer = new NetBinaryWriter(WriteBuffer);
 
             _packetDecoder = Manager.Processor.PacketDecoder;
+            _packetEncoder = Manager.Processor.PacketEncoder;
 
             // get it here as we can't get it later if the socket gets disposed
             RemoteEndPoint = (IPEndPoint)socket.RemoteEndPoint;
@@ -50,6 +57,12 @@ namespace MinecraftServerSharp.Network
         {
             var reader = _packetDecoder.GetPacketReader<TPacket>();
             return reader.Invoke(Reader);
+        }
+
+        public void WritePacket<TPacket>(TPacket packet)
+        {
+            var writer = _packetEncoder.GetPacketWriter<TPacket>();
+            writer.Invoke(packet, Writer);
         }
 
         /// <summary>
@@ -71,20 +84,20 @@ namespace MinecraftServerSharp.Network
                 return;
 
             // Seek past the data.
-            Buffer.Seek(length, System.IO.SeekOrigin.Begin);
+            ReadBuffer.Seek(length, System.IO.SeekOrigin.Begin);
 
             // TODO: make better use of these stream instances
             using (var tmp = RecyclableMemoryManager.Default.GetStream(requiredSize: length))
             {
                 // Copy all the future data.
-                Buffer.PooledCopyTo(tmp);
+                ReadBuffer.PooledCopyTo(tmp);
 
                 // Remove all buffered data.
-                Buffer.Capacity = 0;
+                ReadBuffer.Capacity = 0;
 
                 // Copy back the future data.
-                tmp.WriteTo(Buffer);
-                Buffer.Position = 0;
+                tmp.WriteTo(ReadBuffer);
+                ReadBuffer.Position = 0;
             }
 
             MessageLength = -1;

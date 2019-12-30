@@ -8,30 +8,22 @@ namespace MinecraftServerSharp.Network.Data
 {
 	public readonly struct NetBinaryWriter
 	{
-        public Stream BaseStream { get; }
+		public Stream BaseStream { get; }
 
-        public long Position => BaseStream.Position;
+		public long Position => BaseStream.Position;
 		public long Length => BaseStream.Length;
 
 		public NetBinaryWriter(Stream stream) => BaseStream = stream;
 
+		//private void AssertHasStream()
+		//{
+		//	if (BaseStream == null)
+		//		throw new InvalidOperationException("The underlying stream is null.");
+		//}
+
 		public long Seek(int offset, SeekOrigin origin) => BaseStream.Seek(offset, origin);
 
 		public void Write(ReadOnlySpan<byte> buffer) => BaseStream.Write(buffer);
-
-		public void WriteVar(int value)
-		{
-			Span<byte> tmp = stackalloc byte[VarInt32.MaxEncodedSize];
-			int count = new VarInt32(value).Encode(tmp);
-			Write(tmp.Slice(0, count));
-		}
-
-		public void WriteVar(long value)
-		{
-			Span<byte> tmp = stackalloc byte[VarInt64.MaxEncodedSize];
-			int count = new VarInt64(value).Encode(tmp);
-			Write(tmp.Slice(0, count));
-		}
 
 		public void Write(bool value) => Write((byte)(value ? 1 : 0));
 
@@ -65,6 +57,20 @@ namespace MinecraftServerSharp.Network.Data
 			Span<byte> tmp = stackalloc byte[sizeof(long)];
 			BinaryPrimitives.WriteInt64BigEndian(tmp, value);
 			Write(tmp);
+		}
+
+		public void WriteVar(int value)
+		{
+			Span<byte> tmp = stackalloc byte[VarInt32.MaxEncodedSize];
+			int count = new VarInt32(value).Encode(tmp);
+			Write(tmp.Slice(0, count));
+		}
+
+		public void WriteVar(long value)
+		{
+			Span<byte> tmp = stackalloc byte[VarInt64.MaxEncodedSize];
+			int count = new VarInt64(value).Encode(tmp);
+			Write(tmp.Slice(0, count));
 		}
 
 		public void Write(float value) => Write(BitConverter.SingleToInt32Bits(value));
