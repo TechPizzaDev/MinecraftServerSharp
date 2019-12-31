@@ -8,6 +8,8 @@ namespace MinecraftServerSharp.Network.Packets
         Handshaking,
         Status,
         Login,
-        Play
+        Play,
+
+        Disconnected
     }
 }

@@ -4,6 +4,7 @@ namespace MinecraftServerSharp.Network.Packets
     public enum ServerPacketID
     {
         Undefined,
+        LegacyServerListPong,
 
         #region Status
 

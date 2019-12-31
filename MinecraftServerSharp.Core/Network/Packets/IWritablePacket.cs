@@ -2,7 +2,7 @@
 
 namespace MinecraftServerSharp.Network.Packets
 {
-    public interface INetWritable
+    public interface IWritablePacket
     {
         void Write(NetBinaryWriter writer);
     }

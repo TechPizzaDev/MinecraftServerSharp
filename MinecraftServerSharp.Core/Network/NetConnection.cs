@@ -15,36 +15,41 @@ namespace MinecraftServerSharp.Network
 
         public NetManager Manager { get; }
         public Socket Socket { get; }
-        public SocketAsyncEventArgs SocketEvent { get; }
+        public SocketAsyncEventArgs ReceiveEvent { get; }
+        public SocketAsyncEventArgs SendEvent { get; }
         public IPEndPoint RemoteEndPoint { get; }
 
         // TODO: make better use of the streams (recycle them better or something)
-        public RecyclableMemoryStream ReadBuffer { get; }
-        public RecyclableMemoryStream WriteBuffer { get; }
+        public RecyclableMemoryStream ReceiveBuffer { get; }
+        public RecyclableMemoryStream SendBuffer { get; }
         public NetBinaryReader Reader { get; }
         public NetBinaryWriter Writer { get; }
 
-        public int MessageLength { get; set; } = -1;
-        public int MessageLengthBytes { get; set; } = -1;
-        public int TotalMessageLength => MessageLength + MessageLengthBytes;
+        public int ReceivedLength { get; set; } = -1;
+        public int ReceivedLengthBytes { get; set; } = -1;
+        public int TotalReceivedLength => ReceivedLength + ReceivedLengthBytes;
 
         public ProtocolState State { get; set; } = ProtocolState.Undefined;
+
+        #region Constructors
 
         public NetConnection(
             NetManager manager,
             Socket socket,
-            SocketAsyncEventArgs socketAsyncEvent,
+            SocketAsyncEventArgs receiveEvent,
+            SocketAsyncEventArgs sendEvent,
             Action<NetConnection> closeAction)
         {
             Manager = manager ?? throw new ArgumentNullException(nameof(manager));
             Socket = socket ?? throw new ArgumentNullException(nameof(socket));
-            SocketEvent = socketAsyncEvent ?? throw new ArgumentNullException(nameof(socketAsyncEvent));
+            ReceiveEvent = receiveEvent ?? throw new ArgumentNullException(nameof(receiveEvent));
+            SendEvent = sendEvent ?? throw new ArgumentNullException(nameof(sendEvent));
             _closeAction = closeAction ?? throw new ArgumentNullException(nameof(closeAction));
 
-            ReadBuffer = RecyclableMemoryManager.Default.GetStream();
-            WriteBuffer = RecyclableMemoryManager.Default.GetStream();
-            Reader = new NetBinaryReader(ReadBuffer);
-            Writer = new NetBinaryWriter(WriteBuffer);
+            ReceiveBuffer = RecyclableMemoryManager.Default.GetStream();
+            SendBuffer = RecyclableMemoryManager.Default.GetStream();
+            Reader = new NetBinaryReader(ReceiveBuffer);
+            Writer = new NetBinaryWriter(SendBuffer);
 
             _packetDecoder = Manager.Processor.PacketDecoder;
             _packetEncoder = Manager.Processor.PacketEncoder;
@@ -53,55 +58,50 @@ namespace MinecraftServerSharp.Network
             RemoteEndPoint = (IPEndPoint)socket.RemoteEndPoint;
         }
 
-        public TPacket ReadPacket<TPacket>()
+        #endregion
+
+        public int ReadPacket<TPacket>(out TPacket packet)
         {
             var reader = _packetDecoder.GetPacketReader<TPacket>();
-            return reader.Invoke(Reader);
+            long oldPosition = Reader.Position;
+            packet = reader.Invoke(Reader);
+            return (int)(Reader.Position - oldPosition);
         }
 
-        public void WritePacket<TPacket>(TPacket packet)
+        public TPacket ReadPacket<TPacket>()
+        {
+            ReadPacket(out TPacket packet);
+            return packet;
+        }
+
+        public int WritePacket<TPacket>(TPacket packet)
         {
             var writer = _packetEncoder.GetPacketWriter<TPacket>();
+            long oldPosition = Writer.Position;
             writer.Invoke(packet, Writer);
+            return (int)(Writer.Position - oldPosition);
         }
 
         /// <summary>
-        /// Removes the current message from the buffer
+        /// Removes the current message from the receive buffer
         /// while keeping all the to-be-processed data.
         /// </summary>
-        public void TrimCurrentMessage()
+        public void TrimCurrentReceivedMessage()
         {
-            int offset = TotalMessageLength;
-            TrimMessageBuffer(offset);
+            int offset = TotalReceivedLength;
+            TrimReceiveBuffer(offset);
         }
 
-        /// <summary>
-        /// Removes a front portion of the buffer.
-        /// </summary>
-        public void TrimMessageBuffer(int length)
+        public void TrimReceiveBuffer(int length)
         {
-            if (length == 0)
-                return;
+            ReceiveBuffer.TrimStart(length);
+            ReceivedLength = -1;
+            ReceivedLengthBytes = -1;
+        }
 
-            // Seek past the data.
-            ReadBuffer.Seek(length, System.IO.SeekOrigin.Begin);
-
-            // TODO: make better use of these stream instances
-            using (var tmp = RecyclableMemoryManager.Default.GetStream(requiredSize: length))
-            {
-                // Copy all the future data.
-                ReadBuffer.PooledCopyTo(tmp);
-
-                // Remove all buffered data.
-                ReadBuffer.Capacity = 0;
-
-                // Copy back the future data.
-                tmp.WriteTo(ReadBuffer);
-                ReadBuffer.Position = 0;
-            }
-
-            MessageLength = -1;
-            MessageLengthBytes = -1;
+        public void TrimSendBuffer(int length)
+        {
+            SendBuffer.TrimStart(length);
         }
 
         public bool Close()
@@ -111,6 +111,7 @@ namespace MinecraftServerSharp.Network
 
             _closeAction.Invoke(this);
             _closeAction = null;
+            State = ProtocolState.Disconnected;
             return true;
         }
     }

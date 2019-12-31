@@ -23,7 +23,8 @@ namespace MinecraftServerSharp.Network.Packets
         {
             Type = type ?? throw new ArgumentNullException(nameof(type));
             Attribute = type.GetCustomAttribute<PacketStructAttribute>() ??
-                throw new ArgumentException("Type is missing packet struct attribute.");
+                throw new ArgumentException(
+                    $"Type \"{type.Name}\" is missing packet struct attribute.", nameof(type));
         }
 
         public static IEnumerable<PacketStructInfo> GetPacketTypes(Assembly assembly)

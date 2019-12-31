@@ -3,8 +3,8 @@ namespace MinecraftServerSharp.DataTypes
 {
     public struct Position64
     {
-        private const int Mask26 = 0x3ffffff;
-        private const int Mask12 = 0xfff;
+        private const int Mask26Bit = 0x3ffffff;
+        private const int Mask12Bit = 0xfff;
 
         public ulong Value;
 
@@ -22,7 +22,7 @@ namespace MinecraftServerSharp.DataTypes
             set
             {
                 const long ZYMask = 0x0000003ffffff_fff;
-                Value = (Value & ZYMask) | (((ulong)value & Mask26) << 38);
+                Value = (Value & ZYMask) | (((ulong)value & Mask26Bit) << 38);
             }
         }
 
@@ -38,7 +38,7 @@ namespace MinecraftServerSharp.DataTypes
             set
             {
                 const ulong XYMask = 0xffffffe000000_fff;
-                Value = (Value & XYMask) | (((ulong)value & Mask26) << 12);
+                Value = (Value & XYMask) | (((ulong)value & Mask26Bit) << 12);
             }
         }
 
@@ -46,7 +46,7 @@ namespace MinecraftServerSharp.DataTypes
         {
             readonly get
             {
-                ulong y = Value & Mask12;
+                ulong y = Value & Mask12Bit;
                 if (y >= 1 << 11)
                     y -= 1 << 12;
                 return (int)y;
@@ -54,7 +54,7 @@ namespace MinecraftServerSharp.DataTypes
             set
             {
                 const ulong XZMask = 0xfffffffffffff_000;
-                Value = (Value & XZMask) | ((ulong)value & Mask12);
+                Value = (Value & XZMask) | ((ulong)value & Mask12Bit);
             }
         }
     }

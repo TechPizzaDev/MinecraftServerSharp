@@ -1,4 +1,6 @@
-﻿
+﻿using System.IO;
+using MinecraftServerSharp.Network.Data;
+
 namespace MinecraftServerSharp.Network.Packets
 {
     [PacketStruct(ClientPacketID.LegacyServerListPing, ProtocolState.Handshaking)]
@@ -14,24 +16,23 @@ namespace MinecraftServerSharp.Network.Packets
         public int Port { get; }
 
         [PacketConstructor]
-        public ClientLegacyServerListPing(
-            byte pluginIdentifier,
-            [LengthConstraint(Constant = 11)] short magicStringLength,
-            [LengthFrom(-1)] string magicString,
-            short dataLength,
-            byte protocolVersion,
-            short hostnameLength,
-            [LengthFrom(-1)] string hostname,
-            int port)
+        public ClientLegacyServerListPing(NetBinaryReader reader)
         {
-            PluginIdentifier = pluginIdentifier;
-            MagicStringLength = magicStringLength;
-            MagicString = magicString;
-            DataLength = dataLength;
-            ProtocolVersion = protocolVersion;
-            HostnameLength = hostnameLength;
-            Hostname = hostname;
-            Port = port;
+            PluginIdentifier = reader.ReadByte();
+            
+            MagicStringLength = reader.ReadShort();
+            if (MagicStringLength != 11) 
+                throw new InvalidDataException();
+            MagicString = reader.ReadUtf16String(MagicStringLength);
+
+            DataLength = reader.ReadShort();
+            ProtocolVersion = reader.ReadByte();
+
+            HostnameLength = reader.ReadShort();
+            NetTextHelper.AssertValidStringLength(HostnameLength);
+            Hostname = reader.ReadUtf16String(HostnameLength);
+
+            Port = reader.ReadInt();
         }
     }
 }

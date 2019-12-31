@@ -39,7 +39,7 @@ namespace MinecraftServerSharp.Network.Data
             return BaseStream.ReadByte();
         }
 
-        public bool ReadBoolean() => ReadByte() != 0;
+        public bool ReadBool() => ReadByte() != 0;
 
         public sbyte ReadSByte() => (sbyte)ReadByte();
 
@@ -51,39 +51,39 @@ namespace MinecraftServerSharp.Network.Data
             return (byte)value;
         }
 
-        public short ReadInt16()
+        public short ReadShort()
         {
             Span<byte> buffer = stackalloc byte[sizeof(short)];
             this.Read(buffer);
             return BinaryPrimitives.ReadInt16BigEndian(buffer);
         }
 
-        public ushort ReadUInt16()
+        public ushort ReadUShort()
         {
             Span<byte> buffer = stackalloc byte[sizeof(ushort)];
             this.Read(buffer);
             return BinaryPrimitives.ReadUInt16BigEndian(buffer);
         }
 
-        public int ReadInt32()
+        public int ReadInt()
         {
             Span<byte> buffer = stackalloc byte[sizeof(int)];
             this.Read(buffer);
             return BinaryPrimitives.ReadInt32BigEndian(buffer);
         }
 
-        public long ReadInt64()
+        public long ReadLong()
         {
             Span<byte> buffer = stackalloc byte[sizeof(long)];
             this.Read(buffer);
             return BinaryPrimitives.ReadInt64BigEndian(buffer);
         }
 
-        public float ReadSingle() => BitConverter.Int32BitsToSingle(ReadInt32());
+        public float ReadFloat() => BitConverter.Int32BitsToSingle(ReadInt());
 
-        public double ReadDouble() => BitConverter.Int64BitsToDouble(ReadInt64());
+        public double ReadDouble() => BitConverter.Int64BitsToDouble(ReadLong());
 
-        public VarInt32 ReadVarInt32()
+        public VarInt32 ReadVarInt()
         {
             //AssertHasStream();
             if (!VarInt32.TryDecode(BaseStream, out var result, out _))
@@ -91,22 +91,22 @@ namespace MinecraftServerSharp.Network.Data
             return result;
         }
 
-        public VarInt64 ReadVarInt64()
+        public VarInt64 ReadVarLong()
         {
             //AssertHasStream();
             return VarInt64.Decode(BaseStream);
         }
 
-        #region ReadString
+        #region ReadUtf16String
 
-        public string ReadString()
+        public string ReadUtf16String()
         {
-            int byteCount = ReadVarInt32();
+            int byteCount = ReadVarInt();
             int length = byteCount / sizeof(char);
-            return ReadString(length);
+            return ReadUtf16String(length);
         }
 
-        public string ReadString(int length)
+        public string ReadUtf16String(int length)
         {
             return string.Create(length, this, (output, reader) =>
             {
@@ -121,16 +121,16 @@ namespace MinecraftServerSharp.Network.Data
 
         #endregion
 
-        #region ReadUtf8String
+        #region ReadString
 
-        public Utf8String ReadUtf8String()
+        public Utf8String ReadString()
         {
-            int byteCount = ReadVarInt32();
+            int byteCount = ReadVarInt();
             int length = byteCount / sizeof(byte);
-            return ReadUtf8String(length);
+            return ReadString(length);
         }
 
-        public Utf8String ReadUtf8String(int length)
+        public Utf8String ReadString(int length)
         {
             if (length < 2048)
             {

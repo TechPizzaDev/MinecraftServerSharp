@@ -22,7 +22,36 @@ namespace MinecraftServerSharp.Network.Packets
 
         protected override void PreparePacketType(PacketStructInfo structInfo)
         {
-            throw new NotImplementedException();
+            if (typeof(IWritablePacket).IsAssignableFrom(structInfo.Type))
+            {
+                Console.WriteLine("yes xD");
+            }
+            else
+            {
+                Console.WriteLine("no xD");
+            }
+
+            /* Old PreparePacketType(), may be useful in NetPacketEncoder:
+
+                var publicProperties = packetInfo.Type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+                var packetProperties = publicProperties.Select(property =>
+                {
+                    var propertyAttribute = property.GetCustomAttribute<PacketPropertyAttribute>();
+                    if (propertyAttribute == null)
+                        return null;
+
+                    var lengthAttribute = property.GetCustomAttribute<PacketPropertyLengthAttribute>();
+                    return new PacketPropertyInfo(property, propertyAttribute, lengthAttribute);
+                });
+
+                // cache property list for quick access
+                var packetPropertyList = packetProperties.Where(x => x != null).ToList();
+                packetPropertyList.Sort((x, y) => x.SerializationOrder.CompareTo(y.SerializationOrder));
+
+                var lengthAttributeInfoList = GetLengthAttributeInfos(packetPropertyList).ToList();
+            */
+
+
         }
     }
 }

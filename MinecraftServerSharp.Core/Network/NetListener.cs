@@ -9,6 +9,8 @@ namespace MinecraftServerSharp.Network
     /// </summary>
     public class NetListener
     {
+        public const int CloseTimeout = 10000;
+
         public delegate void ListenerEvent(NetListener sender);
         public delegate void ConnectionEvent(NetListener sender, NetConnection connection);
 
@@ -44,7 +46,7 @@ namespace MinecraftServerSharp.Network
 
         public void StartAccept(SocketAsyncEventArgs acceptEvent)
         {
-            // socket must be cleared since the context object is being reused
+            // clear since the context is reused
             acceptEvent.AcceptSocket = null;
 
             if (!Socket.AcceptAsync(acceptEvent))
@@ -53,18 +55,23 @@ namespace MinecraftServerSharp.Network
 
         private void ProcessAccept(SocketAsyncEventArgs acceptEvent)
         {
-            var connectionEvent = new SocketAsyncEventArgs(); // TODO: pool 
+            var receiveEvent = new SocketAsyncEventArgs(); // TODO: pool 
+            byte[] receiveBuffer = new byte[4096];
+            receiveEvent.SetBuffer(receiveBuffer, 0, receiveBuffer.Length);
+
+            var sendEvent = new SocketAsyncEventArgs(); // TODO: pool 
+
             var connection = new NetConnection(
                 (NetManager)acceptEvent.UserToken,
                 acceptEvent.AcceptSocket,
-                connectionEvent, 
+                receiveEvent,
+                sendEvent,
                 closeAction: CloseClientSocket);
-            
-            byte[] buffer = new byte[4096]; // TODO: pool
-            connectionEvent.SetBuffer(buffer, 0, buffer.Length);
 
             connection.Socket.NoDelay = true;
-            connectionEvent.UserToken = connection;
+
+            receiveEvent.UserToken = connection;
+            sendEvent.UserToken = connection;
 
             // TODO: do some validation
             Connection?.Invoke(this, connection);
@@ -77,8 +84,8 @@ namespace MinecraftServerSharp.Network
         {
             try
             {
-                connection.Socket.Shutdown(SocketShutdown.Send);
-                connection.Socket.Close();
+                connection.Socket.Shutdown(SocketShutdown.Both);
+                connection.Socket.Close(CloseTimeout);
             }
             catch (Exception) // throws if client process has already closed
             {

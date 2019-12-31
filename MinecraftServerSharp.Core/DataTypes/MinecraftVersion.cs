@@ -13,5 +13,10 @@ namespace MinecraftServerSharp.Network.Packets
             Minor = minor;
             Patch = patch;
         }
+
+        public override string ToString()
+        {
+            return string.Join('.', Major.ToString(), Minor.ToString(), Patch.ToString());
+        }
     }
 }

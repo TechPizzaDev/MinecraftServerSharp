@@ -3,7 +3,7 @@
 namespace MinecraftServerSharp.Network.Packets
 {
     /// <summary>
-    /// Specifies the packet constructor.
+    /// Specifies a packet constructor.
     /// </summary>
     [AttributeUsage(AttributeTargets.Constructor, Inherited = false, AllowMultiple = false)]
     public sealed class PacketConstructorAttribute : Attribute
