@@ -108,6 +108,7 @@ namespace MinecraftServerSharp.Network.Data
 
         public string ReadUtf16String(int length)
         {
+            NetTextHelper.AssertValidStringByteLength(length * sizeof(char));
             return string.Create(length, this, (output, reader) =>
             {
                 // We can use the string as the backing buffer.
@@ -132,6 +133,7 @@ namespace MinecraftServerSharp.Network.Data
 
         public Utf8String ReadString(int length)
         {
+            NetTextHelper.AssertValidStringByteLength(length * sizeof(byte));
             if (length < 2048)
             {
                 // TODO: put this under a "UNSAFE" conditional

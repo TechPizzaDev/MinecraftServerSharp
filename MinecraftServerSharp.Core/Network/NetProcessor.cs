@@ -9,7 +9,7 @@ namespace MinecraftServerSharp.Network
 {
     public partial class NetProcessor
     {
-        // TODO: move this somewhere
+        // TODO: move these somewhere
         public static int ProtocolVersion { get; } = 498;
         public static MinecraftVersion MinecraftVersion { get; } = new MinecraftVersion(1, 14, 4);
 
@@ -21,6 +21,8 @@ namespace MinecraftServerSharp.Network
             PacketDecoder = new NetPacketDecoder();
             PacketEncoder = new NetPacketEncoder();
         }
+
+        #region SetupCoders
 
         public void SetupCoders()
         {
@@ -43,6 +45,8 @@ namespace MinecraftServerSharp.Network
 
             PacketEncoder.PreparePacketTypes();
         }
+
+        #endregion
 
         public void AddConnection(NetConnection connection)
         {
@@ -84,7 +88,8 @@ namespace MinecraftServerSharp.Network
                         if (reader.ReadByte() == 0xfe &&
                             reader.ReadByte() == 0x01)
                         {
-                            if (ReadLegacyServerListPing(connection))
+                            bool fullyRead = ReadLegacyServerListPing(connection);
+                            if (fullyRead)
                             {
                                 connection.Close();
                                 return;

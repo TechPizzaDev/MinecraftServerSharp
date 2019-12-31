@@ -16,7 +16,8 @@ namespace MinecraftServerSharp.Utility
             // Seek past the data.
             stream.Seek(length, SeekOrigin.Begin);
 
-            // TODO: make better use of these stream instances
+            // TODO: make better use of these stream instances;
+            //       we currently allocate one per message ;/
             int requiredSize = (int)(stream.Length - length);
             using var tmp = RecyclableMemoryManager.Default.GetStream(requiredSize);
 
@@ -38,17 +39,10 @@ namespace MinecraftServerSharp.Utility
         /// </summary>
         public static void PooledCopyTo(this Stream source, Stream destination)
         {
-            byte[] buffer = RecyclableMemoryManager.Default.GetBlock();
-            try
-            {
-                int read;
-                while ((read = source.Read(buffer, 0, buffer.Length)) != 0)
-                    destination.Write(buffer, 0, read);
-            }
-            finally
-            {
-                RecyclableMemoryManager.Default.ReturnBlock(buffer);
-            }
+            Span<byte> buffer = stackalloc byte[1024];
+            int read;
+            while ((read = source.Read(buffer)) != 0)
+                destination.Write(buffer.Slice(0, read));
         }
 
         /// <summary>
@@ -64,19 +58,12 @@ namespace MinecraftServerSharp.Utility
                 return;
             }
 
-            byte[] buffer = RecyclableMemoryManager.Default.GetBlock();
-            try
+            Span<byte> buffer = stackalloc byte[1024];
+            int read;
+            while ((read = source.Read(buffer)) != 0)
             {
-                int read;
-                while ((read = source.Read(buffer, 0, buffer.Length)) != 0)
-                {
-                    destination.Write(buffer, 0, read);
-                    onWrite.Invoke(read);
-                }
-            }
-            finally
-            {
-                RecyclableMemoryManager.Default.ReturnBlock(buffer);
+                destination.Write(buffer.Slice(0, read));
+                onWrite.Invoke(read);
             }
         }
     }
