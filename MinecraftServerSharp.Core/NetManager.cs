@@ -11,7 +11,7 @@ namespace MinecraftServerSharp
         public NetManager()
         {
             Processor = new NetProcessor();
-            Listener = new NetListener();
+            Listener = new NetListener(Processor);
         }
 
         public void Bind(IPEndPoint localEndPoint)
@@ -29,7 +29,7 @@ namespace MinecraftServerSharp
             Listener.Connection += Listener_Connection;
             Listener.Disconnection += Listener_Disconnection;
 
-            Listener.Start(backlog, this);
+            Listener.Start(backlog);
         }
 
         private void Listener_Connection(NetListener sender, NetConnection connection)

@@ -46,12 +46,6 @@ namespace MinecraftServerSharp.Utility
         /// </summary>
         private readonly List<byte[]> _blocks = new List<byte[]>(1);
 
-        /// <summary>
-        /// This buffer exists so that WriteByte can forward all of its calls to Write
-        /// without creating a new byte[] buffer on every call.
-        /// </summary>
-        private readonly byte[] _byteBuffer = new byte[1];
-
         private readonly Guid _id;
         private readonly RecyclableMemoryManager _memoryManager;
         private readonly string _tag;
@@ -459,9 +453,10 @@ namespace MinecraftServerSharp.Utility
         /// for the sake of completeness.
         /// </summary>
         /// <exception cref="ObjectDisposedException">Object has been disposed</exception>
-#pragma warning disable CS0809
         [Obsolete("This method has degraded performance vs. GetBuffer and should be avoided.")]
+#pragma warning disable CS0809 // Obsolete member overrides non-obsolete member
         public override byte[] ToArray()
+#pragma warning restore CS0809
         {
             CheckDisposed();
             var newBuffer = new byte[Length];
@@ -473,7 +468,6 @@ namespace MinecraftServerSharp.Utility
 
             return newBuffer;
         }
-#pragma warning restore CS0809
 
         /// <summary>
         /// Reads from the current position into the provided buffer
@@ -675,8 +669,8 @@ namespace MinecraftServerSharp.Utility
         public override void WriteByte(byte value)
         {
             CheckDisposed();
-            _byteBuffer[0] = value;
-            Write(_byteBuffer, 0, 1);
+            Span<byte> buffer = stackalloc byte[] { value };
+            Write(buffer);
         }
 
         /// <summary>

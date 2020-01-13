@@ -20,10 +20,12 @@ namespace MinecraftServerSharp.Network
         public event ConnectionEvent Connection;
         public event ConnectionEvent Disconnection;
 
+        private NetProcessor Processor { get; }
         public Socket Socket { get; }
 
-        public NetListener()
+        public NetListener(NetProcessor processor)
         {
+            Processor = processor;
             Socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
         }
 
@@ -32,15 +34,14 @@ namespace MinecraftServerSharp.Network
             Socket.Bind(localEndPoint);
         }
 
-        public void Start(int backlog, NetManager manager)
+        public void Start(int backlog)
         {
             Socket.Listen(backlog);
             Started?.Invoke(this);
 
             var acceptEvent = new SocketAsyncEventArgs();
             acceptEvent.Completed += (s, e) => ProcessAccept(e);
-            acceptEvent.UserToken = manager;
-
+            
             StartAccept(acceptEvent);
         }
 
@@ -56,24 +57,26 @@ namespace MinecraftServerSharp.Network
         private void ProcessAccept(SocketAsyncEventArgs acceptEvent)
         {
             var receiveEvent = new SocketAsyncEventArgs(); // TODO: pool 
+            var sendEvent = new SocketAsyncEventArgs(); // TODO: pool 
+
             byte[] receiveBuffer = new byte[4096];
             receiveEvent.SetBuffer(receiveBuffer, 0, receiveBuffer.Length);
 
-            var sendEvent = new SocketAsyncEventArgs(); // TODO: pool 
-
             var connection = new NetConnection(
-                (NetManager)acceptEvent.UserToken,
+                (NetProcessor)acceptEvent.UserToken,
                 acceptEvent.AcceptSocket,
                 receiveEvent,
                 sendEvent,
                 closeAction: CloseClientSocket);
 
-            connection.Socket.NoDelay = true;
-
             receiveEvent.UserToken = connection;
             sendEvent.UserToken = connection;
 
-            // TODO: do some validation
+            // TODO: Use delay when sending initial data, 
+            // then don't use delay when initial data has been sent.
+            connection.Socket.NoDelay = true;
+
+            // TODO: do some validation of the client
             Connection?.Invoke(this, connection);
 
             // Accept the next connection request

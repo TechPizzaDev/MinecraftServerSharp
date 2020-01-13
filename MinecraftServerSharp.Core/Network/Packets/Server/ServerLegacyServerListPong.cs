@@ -41,11 +41,12 @@ namespace MinecraftServerSharp.Network.Packets
             WriteField(MinecraftVersion.ToString());
             WriteField(MessageOfTheDay.ToString());
             WriteField(CurrentPlayerCount.ToString());
-            writer.WriteRaw(MaxPlayers.ToString()); // don't write null char delimeter
+            writer.WriteRaw(MaxPlayers.ToString()); // don't write with null char delimeter
 
             int byteLength = (int)(writer.Position - startPos);
-            writer.Seek((int)(startPos - sizeof(short)), SeekOrigin.Begin);
-            writer.Write((short)(byteLength / sizeof(char))); // write in reserved space 
+            int reservedSpaceOffset = (int)(startPos - sizeof(short));
+            writer.Seek(reservedSpaceOffset, SeekOrigin.Begin);
+            writer.Write((short)(byteLength / sizeof(char)));
         }
     }
 }

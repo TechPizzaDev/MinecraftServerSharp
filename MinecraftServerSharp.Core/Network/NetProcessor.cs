@@ -4,23 +4,38 @@ using System.Net.Sockets;
 using System.Threading;
 using MinecraftServerSharp.DataTypes;
 using MinecraftServerSharp.Network.Packets;
+using MinecraftServerSharp.Utility;
 
 namespace MinecraftServerSharp.Network
 {
     public partial class NetProcessor
     {
+        public const int BlockSize = 1024 * 16;
+        public const int BlockMultiple = BlockSize * 4;
+        public const int MaxPacketSize = BlockMultiple * 32; // 2097152
+
         // TODO: move these somewhere
         public static int ProtocolVersion { get; } = 498;
         public static MinecraftVersion MinecraftVersion { get; } = new MinecraftVersion(1, 14, 4);
 
+        public RecyclableMemoryManager MemoryManager { get; }
         public NetPacketDecoder PacketDecoder { get; }
         public NetPacketEncoder PacketEncoder { get; }
 
-        public NetProcessor()
+        #region Constructors
+
+        public NetProcessor(int blockSize, int blockMultiple, int maxPacketSize)
         {
+            MemoryManager = new RecyclableMemoryManager(blockSize, blockMultiple, maxPacketSize);
             PacketDecoder = new NetPacketDecoder();
             PacketEncoder = new NetPacketEncoder();
         }
+
+        public NetProcessor() : this(BlockSize, BlockMultiple, MaxPacketSize)
+        {
+        }
+
+        #endregion
 
         #region SetupCoders
 
@@ -187,11 +202,12 @@ namespace MinecraftServerSharp.Network
 
                 var answer = new ServerLegacyServerListPong(
                     ProtocolVersion, MinecraftVersion, "A Minecraft Server", 0, 100);
-                //connection.WritePacket(answer);
+                
+                connection.WritePacket(answer);
 
-                answer.Write(connection.Writer);
+                connection.SendEvent.SetBuffer(
+                    connection.SendBuffer.GetBuffer(), 0, (int)connection.SendBuffer.Length);
 
-                connection.SendEvent.SetBuffer(connection.SendBuffer.GetBuffer(), 0, (int)connection.SendBuffer.Length);
                 if (!connection.Socket.SendAsync(connection.SendEvent))
                     ProcessSend(connection);
             }

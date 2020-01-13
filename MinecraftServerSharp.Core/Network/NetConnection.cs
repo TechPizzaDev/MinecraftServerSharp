@@ -10,10 +10,8 @@ namespace MinecraftServerSharp.Network
     public class NetConnection
     {
         private Action<NetConnection> _closeAction;
-        private NetPacketDecoder _packetDecoder; // cached from NetManager
-        private NetPacketEncoder _packetEncoder; // cached from NetManager
-
-        public NetManager Manager { get; }
+        
+        public NetProcessor Processor { get; }
         public Socket Socket { get; }
         public SocketAsyncEventArgs ReceiveEvent { get; }
         public SocketAsyncEventArgs SendEvent { get; }
@@ -34,25 +32,22 @@ namespace MinecraftServerSharp.Network
         #region Constructors
 
         public NetConnection(
-            NetManager manager,
+            NetProcessor processor,
             Socket socket,
             SocketAsyncEventArgs receiveEvent,
             SocketAsyncEventArgs sendEvent,
             Action<NetConnection> closeAction)
         {
-            Manager = manager ?? throw new ArgumentNullException(nameof(manager));
+            Processor = processor ?? throw new ArgumentNullException(nameof(processor));
             Socket = socket ?? throw new ArgumentNullException(nameof(socket));
             ReceiveEvent = receiveEvent ?? throw new ArgumentNullException(nameof(receiveEvent));
             SendEvent = sendEvent ?? throw new ArgumentNullException(nameof(sendEvent));
             _closeAction = closeAction ?? throw new ArgumentNullException(nameof(closeAction));
 
-            ReceiveBuffer = RecyclableMemoryManager.Default.GetStream();
-            SendBuffer = RecyclableMemoryManager.Default.GetStream();
+            ReceiveBuffer = Processor.MemoryManager.GetStream();
+            SendBuffer = Processor.MemoryManager.GetStream();
             Reader = new NetBinaryReader(ReceiveBuffer);
             Writer = new NetBinaryWriter(SendBuffer);
-
-            _packetDecoder = Manager.Processor.PacketDecoder;
-            _packetEncoder = Manager.Processor.PacketEncoder;
 
             // get it here as we can't get it later if the socket gets disposed
             RemoteEndPoint = (IPEndPoint)socket.RemoteEndPoint;
@@ -62,7 +57,7 @@ namespace MinecraftServerSharp.Network
 
         public int ReadPacket<TPacket>(out TPacket packet)
         {
-            var reader = _packetDecoder.GetPacketReader<TPacket>();
+            var reader = Processor.PacketDecoder.GetPacketReader<TPacket>();
             long oldPosition = Reader.Position;
             packet = reader.Invoke(Reader);
             return (int)(Reader.Position - oldPosition);
@@ -76,7 +71,7 @@ namespace MinecraftServerSharp.Network
 
         public int WritePacket<TPacket>(TPacket packet)
         {
-            var writer = _packetEncoder.GetPacketWriter<TPacket>();
+            var writer = Processor.PacketEncoder.GetPacketWriter<TPacket>();
             long oldPosition = Writer.Position;
             writer.Invoke(packet, Writer);
             return (int)(Writer.Position - oldPosition);
