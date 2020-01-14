@@ -1,0 +1,18 @@
+﻿using MinecraftServerSharp.DataTypes;
+
+namespace MinecraftServerSharp.Network.Packets
+{
+    [PacketStruct(ServerPacketID.ChatMessage)]
+    public readonly struct ServerChat
+    {
+        [PacketProperty(0)] public Chat JsonData { get; }
+        [PacketProperty(1)] public byte Position { get; }
+
+        [PacketConstructor]
+        public ServerChat(Chat jsonData, byte position)
+        {
+            JsonData = jsonData;
+            Position = position;
+        }
+    }
+}

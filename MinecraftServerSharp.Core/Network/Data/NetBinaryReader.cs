@@ -83,18 +83,19 @@ namespace MinecraftServerSharp.Network.Data
 
         public double ReadDouble() => BitConverter.Int64BitsToDouble(ReadLong());
 
-        public VarInt32 ReadVarInt()
+        public VarInt ReadVarInt(out int bytes)
         {
             //AssertHasStream();
-            if (!VarInt32.TryDecode(BaseStream, out var result, out _))
-                throw new EndOfStreamException();
-            return result;
+            VarInt.TryDecode(BaseStream, out var result, out bytes);
+            return (VarInt)result;
         }
 
-        public VarInt64 ReadVarLong()
+        public VarInt ReadVarInt() => ReadVarInt(out _);
+
+        public VarLong ReadVarLong()
         {
             //AssertHasStream();
-            return VarInt64.Decode(BaseStream);
+            return VarLong.Decode(BaseStream);
         }
 
         #region ReadUtf16String
@@ -109,6 +110,7 @@ namespace MinecraftServerSharp.Network.Data
         public string ReadUtf16String(int length)
         {
             NetTextHelper.AssertValidStringByteLength(length * sizeof(char));
+
             return string.Create(length, this, (output, reader) =>
             {
                 // We can use the string as the backing buffer.
@@ -127,43 +129,25 @@ namespace MinecraftServerSharp.Network.Data
         public Utf8String ReadString()
         {
             int byteCount = ReadVarInt();
+            if (byteCount > 3)
+                throw new InvalidDataException();
+
             int length = byteCount / sizeof(byte);
             return ReadString(length);
         }
 
         public Utf8String ReadString(int length)
         {
-            NetTextHelper.AssertValidStringByteLength(length * sizeof(byte));
-            if (length < 2048)
-            {
-                // TODO: put this under a "UNSAFE" conditional
-                unsafe
-                {
-                    byte* tmpPtr = stackalloc byte[length];
-                    var tmp = new Span<byte>(tmpPtr, length);
-                    this.Read(tmp);
+            int bytes = length * sizeof(byte);
+            NetTextHelper.AssertValidStringByteLength(bytes);
 
-                    int charCount = NetTextHelper.Utf8.GetCharCount(tmp);
-                    var str = string.Create(charCount, new BytePointer(tmpPtr, length), (output, data) =>
-                    {
-                        if (NetTextHelper.Utf8.GetChars(data.AsSpan(), output) != output.Length)
-                            throw new InvalidDataException();
-                    });
-                    return new Utf8String(str);
-                }
-            }
-            else
+            // TODO: put this under a "UNSAFE" conditional
+            unsafe
             {
-                var tmp = new byte[length];
-                this.Read(tmp);
-
-                int charCount = NetTextHelper.Utf8.GetCharCount(tmp);
-                var str = string.Create(charCount, tmp, (output, data) =>
+                return Utf8String.Create(bytes, this, (output, reader) =>
                 {
-                    if (NetTextHelper.Utf8.GetChars(data.AsSpan(), output) != output.Length)
-                        throw new InvalidDataException();
+                    reader.Read(output);
                 });
-                return new Utf8String(str);
             }
         }
 

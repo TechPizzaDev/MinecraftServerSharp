@@ -63,7 +63,7 @@ namespace MinecraftServerSharp.Network
             receiveEvent.SetBuffer(receiveBuffer, 0, receiveBuffer.Length);
 
             var connection = new NetConnection(
-                (NetProcessor)acceptEvent.UserToken,
+                Processor,
                 acceptEvent.AcceptSocket,
                 receiveEvent,
                 sendEvent,

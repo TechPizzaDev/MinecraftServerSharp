@@ -3,13 +3,13 @@ using System.IO;
 
 namespace MinecraftServerSharp.DataTypes
 {
-    public readonly struct VarInt32
+    public readonly struct VarInt
     {
         public const int MaxEncodedSize = 5;
 
         public readonly int Value;
 
-        public VarInt32(int value) => Value = value;
+        public VarInt(int value) => Value = value;
 
         public int Encode(Span<byte> destination)
         {
@@ -24,7 +24,7 @@ namespace MinecraftServerSharp.DataTypes
             return index;
         }
 
-        public static bool TryDecode(Stream stream, out VarInt32 result, out int bytes)
+        public static bool TryDecode(Stream stream, out VarInt result, out int bytes)
         {
             int count = 0;
             int shift = 0;
@@ -32,7 +32,11 @@ namespace MinecraftServerSharp.DataTypes
             do
             {
                 if (shift == 5)
-                    throw new InvalidDataException("Shift is too big.");
+                {
+                    result = default;
+                    bytes = -1;
+                    return false;
+                }
 
                 b = stream.ReadByte();
                 if (b == -1)
@@ -47,12 +51,12 @@ namespace MinecraftServerSharp.DataTypes
 
             } while ((b & 0x80) != 0);
 
-            result = count;
+            result = (VarInt)count;
             bytes = shift;
             return true;
         }
 
-        public static int Decode(ReadOnlySpan<byte> source, out int bytes)
+        public static VarInt Decode(ReadOnlySpan<byte> source, out int bytes)
         {
             bytes = 0;
             int count = 0;
@@ -68,10 +72,10 @@ namespace MinecraftServerSharp.DataTypes
 
             } while ((b & 0x80) != 0);
 
-            return count;
+            return (VarInt)count;
         }
 
-        public static implicit operator int(VarInt32 value) => value.Value;
-        public static implicit operator VarInt32(int value) => new VarInt32(value);
+        public static implicit operator int(VarInt value) => value.Value;
+        public static explicit operator VarInt(int value) => new VarInt(value);
     }
 }

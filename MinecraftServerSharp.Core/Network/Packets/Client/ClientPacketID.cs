@@ -1,4 +1,6 @@
-﻿
+﻿using Mapping = MinecraftServerSharp.Network.Packets.PacketIDMappingAttribute;
+using State = MinecraftServerSharp.Network.Packets.ProtocolState;
+
 namespace MinecraftServerSharp.Network.Packets
 {
     public enum ClientPacketID
@@ -7,8 +9,8 @@ namespace MinecraftServerSharp.Network.Packets
 
         #region Handshaking
 
-        Handshake,
-        LegacyServerListPing,
+        [Mapping(0x00, State.Handshaking)] Handshake,
+        [Mapping(0xfe, State.Handshaking)] LegacyServerListPing,
 
         #endregion
 
@@ -29,8 +31,8 @@ namespace MinecraftServerSharp.Network.Packets
 
         #region Play
 
-
-
+        [Mapping(0x03, State.Play)] ChatMessage
+        
         #endregion
     }
 }

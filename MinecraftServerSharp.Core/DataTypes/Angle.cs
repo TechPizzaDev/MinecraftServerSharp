@@ -1,9 +1,9 @@
 ﻿
 namespace MinecraftServerSharp.DataTypes
 {
-    public struct Angle
+    public readonly struct Angle
     {
-        public byte Value;
+        public byte Value { get; }
 
         public Angle(byte value) => Value = value;
     }

@@ -29,8 +29,8 @@ namespace Tests
 
         private static void TestVarInt32(int decimalValue, params byte[] bytes)
         {
-            Span<byte> tmp = stackalloc byte[VarInt32.MaxEncodedSize];
-            int len = new VarInt32(decimalValue).Encode(tmp);
+            Span<byte> tmp = stackalloc byte[VarInt.MaxEncodedSize];
+            int len = new VarInt(decimalValue).Encode(tmp);
             if (!tmp.Slice(0, len).SequenceEqual(bytes))
                 throw new Exception();
         }

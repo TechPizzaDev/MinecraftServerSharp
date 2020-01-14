@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Net;
 using System.Net.Sockets;
+using MinecraftServerSharp.DataTypes;
 using MinecraftServerSharp.Network.Data;
 using MinecraftServerSharp.Network.Packets;
 using MinecraftServerSharp.Utility;
@@ -10,7 +11,7 @@ namespace MinecraftServerSharp.Network
     public class NetConnection
     {
         private Action<NetConnection> _closeAction;
-        
+
         public NetProcessor Processor { get; }
         public Socket Socket { get; }
         public SocketAsyncEventArgs ReceiveEvent { get; }
@@ -23,11 +24,11 @@ namespace MinecraftServerSharp.Network
         public NetBinaryReader Reader { get; }
         public NetBinaryWriter Writer { get; }
 
+        public ProtocolState State { get; set; }
+
         public int ReceivedLength { get; set; } = -1;
         public int ReceivedLengthBytes { get; set; } = -1;
         public int TotalReceivedLength => ReceivedLength + ReceivedLengthBytes;
-
-        public ProtocolState State { get; set; } = ProtocolState.Undefined;
 
         #region Constructors
 
@@ -48,6 +49,8 @@ namespace MinecraftServerSharp.Network
             SendBuffer = Processor.MemoryManager.GetStream();
             Reader = new NetBinaryReader(ReceiveBuffer);
             Writer = new NetBinaryWriter(SendBuffer);
+
+            State = ProtocolState.Handshaking;
 
             // get it here as we can't get it later if the socket gets disposed
             RemoteEndPoint = (IPEndPoint)socket.RemoteEndPoint;
@@ -97,6 +100,27 @@ namespace MinecraftServerSharp.Network
         public void TrimSendBuffer(int length)
         {
             SendBuffer.TrimStart(length);
+        }
+
+        public void Kick(Exception exception)
+        {
+            KickCore("Server Error:\n" + exception);
+        }
+
+        public void Kick(string reason)
+        {
+            KickCore(reason);
+        }
+
+        /// <summary>
+        /// TODO
+        /// </summary>
+        private void KickCore(string reason = null)
+        {
+            //var packet = new ServerDisconnect(new Chat(reason));
+            //WritePacket(packet);
+
+            Close();
         }
 
         public bool Close()

@@ -22,13 +22,16 @@
   <ItemGroup>
     <Compile Remove="Network\Data\INetBinaryReader.cs" />
     <Compile Remove="Network\Data\INetBinaryWriter.cs" />
-    <Compile Remove="Network\Packets\Attributes\PacketPropertyAttribute.cs" />
   </ItemGroup>
 
   <ItemGroup>
     <Compile Include="..\Thirdparty\Microsoft.IO.RecyclableMemoryStream\RecyclableMemoryManager.Events.cs" Link="Utility\RecyclableMemoryManager.Events.cs" />
     <Compile Include="..\Thirdparty\Microsoft.IO.RecyclableMemoryStream\RecyclableMemoryManager.cs" Link="Utility\RecyclableMemoryManager.cs" />
     <Compile Include="..\Thirdparty\Microsoft.IO.RecyclableMemoryStream\RecyclableMemoryStream.cs" Link="Utility\RecyclableMemoryStream.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Text.Json" Version="4.7.0" />
   </ItemGroup>
 
 </Project>

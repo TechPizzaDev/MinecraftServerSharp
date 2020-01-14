@@ -3,7 +3,7 @@ using MinecraftServerSharp.Network.Data;
 
 namespace MinecraftServerSharp.Network.Packets
 {
-    [PacketStruct(ClientPacketID.LegacyServerListPing, ProtocolState.Handshaking)]
+    [PacketStruct(ClientPacketID.LegacyServerListPing)]
     public readonly struct ClientLegacyServerListPing
     {
         public byte PluginIdentifier { get; }
@@ -16,23 +16,33 @@ namespace MinecraftServerSharp.Network.Packets
         public int Port { get; }
 
         [PacketConstructor]
-        public ClientLegacyServerListPing(NetBinaryReader reader)
+        public ClientLegacyServerListPing(NetBinaryReader reader, out bool success) : this()
         {
             PluginIdentifier = reader.ReadByte();
             
             MagicStringLength = reader.ReadShort();
-            if (MagicStringLength != 11) 
-                throw new InvalidDataException();
+            if (MagicStringLength != 11)
+            {
+                success = false;
+                return;
+            }
             MagicString = reader.ReadUtf16String(MagicStringLength);
 
             DataLength = reader.ReadShort();
             ProtocolVersion = reader.ReadByte();
 
             HostnameLength = reader.ReadShort();
-            NetTextHelper.AssertValidStringLength(HostnameLength);
+
+            if (!NetTextHelper.IsValidStringLength(HostnameLength))
+            {
+                success = false;
+                return;
+            }
             Hostname = reader.ReadUtf16String(HostnameLength);
 
             Port = reader.ReadInt();
+
+            success = true;
         }
     }
 }

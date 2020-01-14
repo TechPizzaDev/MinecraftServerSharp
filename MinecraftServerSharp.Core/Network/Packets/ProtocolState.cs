@@ -3,13 +3,13 @@ namespace MinecraftServerSharp.Network.Packets
 {
     public enum ProtocolState
     {
-        Undefined,
+        Undefined = 0,
 
-        Handshaking,
-        Status,
-        Login,
-        Play,
+        Handshaking = 1,
+        Status = 2,
+        Login = 3,
+        Play = 4,
 
-        Disconnected
+        Disconnected = 5
     }
 }

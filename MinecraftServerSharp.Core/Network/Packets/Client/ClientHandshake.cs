@@ -2,20 +2,20 @@
 
 namespace MinecraftServerSharp.Network.Packets
 {
-    [PacketStruct(ClientPacketID.Handshake, ProtocolState.Handshaking)]
+    [PacketStruct(ClientPacketID.Handshake)]
     public readonly struct ClientHandshake
     {
-        public VarInt32 ProtocolVersion { get; }
+        public VarInt ProtocolVersion { get; }
         public Utf8String ServerAddress { get; }
         public ushort ServerPort { get; }
         public ProtocolState NextState { get; }
 
         [PacketConstructor]
         public ClientHandshake(
-            VarInt32 protocolVersion,
+            VarInt protocolVersion,
             [LengthConstraint(Max = 255)] Utf8String serverAddress,
             ushort serverPort,
-            VarInt32 nextState)
+            VarInt nextState)
         {
             ProtocolVersion = protocolVersion;
             ServerAddress = serverAddress;

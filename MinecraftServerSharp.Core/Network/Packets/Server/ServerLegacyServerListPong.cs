@@ -4,7 +4,7 @@ using MinecraftServerSharp.Network.Data;
 
 namespace MinecraftServerSharp.Network.Packets
 {
-    [PacketStruct(ServerPacketID.LegacyServerListPong, ProtocolState.Handshaking)]
+    [PacketStruct(ServerPacketID.LegacyServerListPong)]
     public readonly struct ServerLegacyServerListPong : IWritablePacket
     {
         public int ProtocolVersion { get; }

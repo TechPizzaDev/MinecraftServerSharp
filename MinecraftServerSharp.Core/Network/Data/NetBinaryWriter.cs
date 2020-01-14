@@ -3,6 +3,7 @@ using System.Buffers.Binary;
 using System.IO;
 using System.Text;
 using MinecraftServerSharp.DataTypes;
+using MinecraftServerSharp.Network.Packets;
 
 namespace MinecraftServerSharp.Network.Data
 {
@@ -59,17 +60,17 @@ namespace MinecraftServerSharp.Network.Data
 			Write(tmp);
 		}
 
-		public void WriteVar(int value)
+		public void Write(VarInt value)
 		{
-			Span<byte> tmp = stackalloc byte[VarInt32.MaxEncodedSize];
-			int count = new VarInt32(value).Encode(tmp);
+			Span<byte> tmp = stackalloc byte[VarInt.MaxEncodedSize];
+			int count = value.Encode(tmp);
 			Write(tmp.Slice(0, count));
 		}
 
-		public void WriteVar(long value)
+		public void Write(VarLong value)
 		{
-			Span<byte> tmp = stackalloc byte[VarInt64.MaxEncodedSize];
-			int count = new VarInt64(value).Encode(tmp);
+			Span<byte> tmp = stackalloc byte[VarLong.MaxEncodedSize];
+			int count = value.Encode(tmp);
 			Write(tmp.Slice(0, count));
 		}
 
@@ -79,10 +80,12 @@ namespace MinecraftServerSharp.Network.Data
 
 		#region String Write
 
+		[LengthPrefixed(typeof(VarInt))]
 		public void Write(string value) => Write(value, NetTextHelper.BigUtf16, true);
 
 		public void WriteRaw(string value) => Write(value, NetTextHelper.BigUtf16, false);
 
+		[LengthPrefixed(typeof(VarInt))]
 		public void Write(Utf8String value) => Write(value.ToString(), NetTextHelper.Utf8, true);
 
 		public void WriteRaw(Utf8String value) => Write(value.ToString(), NetTextHelper.Utf8, false);
@@ -91,7 +94,7 @@ namespace MinecraftServerSharp.Network.Data
 		{
 			int byteCount = encoding.GetByteCount(value);
 			if (includeLength)
-				WriteVar(byteCount);
+				Write((VarInt)byteCount);
 
 			int sliceSize = 256;
 			int maxBytesPerSlice = encoding.GetMaxByteCount(sliceSize);

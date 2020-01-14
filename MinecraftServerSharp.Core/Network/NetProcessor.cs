@@ -11,27 +11,36 @@ namespace MinecraftServerSharp.Network
     public partial class NetProcessor
     {
         public const int BlockSize = 1024 * 16;
-        public const int BlockMultiple = BlockSize * 4;
-        public const int MaxPacketSize = BlockMultiple * 32; // 2097152
+        public const int BlockMultiple = BlockSize * 16;
+        public const int MaxBufferSize = BlockMultiple * 16;
 
-        // TODO: move these somewhere
-        public static int ProtocolVersion { get; } = 498;
-        public static MinecraftVersion MinecraftVersion { get; } = new MinecraftVersion(1, 14, 4);
+        // These fit pretty well with the memory block sizes.
+        public const int MaxServerPacketSize = 2097152;
+        public const int MaxClientPacketSize = 32768;
 
         public RecyclableMemoryManager MemoryManager { get; }
         public NetPacketDecoder PacketDecoder { get; }
         public NetPacketEncoder PacketEncoder { get; }
 
+
+        // TODO: move these somewhere
+        public static int ProtocolVersion { get; } = 498;
+        public static MinecraftVersion MinecraftVersion { get; } = new MinecraftVersion(1, 14, 4);
+
+
         #region Constructors
 
-        public NetProcessor(int blockSize, int blockMultiple, int maxPacketSize)
+        public NetProcessor(int blockSize, int blockMultiple, int maxBufferSize)
         {
-            MemoryManager = new RecyclableMemoryManager(blockSize, blockMultiple, maxPacketSize);
+            if (maxBufferSize < Math.Max(MaxClientPacketSize, MaxServerPacketSize))
+                throw new ArgumentOutOfRangeException(nameof(maxBufferSize));
+
+            MemoryManager = new RecyclableMemoryManager(blockSize, blockMultiple, maxBufferSize);
             PacketDecoder = new NetPacketDecoder();
             PacketEncoder = new NetPacketEncoder();
         }
 
-        public NetProcessor() : this(BlockSize, BlockMultiple, MaxPacketSize)
+        public NetProcessor() : this(BlockSize, BlockMultiple, MaxBufferSize)
         {
         }
 
@@ -50,7 +59,7 @@ namespace MinecraftServerSharp.Network
             PacketDecoder.RegisterClientPacketTypesFromCallingAssembly();
             Console.WriteLine("Registered " + PacketDecoder.RegisteredTypeCount + " client packet types");
 
-            PacketDecoder.PreparePacketTypes();
+            PacketDecoder.CreateCoderDelegates();
         }
 
         private void SetupEncoder()
@@ -58,7 +67,7 @@ namespace MinecraftServerSharp.Network
             PacketEncoder.RegisterServerPacketTypesFromCallingAssembly();
             Console.WriteLine("Registered " + PacketDecoder.RegisteredTypeCount + " server packet types");
 
-            PacketEncoder.PreparePacketTypes();
+            PacketEncoder.CreateCoderDelegates();
         }
 
         #endregion
@@ -113,9 +122,9 @@ namespace MinecraftServerSharp.Network
                         else
                         {
                             reader.Seek(0, SeekOrigin.Begin);
-                            if (VarInt32.TryDecode(
+                            if (VarInt.TryDecode(
                                 reader.BaseStream,
-                                out VarInt32 messageLength,
+                                out var messageLength,
                                 out int messageLengthBytes))
                             {
                                 connection.ReceivedLength = messageLength;
@@ -127,14 +136,34 @@ namespace MinecraftServerSharp.Network
                     if (connection.ReceivedLength != -1 &&
                         reader.Length >= connection.ReceivedLength)
                     {
-                        int rawPacketID = connection.Reader.ReadVarInt();
+                        int rawPacketId = connection.Reader.ReadVarInt(out int packetIdBytes);
+                        if(packetIdBytes == -1)
+                        {
+                            connection.Kick("Packet ID is incorrectly encoded.");
+                            return;
+                        }
+
+                        int packetLength = connection.ReceivedLength - packetIdBytes;
+                        if (packetLength > MaxClientPacketSize)
+                        {
+                            connection.Kick(
+                                $"Packet length {packetLength} exceeds {MaxClientPacketSize}.");
+                            return;
+                        }
+
+                        if(!PacketDecoder.TryGetPacketIdDefinition(
+                            connection.State, rawPacketId, out var packetIdDefinition))
+                        {
+                            connection.Kick($"Unknown packet ID \"{rawPacketId}\".");
+                            return;
+                        }
 
                         // TODO: do stuff with packet (and look into NetBuffer),
                         // like put it through that cool pipeline that doesn't exist yet (it almost does)
                         Console.WriteLine(
                             "(" + connection.ReceivedLengthBytes + ") " +
                             connection.ReceivedLength + ": " +
-                            rawPacketID);
+                            rawPacketId);
 
                         connection.TrimCurrentReceivedMessage();
                     }
@@ -142,7 +171,7 @@ namespace MinecraftServerSharp.Network
 
                 if (e.BytesTransferred == 0)
                 {
-                    connection.Close();
+                    connection.Kick("Zero bytes were transferred in the operation.");
                     return;
                 }
 
@@ -152,7 +181,7 @@ namespace MinecraftServerSharp.Network
             catch (Exception ex)
             {
                 Console.WriteLine(ex);
-                connection.Close();
+                connection.Kick("Server Error: \n" + ex);
             }
         }
 
@@ -202,7 +231,7 @@ namespace MinecraftServerSharp.Network
 
                 var answer = new ServerLegacyServerListPong(
                     ProtocolVersion, MinecraftVersion, "A Minecraft Server", 0, 100);
-                
+
                 connection.WritePacket(answer);
 
                 connection.SendEvent.SetBuffer(

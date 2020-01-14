@@ -5,7 +5,7 @@ namespace MinecraftServerSharp.Network.Packets
 {
     public partial class NetPacketDecoder
     {
-        public readonly struct PacketConstructorInfo
+        public class PacketConstructorInfo
         {
             public ConstructorInfo Constructor { get; }
             public PacketConstructorAttribute Attribute { get; }

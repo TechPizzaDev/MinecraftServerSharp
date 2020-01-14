@@ -3,13 +3,13 @@ using System.IO;
 
 namespace MinecraftServerSharp.DataTypes
 {
-    public readonly struct VarInt64
+    public readonly struct VarLong
     {
         public const int MaxEncodedSize = 10;
 
         public readonly long Value;
 
-        public VarInt64(long value) => Value = value;
+        public VarLong(long value) => Value = value;
 
         public int Encode(Span<byte> destination)
         {
@@ -24,7 +24,7 @@ namespace MinecraftServerSharp.DataTypes
             return index;
         }
 
-        public static VarInt64 Decode(Stream stream)
+        public static VarLong Decode(Stream stream)
         {
             long count = 0;
             int shift = 0;
@@ -43,7 +43,7 @@ namespace MinecraftServerSharp.DataTypes
 
             } while ((b & 0x80) != 0);
 
-            return count;
+            return (VarLong)count;
         }
 
         public static long Decode(ReadOnlySpan<byte> source, out int bytes)
@@ -65,7 +65,7 @@ namespace MinecraftServerSharp.DataTypes
             return count;
         }
 
-        public static implicit operator long(VarInt64 value) => value.Value;
-        public static implicit operator VarInt64(long value) => new VarInt64(value);
+        public static implicit operator long(VarLong value) => value.Value;
+        public static explicit operator VarLong(long value) => new VarLong(value);
     }
 }
