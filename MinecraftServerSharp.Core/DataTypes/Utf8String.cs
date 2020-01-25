@@ -1,36 +1,37 @@
 ﻿using System;
 using System.Buffers;
+using System.Runtime.InteropServices;
 using MinecraftServerSharp.Network;
-using MinecraftServerSharp.Utility;
 
 namespace MinecraftServerSharp.DataTypes
 {
-    public unsafe sealed class Utf8String : IDisposable
+    public sealed class Utf8String : IDisposable
     {
         public static Utf8String Empty { get; } = new Utf8String(0);
 
-        private readonly UnmanagedPointer<byte> _bytes;
+        private IntPtr _bytes;
 
-        public bool IsDisposed => _bytes.IsDisposed;
+        public int Length { get; }
+        public bool IsDisposed => _bytes == null;
 
-        public int Length => _bytes.Capacity;
-        public ReadOnlySpan<byte> Bytes => _bytes.Span;
+        private unsafe Span<byte> RawBytes => new Span<byte>((void*)_bytes, Length);
+        public ReadOnlySpan<byte> Bytes => RawBytes;
 
         #region Constructors
 
         private Utf8String(int length)
         {
-            _bytes = length == 0 ? Empty._bytes : new UnmanagedPointer<byte>(length);
+            _bytes = length == 0 ? Empty._bytes : Marshal.AllocHGlobal(length);
         }
 
         public Utf8String(string value) : this(NetTextHelper.Utf8.GetByteCount(value))
         {
-            NetTextHelper.Utf8.GetBytes(value, _bytes.Span);
+            NetTextHelper.Utf8.GetBytes(value, RawBytes);
         }
 
         public Utf8String(ReadOnlySpan<byte> bytes) : this(bytes.Length)
         {
-            bytes.CopyTo(_bytes.Span);
+            bytes.CopyTo(RawBytes);
         }
 
         #endregion
@@ -38,7 +39,7 @@ namespace MinecraftServerSharp.DataTypes
         public static Utf8String Create<TState>(int length, TState state, SpanAction<byte, TState> action)
         {
             var str = new Utf8String(length);
-            action.Invoke(str._bytes.Span, state);
+            action.Invoke(str.RawBytes, state);
             return str;
         }
 
@@ -47,12 +48,31 @@ namespace MinecraftServerSharp.DataTypes
         /// </summary>
         public override string ToString()
         {
-            return NetTextHelper.Utf8.GetString(_bytes.Span);
+            return NetTextHelper.Utf8.GetString(RawBytes);
+        }
+
+        #region IDisposable
+
+        private void DisposeCore()
+        {
+            if (_bytes != IntPtr.Zero)
+            {
+                Marshal.FreeHGlobal(_bytes);
+                _bytes = IntPtr.Zero;
+            }
         }
 
         public void Dispose()
         {
-            _bytes.Dispose();
+            DisposeCore();
+            GC.SuppressFinalize(this);
         }
+
+        ~Utf8String()
+        {
+            DisposeCore();
+        }
+
+        #endregion
     }
 }

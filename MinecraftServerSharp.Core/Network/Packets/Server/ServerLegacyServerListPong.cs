@@ -7,6 +7,7 @@ namespace MinecraftServerSharp.Network.Packets
     [PacketStruct(ServerPacketID.LegacyServerListPong)]
     public readonly struct ServerLegacyServerListPong : IWritablePacket
     {
+        public bool IsBeta { get; }
         public int ProtocolVersion { get; }
         public MinecraftVersion MinecraftVersion { get; }
         public string MessageOfTheDay { get; }
@@ -14,9 +15,11 @@ namespace MinecraftServerSharp.Network.Packets
         public int MaxPlayers { get; }
 
         public ServerLegacyServerListPong(
-            int protocolVersion, MinecraftVersion minecraftVersion, 
+            bool isBeta,
+            int protocolVersion, MinecraftVersion minecraftVersion,
             string messageOfTheDay, int currentPlayerCount, int maxPlayers)
         {
+            IsBeta = isBeta;
             ProtocolVersion = protocolVersion;
             MinecraftVersion = minecraftVersion ?? throw new ArgumentNullException(nameof(minecraftVersion));
             MessageOfTheDay = messageOfTheDay ?? throw new ArgumentNullException(nameof(messageOfTheDay));
@@ -26,22 +29,27 @@ namespace MinecraftServerSharp.Network.Packets
 
         public void Write(NetBinaryWriter writer)
         {
-            void WriteField(string value)
+            bool isBeta = IsBeta;
+            void WriteField(string value, bool delimit = true)
             {
                 writer.WriteRaw(value);
-                writer.Write((short)0); // null char delimeter
+                if (delimit)
+                    writer.Write((short)(isBeta ? '§' : 0)); // null char delimeter
             }
 
             writer.Write((byte)0xff);
             writer.Write((short)0); // reserved space for message length
 
             long startPos = writer.Position;
-            WriteField("§1");
-            WriteField(ProtocolVersion.ToString());
-            WriteField(MinecraftVersion.ToString());
+            if (!isBeta)
+            {
+                WriteField("§1");
+                WriteField(ProtocolVersion.ToString());
+                WriteField(MinecraftVersion.ToString());
+            }
             WriteField(MessageOfTheDay.ToString());
             WriteField(CurrentPlayerCount.ToString());
-            writer.WriteRaw(MaxPlayers.ToString()); // don't write with null char delimeter
+            WriteField(MaxPlayers.ToString(), delimit: false);
 
             int byteLength = (int)(writer.Position - startPos);
             int reservedSpaceOffset = (int)(startPos - sizeof(short));

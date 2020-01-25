@@ -58,12 +58,13 @@ namespace MinecraftServerSharp.Network
 
         #endregion
 
-        public int ReadPacket<TPacket>(out TPacket packet)
+        public (Packets.ReadCode Code, int Length) ReadPacket<TPacket>(out TPacket packet)
         {
             var reader = Processor.PacketDecoder.GetPacketReader<TPacket>();
             long oldPosition = Reader.Position;
-            packet = reader.Invoke(Reader);
-            return (int)(Reader.Position - oldPosition);
+            var resultCode = reader.Invoke(Reader, out packet);
+            int length = (int)(Reader.Position - oldPosition);
+            return (resultCode, length);
         }
 
         public TPacket ReadPacket<TPacket>()
@@ -76,7 +77,7 @@ namespace MinecraftServerSharp.Network
         {
             var writer = Processor.PacketEncoder.GetPacketWriter<TPacket>();
             long oldPosition = Writer.Position;
-            writer.Invoke(packet, Writer);
+            writer.Invoke(Writer, packet);
             return (int)(Writer.Position - oldPosition);
         }
 

@@ -12,7 +12,7 @@ namespace MinecraftServerSharp.Network.Packets
     /// </summary>
     public partial class NetPacketEncoder : NetPacketCoder<ServerPacketID>
     {
-        public delegate void PacketWriterDelegate<in TPacket>(TPacket packet, NetBinaryWriter writer);
+        public delegate void PacketWriterDelegate<in TPacket>(NetBinaryWriter writer, TPacket packet);
 
         #region Constructors
 
@@ -77,7 +77,8 @@ namespace MinecraftServerSharp.Network.Packets
             }
 
             var packetWriterDelegate = typeof(PacketWriterDelegate<>).MakeGenericType(structInfo.Type);
-            var resultLambda = Expression.Lambda(packetWriterDelegate, lambdaBody, new[] { packetParam, writerParam });
+            var lambdaArgs = new[] { writerParam, packetParam };
+            var resultLambda = Expression.Lambda(packetWriterDelegate, lambdaBody, lambdaArgs);
             var resultDelegate = resultLambda.Compile();
             return resultDelegate;
         }
@@ -107,7 +108,7 @@ namespace MinecraftServerSharp.Network.Packets
                 var property = propertyList[i];
                 var propertyAccessor = Expression.Property(packetParam, property.Property);
                 
-                var writeMethod = DataTypes[new DataTypeKey(typeof(void), new[] { property.Type })];
+                var writeMethod = ReadMethods[new DataTypeKey(typeof(void), new[] { property.Type })];
                 var args = new[] { propertyAccessor };
                 
                 var lengthPrefixedAttrib = writeMethod.GetCustomAttribute<LengthPrefixedAttribute>();
@@ -118,7 +119,6 @@ namespace MinecraftServerSharp.Network.Packets
                 }
 
                 var call = Expression.Call(writerParam, writeMethod, args);
-                
                 expressionList[i] = call;
             }
 

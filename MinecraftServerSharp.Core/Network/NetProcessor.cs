@@ -25,7 +25,8 @@ namespace MinecraftServerSharp.Network
 
         // TODO: move these somewhere
         public static int ProtocolVersion { get; } = 498;
-        public static MinecraftVersion MinecraftVersion { get; } = new MinecraftVersion(1, 14, 4);
+        public static MinecraftVersion GameVersion { get; } = new MinecraftVersion(1, 14, 4);
+        public static bool Config_AppendGameVersionToBetaStatus { get; } = true;
 
 
         #region Constructors
@@ -109,8 +110,7 @@ namespace MinecraftServerSharp.Network
                     reader.Seek(0, SeekOrigin.Begin);
                     if (connection.ReceivedLength == -1)
                     {
-                        if (reader.ReadByte() == 0xfe &&
-                            reader.ReadByte() == 0x01)
+                        if (reader.TryRead() == 0xfe)
                         {
                             bool fullyRead = ReadLegacyServerListPing(connection);
                             if (fullyRead)
@@ -137,7 +137,7 @@ namespace MinecraftServerSharp.Network
                         reader.Length >= connection.ReceivedLength)
                     {
                         int rawPacketId = connection.Reader.ReadVarInt(out int packetIdBytes);
-                        if(packetIdBytes == -1)
+                        if (packetIdBytes == -1)
                         {
                             connection.Kick("Packet ID is incorrectly encoded.");
                             return;
@@ -151,7 +151,7 @@ namespace MinecraftServerSharp.Network
                             return;
                         }
 
-                        if(!PacketDecoder.TryGetPacketIdDefinition(
+                        if (!PacketDecoder.TryGetPacketIdDefinition(
                             connection.State, rawPacketId, out var packetIdDefinition))
                         {
                             connection.Kick($"Unknown packet ID \"{rawPacketId}\".");
@@ -204,6 +204,7 @@ namespace MinecraftServerSharp.Network
                 if (nextSendLength == 0)
                     return;
 
+                // TODO: add sending by block instead of using GetBuffer()
                 e.SetBuffer(connection.SendBuffer.GetBuffer(), 0, nextSendLength);
                 if (!connection.Socket.SendAsync(e))
                     goto AfterSend;
@@ -227,21 +228,45 @@ namespace MinecraftServerSharp.Network
 
             try
             {
-                connection.ReadPacket(out ClientLegacyServerListPing packet);
+                bool isBeta = false;
+                string motd = "A minecraft server";
+
+                var reader = connection.Reader;
+                if (reader.Length == 1)
+                {
+                    // Message will be for client between Beta 1.8 and 1.3
+                    isBeta = true;
+                    reader.Position -= 1;
+                }
+                else if (reader.Length >= 2 && reader.TryRead() == 0x01)
+                {
+                    if (reader.Length > 2)
+                    {
+                        connection.ReadPacket(out ClientLegacyServerListPing packet);
+                    }
+                }
+                else
+                {
+                    return true;
+                }
+
+                if (isBeta && Config_AppendGameVersionToBetaStatus)
+                    motd = motd + " - " + GameVersion;
 
                 var answer = new ServerLegacyServerListPong(
-                    ProtocolVersion, MinecraftVersion, "A Minecraft Server", 0, 100);
-
+                    isBeta, ProtocolVersion, GameVersion, motd, 0, 100);
                 connection.WritePacket(answer);
 
+                var buffer = connection.SendBuffer.GetBuffer();
                 connection.SendEvent.SetBuffer(
-                    connection.SendBuffer.GetBuffer(), 0, (int)connection.SendBuffer.Length);
+                    buffer, 0, (int)connection.SendBuffer.Length);
 
                 if (!connection.Socket.SendAsync(connection.SendEvent))
                     ProcessSend(connection);
             }
-            catch
+            catch (Exception ex)
             {
+                Console.WriteLine(ex);
             }
             return true;
         }

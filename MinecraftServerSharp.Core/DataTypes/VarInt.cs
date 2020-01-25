@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using MinecraftServerSharp.Network.Data;
 
 namespace MinecraftServerSharp.DataTypes
 {
@@ -24,18 +25,18 @@ namespace MinecraftServerSharp.DataTypes
             return index;
         }
 
-        public static bool TryDecode(Stream stream, out VarInt result, out int bytes)
+        public static ReadCode TryDecode(Stream stream, out VarInt result, out int bytes)
         {
             int count = 0;
             int shift = 0;
             int b;
             do
             {
-                if (shift == 5)
+                if (shift == MaxEncodedSize)
                 {
                     result = default;
                     bytes = -1;
-                    return false;
+                    return ReadCode.InvalidData;
                 }
 
                 b = stream.ReadByte();
@@ -43,7 +44,7 @@ namespace MinecraftServerSharp.DataTypes
                 {
                     result = default;
                     bytes = shift;
-                    return false;
+                    return ReadCode.EndOfStream;
                 }
 
                 count |= (b & 0x7F) << (shift * 7);
@@ -53,26 +54,7 @@ namespace MinecraftServerSharp.DataTypes
 
             result = (VarInt)count;
             bytes = shift;
-            return true;
-        }
-
-        public static VarInt Decode(ReadOnlySpan<byte> source, out int bytes)
-        {
-            bytes = 0;
-            int count = 0;
-            byte b;
-            do
-            {
-                if (bytes == 5)
-                    throw new InvalidDataException("Shift is too big.");
-
-                b = source[bytes];
-                count |= (b & 0x7F) << (bytes * 7);
-                bytes++;
-
-            } while ((b & 0x80) != 0);
-
-            return (VarInt)count;
+            return ReadCode.Ok;
         }
 
         public static implicit operator int(VarInt value) => value.Value;

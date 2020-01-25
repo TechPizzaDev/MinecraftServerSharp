@@ -7,42 +7,39 @@ namespace MinecraftServerSharp.Network.Packets
     public readonly struct ClientLegacyServerListPing
     {
         public byte PluginIdentifier { get; }
-        public short MagicStringLength { get; }
         public string MagicString { get; }
         public short DataLength { get; }
         public byte ProtocolVersion { get; }
-        public short HostnameLength { get; }
         public string Hostname { get; }
         public int Port { get; }
 
         [PacketConstructor]
-        public ClientLegacyServerListPing(NetBinaryReader reader, out bool success) : this()
+        public ClientLegacyServerListPing(NetBinaryReader reader, out ReadCode code) : this()
         {
-            PluginIdentifier = reader.ReadByte();
+            PluginIdentifier = reader.TryRead();
             
-            MagicStringLength = reader.ReadShort();
-            if (MagicStringLength != 11)
+            var magicStringLength = reader.ReadShort();
+            if (magicStringLength != 11)
             {
-                success = false;
+                code = ReadCode.InvalidData;
                 return;
             }
-            MagicString = reader.ReadUtf16String(MagicStringLength);
+            MagicString = reader.ReadUtf16String(magicStringLength);
 
             DataLength = reader.ReadShort();
-            ProtocolVersion = reader.ReadByte();
+            ProtocolVersion = reader.TryRead();
 
-            HostnameLength = reader.ReadShort();
-
-            if (!NetTextHelper.IsValidStringLength(HostnameLength))
+            var hostnameLength = reader.ReadShort();
+            if (!NetTextHelper.IsValidStringLength(hostnameLength))
             {
-                success = false;
+                code = ReadCode.InvalidData;
                 return;
             }
-            Hostname = reader.ReadUtf16String(HostnameLength);
+            Hostname = reader.ReadUtf16String(hostnameLength);
 
             Port = reader.ReadInt();
 
-            success = true;
+            code = ReadCode.Ok;
         }
     }
 }

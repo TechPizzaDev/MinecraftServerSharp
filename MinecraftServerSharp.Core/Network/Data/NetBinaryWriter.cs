@@ -11,7 +11,7 @@ namespace MinecraftServerSharp.Network.Data
 	{
 		public Stream BaseStream { get; }
 
-		public long Position => BaseStream.Position;
+		public long Position { get => BaseStream.Position; set => BaseStream.Position = value; }
 		public long Length => BaseStream.Length;
 
 		public NetBinaryWriter(Stream stream) => BaseStream = stream;

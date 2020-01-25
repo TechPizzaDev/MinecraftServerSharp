@@ -12,7 +12,7 @@ namespace MinecraftServerSharp.Network.Packets
         private const int MaxPacketIdMapIndex = 5;
 
         protected Dictionary<Type, PacketStructInfo> RegisteredTypes { get; }
-        protected Dictionary<DataTypeKey, MethodInfo> DataTypes { get; }
+        protected Dictionary<DataTypeKey, MethodInfo> ReadMethods { get; }
         protected Dictionary<Type, Delegate> PacketCoderDelegates { get; }
 
         /// <summary>
@@ -29,7 +29,7 @@ namespace MinecraftServerSharp.Network.Packets
         public NetPacketCoder()
         {
             RegisteredTypes = new Dictionary<Type, PacketStructInfo>();
-            DataTypes = new Dictionary<DataTypeKey, MethodInfo>();
+            ReadMethods = new Dictionary<DataTypeKey, MethodInfo>();
             PacketCoderDelegates = new Dictionary<Type, Delegate>();
 
             PacketIdMaps = new Dictionary<int, PacketIdDefinition>[MaxPacketIdMapIndex + 1];
@@ -88,8 +88,8 @@ namespace MinecraftServerSharp.Network.Packets
                 throw new ArgumentNullException(nameof(method));
 
             var paramTypes = method.GetParameters().Select(x => x.ParameterType).ToArray();
-            lock (DataTypes)
-                DataTypes.Add(new DataTypeKey(method.ReturnType, paramTypes), method);
+            lock (ReadMethods)
+                ReadMethods.Add(new DataTypeKey(method.ReturnType, paramTypes), method);
         }
 
         #endregion

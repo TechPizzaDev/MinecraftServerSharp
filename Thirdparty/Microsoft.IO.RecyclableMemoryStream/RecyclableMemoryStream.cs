@@ -399,8 +399,10 @@ namespace MinecraftServerSharp.Utility
         /// The buffer may be longer than the stream length.
         /// </summary>
         /// <returns>A byte[] buffer</returns>
-        /// <remarks>IMPORTANT: Doing a Write() after calling GetBuffer() invalidates the buffer. The old buffer is held onto
-        /// until Dispose is called, but the next time GetBuffer() is called, a new buffer from the pool will be required.</remarks>
+        /// <remarks>
+        /// IMPORTANT: Doing a Write() after calling GetBuffer() invalidates the buffer. The old buffer is held onto
+        /// until Dispose is called, but the next time GetBuffer() is called, a new buffer from the pool will be required.
+        /// </remarks>
         /// <exception cref="ObjectDisposedException">Object has been disposed</exception>
         public override byte[] GetBuffer()
         {
@@ -911,7 +913,7 @@ namespace MinecraftServerSharp.Utility
             else
             {
                 while (Capacity < newCapacity)
-                    _blocks.Add((_memoryManager.GetBlock()));
+                    _blocks.Add(_memoryManager.GetBlock());
             }
         }
 

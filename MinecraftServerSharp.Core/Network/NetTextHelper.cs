@@ -23,13 +23,13 @@ namespace MinecraftServerSharp.Network
 
         public static void AssertValidStringLength(int length)
         {
-            if (IsValidStringLength(length))
+            if (!IsValidStringLength(length))
                 throw new ArgumentException(nameof(length));
         }
 
         public static void AssertValidStringByteLength(int byteLength)
         {
-            if (IsValidStringByteLength(byteLength))
+            if (!IsValidStringByteLength(byteLength))
                 throw new ArgumentOutOfRangeException(nameof(byteLength));
         }
     }

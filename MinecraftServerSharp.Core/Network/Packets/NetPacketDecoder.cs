@@ -7,18 +7,12 @@ using MinecraftServerSharp.Network.Data;
 
 namespace MinecraftServerSharp.Network.Packets
 {
-    public enum ResultCode
-    {
-        Ok,
-        EndOfStream
-    }
-
     /// <summary>
     /// Gives access to transforms that turn network messages into packets.
     /// </summary>
     public partial class NetPacketDecoder : NetPacketCoder<ClientPacketID>
     {
-        public delegate ResultCode PacketReaderDelegate<TPacket>(NetBinaryReader reader, out TPacket packet);
+        public delegate ReadCode PacketReaderDelegate<TPacket>(NetBinaryReader reader, out TPacket packet);
 
         #region Constructors
 
@@ -31,9 +25,9 @@ namespace MinecraftServerSharp.Network.Packets
         {
             void Register(string method) => RegisterDataTypeFrom(typeof(NetBinaryReader), method);
 
-            Register(nameof(NetBinaryReader.ReadBool));
+            Register(nameof(NetBinaryReader.Read));
             Register(nameof(NetBinaryReader.ReadSByte));
-            Register(nameof(NetBinaryReader.ReadByte));
+            Register(nameof(NetBinaryReader.Read));
             Register(nameof(NetBinaryReader.ReadShort));
             Register(nameof(NetBinaryReader.ReadUShort));
             Register(nameof(NetBinaryReader.ReadInt));
@@ -85,60 +79,79 @@ namespace MinecraftServerSharp.Network.Packets
             // TODO: instead of only giving readMethod a NetBinaryReader, 
             // give it a state object with user-defined values/objects
             var readerParam = Expression.Parameter(typeof(NetBinaryReader), "Reader");
-            var resultCodeParam = Expression.Parameter(typeof(ResultCode), "ResultCode");
+            var outPacketParam = Expression.Parameter(structInfo.Type.MakeByRefType(), "Packet");
+
+            var resultCodeVariable = Expression.Variable(typeof(ReadCode), "ResultCode");
+            variables.Add(resultCodeVariable);
+            
+            expressions.Add(Expression.Assign(
+                resultCodeVariable, Expression.Default(resultCodeVariable.Type)));
+
+            bool isComplex;
 
             if (constructParams.Length == 2 &&
                 constructParams[0].ParameterType == typeof(NetBinaryReader) &&
-                constructParams[1].ParameterType == typeof(ResultCode))
+                constructParams[1].ParameterType == typeof(ReadCode).MakeByRefType())
             {
-                if (!constructParams[1].IsOut)
-                    throw new Exception();
-
                 constructorArgs.Add(readerParam);
-                constructorArgs.Add(resultCodeParam);
+                constructorArgs.Add(resultCodeVariable);
+                isComplex = false;
             }
             else
             {
                 CreateComplexPacketReader(
                     variables, constructorArgs, expressions,
-                    readerParam, resultCodeParam, 
-                    constructParams, constructInfo);
+                    readerParam, resultCodeVariable, constructParams);
+                isComplex = true;
             }
 
-            var construct = Expression.New(constructInfo.Constructor, constructorArgs);
-            expressions.Add(construct);
+            var newPacket = Expression.New(constructInfo.Constructor, constructorArgs);
+            var assignPacket = Expression.Assign(outPacketParam, newPacket);
 
-            expressions.Add(resultCodeParam); // return the result code
+            if (isComplex)
+            {
+                var codeOkCheck = Expression.Equal(resultCodeVariable, Expression.Constant(ReadCode.Ok));
+                var conditional = Expression.IfThen(codeOkCheck, assignPacket);
+                expressions.Add(conditional);
+            }
+            else
+            {
+                expressions.Add(assignPacket);
+            }
+            expressions.Add(resultCodeVariable); // return the code by adding it at the end of the block
             
             var packetReaderDelegate = typeof(PacketReaderDelegate<>).MakeGenericType(structInfo.Type);
             var lambdaBody = Expression.Block(variables, expressions);
-            var resultLambda = Expression.Lambda(packetReaderDelegate, lambdaBody, new[] { readerParam });
+            var lambdaParams = new[] { readerParam, outPacketParam };
+            var resultLambda = Expression.Lambda(packetReaderDelegate, lambdaBody, lambdaParams);
             var resultDelegate = resultLambda.Compile();
             return resultDelegate;
         }
 
-        private BlockExpression CreateComplexPacketReader(
+        private void CreateComplexPacketReader(
             List<ParameterExpression> variables,
             List<Expression> constructorArgs,
             List<Expression> expressions,
             ParameterExpression readerParam,
-            ParameterExpression successParam,
-            ParameterInfo[] parameters,
-            PacketConstructorInfo constructorInfo)
+            ParameterExpression resultCodeParam,
+            ParameterInfo[] constructorParams)
         {
-            for (int i = 0; i < parameters.Length; i++)
+            for (int i = 0; i < constructorParams.Length; i++)
             {
-                var parameter = parameters[i];
-                var result = Expression.Variable(parameter.ParameterType, parameter.Name);
+                var constructorParam = constructorParams[i];
+                var result = Expression.Variable(constructorParam.ParameterType, constructorParam.Name);
 
-                var readMethod = DataTypes[new DataTypeKey(parameter.ParameterType)];
+                var readMethod = ReadMethods[new DataTypeKey(constructorParam.ParameterType)];
                 var call = Expression.Call(readerParam, readMethod);
                 var assign = Expression.Assign(result, call);
 
-                variables.Add(constructorArgs);
+                variables.Add(result);
                 constructorArgs.Add(result);
                 expressions.Add(assign);
             }
+
+            var okAssign = Expression.Assign(resultCodeParam, Expression.Constant(ReadCode.Ok));
+            expressions.Add(okAssign);
         }
     }
 }
