@@ -1,10 +1,10 @@
 ﻿using System;
 
-namespace MinecraftServerSharp.DataTypes
+namespace MinecraftServerSharp
 {
-    public static class EnumToVarIntExtensions
+    public static partial class EnumExtensions
     {
-        public static VarInt ToVarInt32<TEnum>(this TEnum value)
+        public static VarInt ToVarInt<TEnum>(this TEnum value)
             where TEnum : Enum
         {
             long num = EnumConverter<TEnum>.Convert(value);
@@ -13,7 +13,7 @@ namespace MinecraftServerSharp.DataTypes
             return (VarInt)num;
         }
 
-        public static VarLong ToVarInt64<TEnum>(this TEnum value)
+        public static VarLong ToVarLong<TEnum>(this TEnum value)
             where TEnum : Enum
         {
             long num = EnumConverter<TEnum>.Convert(value);

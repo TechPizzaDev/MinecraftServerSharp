@@ -8,19 +8,24 @@ namespace MinecraftServerSharp.Network.Packets
     [AttributeUsage(AttributeTargets.Struct, Inherited = false, AllowMultiple = false)]
     public sealed class PacketStructAttribute : Attribute
     {
-        public ClientPacketID ClientPacketID { get; }
-        public ServerPacketID ServerPacketID { get; }
+        public int PacketID { get; }
 
-        public PacketStructAttribute(ClientPacketID packetID)
+        public bool IsClientPacket { get; }
+        public bool IsServerPacket { get; }
+
+        public PacketStructAttribute(int packetID)
         {
-            ClientPacketID = packetID;
-            ServerPacketID = ServerPacketID.Undefined;
+            PacketID = packetID;
         }
 
-        public PacketStructAttribute(ServerPacketID packetID)
+        public PacketStructAttribute(ClientPacketID packetID) : this((int)packetID)
         {
-            ClientPacketID = ClientPacketID.Undefined;
-            ServerPacketID = packetID;
+            IsClientPacket = true;
+        }
+
+        public PacketStructAttribute(ServerPacketID packetID) : this((int)packetID)
+        {
+            IsServerPacket = true;
         }
     }
 }

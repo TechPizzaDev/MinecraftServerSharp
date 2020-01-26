@@ -10,8 +10,6 @@ namespace MinecraftServerSharp.Network.Packets
 
         public PacketIDMappingAttribute(int rawID, ProtocolState state)
         {
-            RawID = rawID;
-
             switch (state)
             {
                 case ProtocolState.Handshaking:
@@ -25,6 +23,8 @@ namespace MinecraftServerSharp.Network.Packets
                 case ProtocolState.Disconnected:
                     throw new ArgumentOutOfRangeException(nameof(state));
             }
+
+            RawID = rawID;
             State = state;
         }
     }

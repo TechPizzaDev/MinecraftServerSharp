@@ -1,45 +1,61 @@
-﻿using System.IO;
-using MinecraftServerSharp.Network.Data;
+﻿using MinecraftServerSharp.Network.Data;
 
 namespace MinecraftServerSharp.Network.Packets
 {
     [PacketStruct(ClientPacketID.LegacyServerListPing)]
     public readonly struct ClientLegacyServerListPing
     {
-        public byte PluginIdentifier { get; }
-        public string MagicString { get; }
-        public short DataLength { get; }
-        public byte ProtocolVersion { get; }
-        public string Hostname { get; }
-        public int Port { get; }
+        public readonly byte PluginIdentifier;
+        public readonly string MagicString;
+        public readonly short DataLength;
+        public readonly byte ProtocolVersion;
+        public readonly string Hostname;
+        public readonly int Port;
 
         [PacketConstructor]
         public ClientLegacyServerListPing(NetBinaryReader reader, out ReadCode code) : this()
         {
-            PluginIdentifier = reader.TryRead();
-            
-            var magicStringLength = reader.ReadShort();
+            code = reader.Read(out PluginIdentifier);
+            if (code != ReadCode.Ok) 
+                return;
+
+            code = reader.Read(out short magicStringLength);
+            if (code != ReadCode.Ok) 
+                return;
+
             if (magicStringLength != 11)
             {
                 code = ReadCode.InvalidData;
                 return;
             }
-            MagicString = reader.ReadUtf16String(magicStringLength);
 
-            DataLength = reader.ReadShort();
-            ProtocolVersion = reader.TryRead();
+            code = reader.Read(magicStringLength, out MagicString);
+            if (code != ReadCode.Ok) 
+                return;
 
-            var hostnameLength = reader.ReadShort();
-            if (!NetTextHelper.IsValidStringLength(hostnameLength))
+            code = reader.Read(out DataLength);
+            if (code != ReadCode.Ok) 
+                return;
+
+            code = reader.Read(out ProtocolVersion);
+            if (code != ReadCode.Ok) 
+                return;
+
+            code = reader.Read(out short hostnameLength);
+            if (code != ReadCode.Ok) 
+                return;
+
+            if (!StringHelper.IsValidStringLength(hostnameLength))
             {
                 code = ReadCode.InvalidData;
                 return;
             }
-            Hostname = reader.ReadUtf16String(hostnameLength);
 
-            Port = reader.ReadInt();
+            code = reader.Read(hostnameLength, out Hostname);
+            if (code != ReadCode.Ok)
+                return;
 
-            code = ReadCode.Ok;
+            code = reader.Read(out Port);
         }
     }
 }

@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace MinecraftServerSharp.DataTypes
+namespace MinecraftServerSharp
 {
     public static class VarIntExtensions
     {

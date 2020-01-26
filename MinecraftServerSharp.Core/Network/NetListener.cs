@@ -73,7 +73,7 @@ namespace MinecraftServerSharp.Network
             sendEvent.UserToken = connection;
 
             // TODO: Use delay when sending initial data, 
-            // then don't use delay when initial data has been sent.
+            // then disable delay after initial data has been sent.
             connection.Socket.NoDelay = true;
 
             // TODO: do some validation of the client

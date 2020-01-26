@@ -11,7 +11,7 @@ namespace MinecraftServerSharp.Network.Packets
             public Type ReturnType { get; }
             public Type[] Parameters { get; }
 
-            public DataTypeKey(Type returnType, Type[] arguments = null)
+            public DataTypeKey(Type returnType, params Type[] arguments)
             {
                 ReturnType = returnType ?? throw new ArgumentNullException(nameof(returnType));
                 Parameters = arguments ?? Array.Empty<Type>();

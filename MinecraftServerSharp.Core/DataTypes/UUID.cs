@@ -1,5 +1,5 @@
 ﻿
-namespace MinecraftServerSharp.DataTypes
+namespace MinecraftServerSharp
 {
     public readonly struct UUID
     {

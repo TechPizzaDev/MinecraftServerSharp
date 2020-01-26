@@ -10,9 +10,6 @@ namespace MinecraftServerSharp.Network.Packets
         public Type Type { get; }
         public PacketStructAttribute Attribute { get; }
 
-        public bool IsClientPacket => Attribute.ClientPacketID != ClientPacketID.Undefined;
-        public bool IsServerPacket => Attribute.ServerPacketID != ServerPacketID.Undefined;
-
         public PacketStructInfo(Type type, PacketStructAttribute attribute)
         {
             Type = type ?? throw new ArgumentNullException(nameof(type));
@@ -33,9 +30,7 @@ namespace MinecraftServerSharp.Network.Packets
             {
                 var structAttribute = type.GetCustomAttribute<PacketStructAttribute>();
                 if (structAttribute != null)
-                {
                     yield return new PacketStructInfo(type, structAttribute);
-                }
             }
         }
     }

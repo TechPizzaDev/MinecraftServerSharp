@@ -1,5 +1,4 @@
-﻿using MinecraftServerSharp.DataTypes;
-
+﻿
 namespace MinecraftServerSharp.Network.Packets
 {
     public readonly struct ServerDisconnect

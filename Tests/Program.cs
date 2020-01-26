@@ -1,6 +1,5 @@
 ﻿using System;
-using MinecraftServerSharp.DataTypes;
-using MinecraftServerSharp.Network.Data;
+using MinecraftServerSharp;
 
 namespace Tests
 {
@@ -8,26 +7,26 @@ namespace Tests
     {
         private static void Main(string[] args)
         {
-            TestVarInt32();
-            Console.WriteLine(nameof(TestVarInt32) + " passed");
+            TestVarInt();
+            Console.WriteLine(nameof(TestVarInt) + " passed");
         }
 
-        #region TestVarInt32
+        #region TestVarInt
 
-        private static void TestVarInt32()
+        private static void TestVarInt()
         {
-            TestVarInt32(0, 0);
-            TestVarInt32(1, 1);
-            TestVarInt32(2, 2);
-            TestVarInt32(127, 127);
-            TestVarInt32(128, 128, 1);
-            TestVarInt32(255, 255, 1);
-            TestVarInt32(2147483647, 255, 255, 255, 255, 7);
-            TestVarInt32(-1, 255, 255, 255, 255, 15);
-            TestVarInt32(-2147483648, 128, 128, 128, 128, 8);
+            TestVarInt(0, 0);
+            TestVarInt(1, 1);
+            TestVarInt(2, 2);
+            TestVarInt(127, 127);
+            TestVarInt(128, 128, 1);
+            TestVarInt(255, 255, 1);
+            TestVarInt(2147483647, 255, 255, 255, 255, 7);
+            TestVarInt(-1, 255, 255, 255, 255, 15);
+            TestVarInt(-2147483648, 128, 128, 128, 128, 8);
         }
 
-        private static void TestVarInt32(int decimalValue, params byte[] bytes)
+        private static void TestVarInt(int decimalValue, params byte[] bytes)
         {
             Span<byte> tmp = stackalloc byte[VarInt.MaxEncodedSize];
             int len = new VarInt(decimalValue).Encode(tmp);

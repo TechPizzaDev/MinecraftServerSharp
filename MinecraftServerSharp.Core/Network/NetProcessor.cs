@@ -1,8 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Net.Sockets;
-using System.Threading;
-using MinecraftServerSharp.DataTypes;
+using MinecraftServerSharp.Network.Data;
 using MinecraftServerSharp.Network.Packets;
 using MinecraftServerSharp.Utility;
 
@@ -21,7 +20,7 @@ namespace MinecraftServerSharp.Network
         public RecyclableMemoryManager MemoryManager { get; }
         public NetPacketDecoder PacketDecoder { get; }
         public NetPacketEncoder PacketEncoder { get; }
-
+        private NetPacketDecoder.PacketIdDefinition LegacyServerListPingPacketDefinition { get; set; }
 
         // TODO: move these somewhere
         public static int ProtocolVersion { get; } = 498;
@@ -60,13 +59,22 @@ namespace MinecraftServerSharp.Network
             PacketDecoder.RegisterClientPacketTypesFromCallingAssembly();
             Console.WriteLine("Registered " + PacketDecoder.RegisteredTypeCount + " client packet types");
 
+            PacketDecoder.InitializePacketIdMaps();
+
             PacketDecoder.CreateCoderDelegates();
+
+            if (!PacketDecoder.TryGetPacketIdDefinition(ClientPacketID.LegacyServerListPing, out var definition))
+                throw new InvalidOperationException(
+                    $"Missing packet definition for \"{nameof(ClientPacketID.LegacyServerListPing)}\".");
+            LegacyServerListPingPacketDefinition = definition;
         }
 
         private void SetupEncoder()
         {
             PacketEncoder.RegisterServerPacketTypesFromCallingAssembly();
             Console.WriteLine("Registered " + PacketDecoder.RegisteredTypeCount + " server packet types");
+
+            PacketEncoder.InitializePacketIdMaps();
 
             PacketEncoder.CreateCoderDelegates();
         }
@@ -94,15 +102,16 @@ namespace MinecraftServerSharp.Network
                 var reader = connection.Reader;
 
             AfterReceive:
-                if (e.SocketError != SocketError.Success)
+                if (e.SocketError != SocketError.Success ||
+                    e.BytesTransferred == 0)
                 {
                     connection.Close();
                     return;
                 }
 
-                // We process by the message length, 
+                // We process by the message length (unless it's a legacy server list ping), 
                 // so don't worry if we received parts of the next message.
-                reader.Seek(0, SeekOrigin.End);
+                connection.ReceiveBuffer.Seek(0, SeekOrigin.End);
                 connection.ReceiveBuffer.Write(e.MemoryBuffer.Span.Slice(0, e.BytesTransferred));
 
                 if (reader.Length > 0)
@@ -110,10 +119,11 @@ namespace MinecraftServerSharp.Network
                     reader.Seek(0, SeekOrigin.Begin);
                     if (connection.ReceivedLength == -1)
                     {
-                        if (reader.TryRead() == 0xfe)
+                        if (reader.ReadByte() == LegacyServerListPingPacketDefinition.RawID)
                         {
-                            bool fullyRead = ReadLegacyServerListPing(connection);
-                            if (fullyRead)
+                            var readCode = ReadLegacyServerListPing(connection);
+                            if (readCode == ReadCode.Ok ||
+                                readCode == ReadCode.InvalidData)
                             {
                                 connection.Close();
                                 return;
@@ -122,10 +132,7 @@ namespace MinecraftServerSharp.Network
                         else
                         {
                             reader.Seek(0, SeekOrigin.Begin);
-                            if (VarInt.TryDecode(
-                                reader.BaseStream,
-                                out var messageLength,
-                                out int messageLengthBytes))
+                            if (reader.Read(out VarInt messageLength, out int messageLengthBytes) == ReadCode.Ok)
                             {
                                 connection.ReceivedLength = messageLength;
                                 connection.ReceivedLengthBytes = messageLengthBytes;
@@ -136,43 +143,24 @@ namespace MinecraftServerSharp.Network
                     if (connection.ReceivedLength != -1 &&
                         reader.Length >= connection.ReceivedLength)
                     {
-                        int rawPacketId = connection.Reader.ReadVarInt(out int packetIdBytes);
-                        if (packetIdBytes == -1)
-                        {
-                            connection.Kick("Packet ID is incorrectly encoded.");
+                        if (!ValidatePacket(connection, out var rawPacketId, out var packetIdDefinition))
                             return;
+
+                        if (packetIdDefinition.ID == ClientPacketID.Handshake)
+                        {
+                            if (connection.ReadPacket<ClientHandshake>(out var handshakePacket).Code == ReadCode.Ok)
+                            {
+                                Console.WriteLine("owo");
+                            }
                         }
 
-                        int packetLength = connection.ReceivedLength - packetIdBytes;
-                        if (packetLength > MaxClientPacketSize)
-                        {
-                            connection.Kick(
-                                $"Packet length {packetLength} exceeds {MaxClientPacketSize}.");
-                            return;
-                        }
-
-                        if (!PacketDecoder.TryGetPacketIdDefinition(
-                            connection.State, rawPacketId, out var packetIdDefinition))
-                        {
-                            connection.Kick($"Unknown packet ID \"{rawPacketId}\".");
-                            return;
-                        }
-
-                        // TODO: do stuff with packet (and look into NetBuffer),
-                        // like put it through that cool pipeline that doesn't exist yet (it almost does)
                         Console.WriteLine(
                             "(" + connection.ReceivedLengthBytes + ") " +
                             connection.ReceivedLength + ": " +
-                            rawPacketId);
+                            packetIdDefinition.ID);
 
-                        connection.TrimCurrentReceivedMessage();
+                        connection.TrimFirstReceivedMessage();
                     }
-                }
-
-                if (e.BytesTransferred == 0)
-                {
-                    connection.Kick("Zero bytes were transferred in the operation.");
-                    return;
                 }
 
                 if (!connection.Socket.ReceiveAsync(e))
@@ -190,24 +178,25 @@ namespace MinecraftServerSharp.Network
             try
             {
                 var e = connection.SendEvent;
-                var writer = connection.Writer;
 
             AfterSend:
                 if (e.SocketError != SocketError.Success)
                 {
                     connection.Close();
-                    return;
                 }
-                connection.TrimSendBuffer(e.BytesTransferred);
+                else
+                {
+                    connection.TrimSendBuffer(e.BytesTransferred);
 
-                int nextSendLength = (int)connection.SendBuffer.Length;
-                if (nextSendLength == 0)
-                    return;
+                    int nextSendLength = (int)connection.SendBuffer.Length;
+                    if (nextSendLength == 0)
+                        return;
 
-                // TODO: add sending by block instead of using GetBuffer()
-                e.SetBuffer(connection.SendBuffer.GetBuffer(), 0, nextSendLength);
-                if (!connection.Socket.SendAsync(e))
-                    goto AfterSend;
+                    // TODO: add sending by block instead of using GetBuffer()
+                    e.SetBuffer(connection.SendBuffer.GetBuffer(), 0, nextSendLength);
+                    if (!connection.Socket.SendAsync(e))
+                        goto AfterSend;
+                }
             }
             catch (Exception ex)
             {
@@ -216,16 +205,38 @@ namespace MinecraftServerSharp.Network
             }
         }
 
-        private bool ReadLegacyServerListPing(NetConnection connection)
+        private bool ValidatePacket(
+            NetConnection connection,
+            out VarInt rawPacketId, out NetPacketDecoder.PacketIdDefinition definition)
         {
-            // Ensure that the whole message is read,
-            // as we don't know it's length.
-            if (connection.Socket.Available != 0)
+            if (connection.Reader.Read(out rawPacketId, out int packetIdBytes) != ReadCode.Ok)
             {
-                Thread.Sleep(5);
+                connection.Kick("Packet ID is incorrectly encoded.");
+                definition = default;
                 return false;
             }
 
+            int packetLength = connection.ReceivedLength - packetIdBytes;
+            if (packetLength > MaxClientPacketSize)
+            {
+                connection.Kick(
+                    $"Packet length {packetLength} exceeds {MaxClientPacketSize}.");
+                definition = default;
+                return false;
+            }
+
+            if (!PacketDecoder.TryGetPacketIdDefinition(
+                connection.State, rawPacketId, out definition))
+            {
+                connection.Kick($"Unknown packet ID \"{rawPacketId}\".");
+                return false;
+            }
+
+            return true;
+        }
+
+        private ReadCode ReadLegacyServerListPing(NetConnection connection)
+        {
             try
             {
                 bool isBeta = false;
@@ -234,20 +245,28 @@ namespace MinecraftServerSharp.Network
                 var reader = connection.Reader;
                 if (reader.Length == 1)
                 {
-                    // Message will be for client between Beta 1.8 and 1.3
                     isBeta = true;
-                    reader.Position -= 1;
                 }
-                else if (reader.Length >= 2 && reader.TryRead() == 0x01)
+                else if (reader.Length >= 2)
                 {
+                    var payloadRead = reader.Read(out byte payload);
+                    if (payloadRead != ReadCode.Ok)
+                        return payloadRead;
+
+                    if (payload != 0x01)
+                        return ReadCode.InvalidData;
+
                     if (reader.Length > 2)
                     {
-                        connection.ReadPacket(out ClientLegacyServerListPing packet);
+                        var (packetRead, length) = connection.ReadPacket(out ClientLegacyServerListPing packet);
+                        if (packetRead != ReadCode.Ok)
+                            return packetRead;
                     }
                 }
                 else
                 {
-                    return true;
+                    // Should typically not throw.
+                    throw new InvalidOperationException("Nothing to read.");
                 }
 
                 if (isBeta && Config_AppendGameVersionToBetaStatus)
@@ -255,20 +274,24 @@ namespace MinecraftServerSharp.Network
 
                 var answer = new ServerLegacyServerListPong(
                     isBeta, ProtocolVersion, GameVersion, motd, 0, 100);
+
                 connection.WritePacket(answer);
 
+                // TODO: fix this send mess
                 var buffer = connection.SendBuffer.GetBuffer();
                 connection.SendEvent.SetBuffer(
                     buffer, 0, (int)connection.SendBuffer.Length);
 
                 if (!connection.Socket.SendAsync(connection.SendEvent))
                     ProcessSend(connection);
+
+                return ReadCode.Ok;
             }
             catch (Exception ex)
             {
                 Console.WriteLine(ex);
+                return ReadCode.InvalidData;
             }
-            return true;
         }
     }
 }

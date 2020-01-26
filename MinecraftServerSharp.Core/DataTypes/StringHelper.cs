@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Text;
 
-namespace MinecraftServerSharp.Network
+namespace MinecraftServerSharp
 {
-    public static class NetTextHelper
+    public static class StringHelper
     {
         public const int MaxStringLength = 32767;
 

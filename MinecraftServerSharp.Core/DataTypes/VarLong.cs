@@ -1,13 +1,16 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO;
 using MinecraftServerSharp.Network.Data;
 
-namespace MinecraftServerSharp.DataTypes
+namespace MinecraftServerSharp
 {
+    [DebuggerDisplay("{Value, nq}")]
     public readonly struct VarLong
     {
         public const int MaxEncodedSize = 10;
 
+        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
         public readonly long Value;
 
         public VarLong(long value) => Value = value;
@@ -27,15 +30,14 @@ namespace MinecraftServerSharp.DataTypes
 
         public static ReadCode TryDecode(Stream stream, out VarLong result, out int bytes)
         {
+            bytes = 0;
             long count = 0;
-            int shift = 0;
             long b;
             do
             {
-                if (shift == MaxEncodedSize)
+                if (bytes == MaxEncodedSize)
                 {
                     result = default;
-                    bytes = -1;
                     return ReadCode.InvalidData;
                 }
 
@@ -43,17 +45,15 @@ namespace MinecraftServerSharp.DataTypes
                 if (b == -1)
                 {
                     result = default;
-                    bytes = shift;
                     return ReadCode.EndOfStream;
                 }
 
-                count |= (b & 0x7F) << (shift * 7);
-                shift++;
+                count |= (b & 0x7F) << (bytes * 7);
+                bytes++;
 
             } while ((b & 0x80) != 0);
 
             result = (VarLong)count;
-            bytes = shift;
             return ReadCode.Ok;
         }
 

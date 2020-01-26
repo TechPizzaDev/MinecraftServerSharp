@@ -5,10 +5,10 @@ namespace MinecraftServerSharp.Utility
 {
     public static class EnumerableExtensions
     {
-        public static string ToListString<T>(this IEnumerable<T> items)
+        public static string ToListString<T>(this IEnumerable<T> items, string separator = ", ")
         {
             var builder = new StringBuilder();
-            builder.AppendJoin(", ", items);
+            builder.AppendJoin(separator, items);
             return builder.ToString();
         }
     }

@@ -11,11 +11,11 @@ namespace MinecraftServerSharp.Network.Packets
             public int RawID { get; }
             public TPacketID ID { get; }
 
-            public PacketIdDefinition(Type type, int rawID, TPacketID iD)
+            public PacketIdDefinition(Type type, int rawID, TPacketID id)
             {
                 Type = type ?? throw new ArgumentNullException(nameof(type));
                 RawID = rawID;
-                ID = iD;
+                ID = id;
             }
         }
     }

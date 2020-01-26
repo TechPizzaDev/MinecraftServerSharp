@@ -8,46 +8,54 @@ using MinecraftServerSharp.Network.Data;
 namespace MinecraftServerSharp.Network.Packets
 {
     /// <summary>
-    /// Gives access to transforms that turn network messages into packets.
+    /// Gives access to delegates that turn network messages into packets.
     /// </summary>
     public partial class NetPacketDecoder : NetPacketCoder<ClientPacketID>
     {
         public delegate ReadCode PacketReaderDelegate<TPacket>(NetBinaryReader reader, out TPacket packet);
 
-        #region Constructors
-
         public NetPacketDecoder() : base()
         {
-            RegisterDataTypesFromBinaryReader();
+            RegisterDataTypes();
         }
 
-        private void RegisterDataTypesFromBinaryReader()
+        #region RegisterDataType[s]
+
+        protected override void RegisterDataType(params Type[] arguments)
         {
-            void Register(string method) => RegisterDataTypeFrom(typeof(NetBinaryReader), method);
+            RegisterDataTypeFromMethod(typeof(NetBinaryReader), "Read", arguments);
+        }
 
-            Register(nameof(NetBinaryReader.Read));
-            Register(nameof(NetBinaryReader.ReadSByte));
-            Register(nameof(NetBinaryReader.Read));
-            Register(nameof(NetBinaryReader.ReadShort));
-            Register(nameof(NetBinaryReader.ReadUShort));
-            Register(nameof(NetBinaryReader.ReadInt));
-            Register(nameof(NetBinaryReader.ReadLong));
+        protected virtual void RegisterDataTypes()
+        {
+            void RegisterDataTypeAsOut(Type outType)
+            {
+                RegisterDataType(outType.MakeByRefType());
+            }
 
-            Register(nameof(NetBinaryReader.ReadVarInt));
-            Register(nameof(NetBinaryReader.ReadVarLong));
+            RegisterDataTypeAsOut(typeof(bool));
+            RegisterDataTypeAsOut(typeof(sbyte));
+            RegisterDataTypeAsOut(typeof(byte));
+            RegisterDataTypeAsOut(typeof(short));
+            RegisterDataTypeAsOut(typeof(ushort));
+            RegisterDataTypeAsOut(typeof(int));
+            RegisterDataTypeAsOut(typeof(long));
 
-            Register(nameof(NetBinaryReader.ReadFloat));
-            Register(nameof(NetBinaryReader.ReadDouble));
+            RegisterDataTypeAsOut(typeof(VarInt));
+            RegisterDataTypeAsOut(typeof(VarLong));
 
-            Register(nameof(NetBinaryReader.ReadString));
-            Register(nameof(NetBinaryReader.ReadUtf16String));
+            RegisterDataTypeAsOut(typeof(float));
+            RegisterDataTypeAsOut(typeof(double));
+
+            RegisterDataTypeAsOut(typeof(Utf8String));
+            RegisterDataTypeAsOut(typeof(string));
         }
 
         #endregion
 
         public void RegisterClientPacketTypesFromCallingAssembly()
         {
-            RegisterPacketTypesFromCallingAssembly(x => x.IsClientPacket);
+            RegisterPacketTypesFromCallingAssembly(x => x.Attribute.IsClientPacket);
         }
 
         public PacketReaderDelegate<TPacket> GetPacketReader<TPacket>()
@@ -59,19 +67,18 @@ namespace MinecraftServerSharp.Network.Packets
         {
             var constructors = structInfo.Type.GetConstructors();
             var constructorInfoList = constructors
+                .Where(c => c.GetCustomAttribute<PacketConstructorAttribute>() != null)
                 .Select(c => new PacketConstructorInfo(c, c.GetCustomAttribute<PacketConstructorAttribute>()))
-                .Where(x => x.Attribute != null)
                 .ToList();
 
             if (constructorInfoList.Count == 0)
                 throw new Exception("No packet constructors are defined.");
-
             if (constructorInfoList.Count > 1)
-                throw new Exception("Only one packet constructor may be specified.");
+                throw new Exception("Only one packet constructor may be defined.");
 
             var constructInfo = constructorInfoList[0];
-            var constructParams = constructInfo.Constructor.GetParameters();
-            
+            var constructorParams = constructInfo.Constructor.GetParameters();
+
             var variables = new List<ParameterExpression>();
             var expressions = new List<Expression>();
             var constructorArgs = new List<Expression>();
@@ -80,52 +87,37 @@ namespace MinecraftServerSharp.Network.Packets
             // give it a state object with user-defined values/objects
             var readerParam = Expression.Parameter(typeof(NetBinaryReader), "Reader");
             var outPacketParam = Expression.Parameter(structInfo.Type.MakeByRefType(), "Packet");
+            var resultCodeVar = Expression.Variable(typeof(ReadCode), "ReadCode");
+            variables.Add(resultCodeVar);
 
-            var resultCodeVariable = Expression.Variable(typeof(ReadCode), "ResultCode");
-            variables.Add(resultCodeVariable);
+            var returnTarget = Expression.Label("Return");
             
-            expressions.Add(Expression.Assign(
-                resultCodeVariable, Expression.Default(resultCodeVariable.Type)));
-
-            bool isComplex;
-
-            if (constructParams.Length == 2 &&
-                constructParams[0].ParameterType == typeof(NetBinaryReader) &&
-                constructParams[1].ParameterType == typeof(ReadCode).MakeByRefType())
+            if (constructorParams.Length == 2 &&
+                constructorParams[0].ParameterType == typeof(NetBinaryReader) &&
+                constructorParams[1].ParameterType == typeof(ReadCode).MakeByRefType())
             {
                 constructorArgs.Add(readerParam);
-                constructorArgs.Add(resultCodeVariable);
-                isComplex = false;
+                constructorArgs.Add(resultCodeVar);
             }
             else
             {
                 CreateComplexPacketReader(
                     variables, constructorArgs, expressions,
-                    readerParam, resultCodeVariable, constructParams);
-                isComplex = true;
+                    readerParam, resultCodeVar,
+                    returnTarget, constructorParams);
             }
 
             var newPacket = Expression.New(constructInfo.Constructor, constructorArgs);
-            var assignPacket = Expression.Assign(outPacketParam, newPacket);
+            expressions.Add(Expression.Assign(outPacketParam, newPacket));
 
-            if (isComplex)
-            {
-                var codeOkCheck = Expression.Equal(resultCodeVariable, Expression.Constant(ReadCode.Ok));
-                var conditional = Expression.IfThen(codeOkCheck, assignPacket);
-                expressions.Add(conditional);
-            }
-            else
-            {
-                expressions.Add(assignPacket);
-            }
-            expressions.Add(resultCodeVariable); // return the code by adding it at the end of the block
-            
-            var packetReaderDelegate = typeof(PacketReaderDelegate<>).MakeGenericType(structInfo.Type);
+            expressions.Add(Expression.Label(returnTarget));
+            expressions.Add(resultCodeVar);
+
+            var readerDelegate = typeof(PacketReaderDelegate<>).MakeGenericType(structInfo.Type);
             var lambdaBody = Expression.Block(variables, expressions);
             var lambdaParams = new[] { readerParam, outPacketParam };
-            var resultLambda = Expression.Lambda(packetReaderDelegate, lambdaBody, lambdaParams);
-            var resultDelegate = resultLambda.Compile();
-            return resultDelegate;
+            var resultLambda = Expression.Lambda(readerDelegate, lambdaBody, lambdaParams);
+            return resultLambda.Compile();
         }
 
         private void CreateComplexPacketReader(
@@ -133,25 +125,29 @@ namespace MinecraftServerSharp.Network.Packets
             List<Expression> constructorArgs,
             List<Expression> expressions,
             ParameterExpression readerParam,
-            ParameterExpression resultCodeParam,
+            ParameterExpression resultCodeVar,
+            LabelTarget returnTarget,
             ParameterInfo[] constructorParams)
         {
             for (int i = 0; i < constructorParams.Length; i++)
             {
                 var constructorParam = constructorParams[i];
-                var result = Expression.Variable(constructorParam.ParameterType, constructorParam.Name);
+                var resultVar = Expression.Variable(constructorParam.ParameterType, constructorParam.Name);
+                if (constructorParam.ParameterType.IsByRef)
+                    throw new Exception("An implicit packet constructor may not contain by-ref parameters.");
 
-                var readMethod = ReadMethods[new DataTypeKey(constructorParam.ParameterType)];
-                var call = Expression.Call(readerParam, readMethod);
-                var assign = Expression.Assign(result, call);
+                variables.Add(resultVar);
+                constructorArgs.Add(resultVar);
 
-                variables.Add(result);
-                constructorArgs.Add(result);
-                expressions.Add(assign);
+                var dataTypeKey = new DataTypeKey(typeof(ReadCode), constructorParam.ParameterType.MakeByRefType());
+                var readMethod = DataTypes[dataTypeKey];
+                var readCall = Expression.Call(readerParam, readMethod, arguments: resultVar);
+                expressions.Add(Expression.Assign(resultCodeVar, readCall));
+
+                expressions.Add(Expression.IfThen(
+                    test: Expression.NotEqual(resultCodeVar, Expression.Constant(ReadCode.Ok)),
+                    ifTrue: Expression.Goto(returnTarget)));
             }
-
-            var okAssign = Expression.Assign(resultCodeParam, Expression.Constant(ReadCode.Ok));
-            expressions.Add(okAssign);
         }
     }
 }

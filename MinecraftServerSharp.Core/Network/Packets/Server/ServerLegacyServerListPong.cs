@@ -53,8 +53,12 @@ namespace MinecraftServerSharp.Network.Packets
 
             int byteLength = (int)(writer.Position - startPos);
             int reservedSpaceOffset = (int)(startPos - sizeof(short));
+
+            long endPosition = writer.Position;
             writer.Seek(reservedSpaceOffset, SeekOrigin.Begin);
             writer.Write((short)(byteLength / sizeof(char)));
+
+            writer.Seek((int)endPosition, SeekOrigin.Begin);
         }
     }
 }

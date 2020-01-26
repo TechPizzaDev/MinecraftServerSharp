@@ -8,7 +8,7 @@ namespace MinecraftServerSharp.Network.Data
     {
         public static void Read(this NetBinaryReader reader, Span<byte> buffer)
         {
-            if (reader.TryRead(buffer) != buffer.Length)
+            if (reader.ReadBytes(buffer) != buffer.Length)
                 throw new EndOfStreamException();
         }
 
@@ -28,7 +28,7 @@ namespace MinecraftServerSharp.Network.Data
                 int numRead = 0;
                 do
                 {
-                    int n = reader.TryRead(buffer.AsSpan(0, count));
+                    int n = reader.ReadBytes(buffer.AsSpan(0, count));
                     if (n == 0)
                         break;
 

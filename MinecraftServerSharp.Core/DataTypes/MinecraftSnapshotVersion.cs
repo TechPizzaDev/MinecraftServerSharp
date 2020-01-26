@@ -1,5 +1,5 @@
 ﻿
-namespace MinecraftServerSharp.Network.Packets
+namespace MinecraftServerSharp
 {
     public class MinecraftSnapshotVersion : MinecraftVersion
     {

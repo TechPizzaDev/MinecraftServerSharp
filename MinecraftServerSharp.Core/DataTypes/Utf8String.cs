@@ -1,45 +1,47 @@
 ﻿using System;
 using System.Buffers;
-using System.Runtime.InteropServices;
-using MinecraftServerSharp.Network;
+using System.Diagnostics;
 
-namespace MinecraftServerSharp.DataTypes
+namespace MinecraftServerSharp
 {
-    public sealed class Utf8String : IDisposable
+    [DebuggerDisplay("{ToString()}")]
+    public readonly struct Utf8String
     {
-        public static Utf8String Empty { get; } = new Utf8String(0);
+        public static Utf8String Empty { get; } = new Utf8String(Array.Empty<byte>());
 
-        private IntPtr _bytes;
+        private readonly byte[] _bytes;
 
-        public int Length { get; }
-        public bool IsDisposed => _bytes == null;
-
-        private unsafe Span<byte> RawBytes => new Span<byte>((void*)_bytes, Length);
-        public ReadOnlySpan<byte> Bytes => RawBytes;
+        public ReadOnlySpan<byte> Bytes => _bytes;
+        public int Length => _bytes.Length;
 
         #region Constructors
 
-        private Utf8String(int length)
+        private Utf8String(byte[] bytes) => _bytes = bytes;
+
+        private Utf8String(int length) : this(length == 0 ? Empty._bytes : new byte[length])
         {
-            _bytes = length == 0 ? Empty._bytes : Marshal.AllocHGlobal(length);
         }
 
-        public Utf8String(string value) : this(NetTextHelper.Utf8.GetByteCount(value))
+        public Utf8String(string value) : this(StringHelper.Utf8.GetByteCount(value))
         {
-            NetTextHelper.Utf8.GetBytes(value, RawBytes);
+            StringHelper.Utf8.GetBytes(value, _bytes);
         }
 
         public Utf8String(ReadOnlySpan<byte> bytes) : this(bytes.Length)
         {
-            bytes.CopyTo(RawBytes);
+            bytes.CopyTo(_bytes);
         }
 
         #endregion
 
-        public static Utf8String Create<TState>(int length, TState state, SpanAction<byte, TState> action)
+        public static Utf8String Create<TState>(
+            int length, TState state, SpanAction<byte, TState> action)
         {
+            if (length == 0)
+                return Empty;
+
             var str = new Utf8String(length);
-            action.Invoke(str.RawBytes, state);
+            action.Invoke(str._bytes, state);
             return str;
         }
 
@@ -48,31 +50,7 @@ namespace MinecraftServerSharp.DataTypes
         /// </summary>
         public override string ToString()
         {
-            return NetTextHelper.Utf8.GetString(RawBytes);
+            return StringHelper.Utf8.GetString(Bytes);
         }
-
-        #region IDisposable
-
-        private void DisposeCore()
-        {
-            if (_bytes != IntPtr.Zero)
-            {
-                Marshal.FreeHGlobal(_bytes);
-                _bytes = IntPtr.Zero;
-            }
-        }
-
-        public void Dispose()
-        {
-            DisposeCore();
-            GC.SuppressFinalize(this);
-        }
-
-        ~Utf8String()
-        {
-            DisposeCore();
-        }
-
-        #endregion
     }
 }

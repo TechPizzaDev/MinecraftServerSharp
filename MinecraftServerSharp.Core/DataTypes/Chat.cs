@@ -1,6 +1,5 @@
-﻿using System;
-
-namespace MinecraftServerSharp.DataTypes
+﻿
+namespace MinecraftServerSharp
 {
     public readonly struct Chat
     {
@@ -8,7 +7,7 @@ namespace MinecraftServerSharp.DataTypes
 
         public Chat(Utf8String value)
         {
-            Value = value ?? throw new ArgumentNullException(nameof(value));
+            Value = value;
         }
     }
 }

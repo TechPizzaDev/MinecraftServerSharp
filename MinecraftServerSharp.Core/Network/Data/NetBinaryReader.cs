@@ -2,7 +2,6 @@
 using System.Buffers.Binary;
 using System.IO;
 using System.Runtime.InteropServices;
-using MinecraftServerSharp.DataTypes;
 
 namespace MinecraftServerSharp.Network.Data
 {
@@ -14,21 +13,32 @@ namespace MinecraftServerSharp.Network.Data
         public long Length => BaseStream.Length;
         public long Remaining => Length - Position;
 
-        public NetBinaryReader(Stream stream) => BaseStream = stream;
+        public NetBinaryReader(Stream stream)
+        {
+            BaseStream = stream;
+        }
 
         public long Seek(int offset, SeekOrigin origin)
         {
             return BaseStream.Seek(offset, origin);
         }
 
-        public int TryRead(Span<byte> buffer)
+        public int ReadBytes(Span<byte> buffer)
         {
             return BaseStream.Read(buffer);
         }
 
-        public int TryRead()
+        public int ReadByte()
         {
             return BaseStream.ReadByte();
+        }
+
+        public int PeekByte()
+        {
+            int b = ReadByte();
+            if (b != -1)
+                Seek(-1, SeekOrigin.Current);
+            return b;
         }
 
         public ReadCode Read(Span<byte> buffer)
@@ -46,7 +56,7 @@ namespace MinecraftServerSharp.Network.Data
                 value = default;
                 return ReadCode.EndOfStream;
             }
-            value = TryRead() != 0;
+            value = ReadByte() != 0;
             return ReadCode.Ok;
         }
 
@@ -57,7 +67,7 @@ namespace MinecraftServerSharp.Network.Data
                 value = default;
                 return ReadCode.EndOfStream;
             }
-            value = (sbyte)TryRead();
+            value = (sbyte)ReadByte();
             return ReadCode.Ok;
         }
 
@@ -68,13 +78,13 @@ namespace MinecraftServerSharp.Network.Data
                 value = default;
                 return ReadCode.EndOfStream;
             }
-            value = (byte)TryRead();
+            value = (byte)ReadByte();
             return ReadCode.Ok;
         }
 
         public ReadCode Read(out short value)
         {
-            if(Remaining < sizeof(short))
+            if (Remaining < sizeof(short))
             {
                 value = default;
                 return ReadCode.EndOfStream;
@@ -148,21 +158,17 @@ namespace MinecraftServerSharp.Network.Data
             return ReadCode.Ok;
         }
 
-        public ReadCode Read(out VarInt value, out int bytes)
-        {
-            return VarInt.TryDecode(BaseStream, out value, out bytes);
-        }
+        public ReadCode Read(out VarInt value, out int bytes) => VarInt.TryDecode(BaseStream, out value, out bytes);
 
         public ReadCode Read(out VarInt value) => Read(out value, out _);
 
-        public ReadCode Read(out VarLong value, out int bytes)
-        {
-            return VarLong.TryDecode(BaseStream, out value, out bytes);
-        }
+        public ReadCode Read(out VarLong value, out int bytes) => VarLong.TryDecode(BaseStream, out value, out bytes);
 
-        #region ReadUtf16String
+        public ReadCode Read(out VarLong value) => Read(out value, out _);
 
-        public ReadCode ReadUtf16String(out string value)
+        #region Read(string)
+
+        public ReadCode Read(out string value)
         {
             var code = Read(out VarInt byteCount, out int lengthBytes);
             if (code != ReadCode.Ok)
@@ -177,27 +183,12 @@ namespace MinecraftServerSharp.Network.Data
             }
 
             int length = byteCount / sizeof(char);
-            return ReadUtf16String(length, out value);
-        }
-   
-        // TODO: put this under an unsafe conditional
-        private unsafe struct StringReadState
-        {
-            private ReadCode* _codeOutput;
-
-            public NetBinaryReader Reader { get; }
-            public ReadCode Code { get => *_codeOutput; set => *_codeOutput = value; }
-
-            public StringReadState(NetBinaryReader reader, ReadCode* codeOutput)
-            {
-                Reader = reader;
-                _codeOutput = codeOutput;
-            }
+            return Read(length, out value);
         }
 
-        public unsafe ReadCode ReadUtf16String(int length, out string value)
+        public unsafe ReadCode Read(int length, out string value)
         {
-            if (!NetTextHelper.IsValidStringByteLength(length * sizeof(char)))
+            if (!StringHelper.IsValidStringByteLength(length * sizeof(char)))
             {
                 value = default;
                 return ReadCode.InvalidData;
@@ -213,15 +204,14 @@ namespace MinecraftServerSharp.Network.Data
                 if ((state.Code = state.Reader.Read(outputBytes)) != ReadCode.Ok)
                     return;
 
-                if (NetTextHelper.BigUtf16.GetChars(outputBytes, output) != output.Length)
-                    state.Code = ReadCode.InvalidData;
+                StringHelper.BigUtf16.GetChars(outputBytes, output);
             });
             return code;
         }
 
         #endregion
 
-        #region ReadString
+        #region Read(Utf8String)
 
         public ReadCode Read(out Utf8String value)
         {
@@ -238,13 +228,13 @@ namespace MinecraftServerSharp.Network.Data
             }
 
             int length = byteCount / sizeof(byte);
-            return ReadString(length, out value);
+            return Read(length, out value);
         }
 
-        public unsafe ReadCode ReadString(int length, out Utf8String value)
+        public unsafe ReadCode Read(int length, out Utf8String value)
         {
             // length is already in bytes
-            NetTextHelper.AssertValidStringByteLength(length);
+            StringHelper.AssertValidStringByteLength(length);
 
             var code = ReadCode.Ok;
             var readState = new StringReadState(this, &code);
@@ -258,5 +248,20 @@ namespace MinecraftServerSharp.Network.Data
         }
 
         #endregion
+
+        // TODO: put this under an unsafe conditional
+        private unsafe struct StringReadState
+        {
+            private ReadCode* _codeOutput;
+
+            public NetBinaryReader Reader { get; }
+            public ReadCode Code { get => *_codeOutput; set => *_codeOutput = value; }
+
+            public StringReadState(NetBinaryReader reader, ReadCode* codeOutput)
+            {
+                Reader = reader;
+                _codeOutput = codeOutput;
+            }
+        }
     }
 }

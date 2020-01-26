@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Net;
 using System.Net.Sockets;
-using MinecraftServerSharp.DataTypes;
 using MinecraftServerSharp.Network.Data;
 using MinecraftServerSharp.Network.Packets;
 using MinecraftServerSharp.Utility;
@@ -58,19 +57,13 @@ namespace MinecraftServerSharp.Network
 
         #endregion
 
-        public (Packets.ReadCode Code, int Length) ReadPacket<TPacket>(out TPacket packet)
+        public (ReadCode Code, int Length) ReadPacket<TPacket>(out TPacket packet)
         {
             var reader = Processor.PacketDecoder.GetPacketReader<TPacket>();
             long oldPosition = Reader.Position;
             var resultCode = reader.Invoke(Reader, out packet);
             int length = (int)(Reader.Position - oldPosition);
             return (resultCode, length);
-        }
-
-        public TPacket ReadPacket<TPacket>()
-        {
-            ReadPacket(out TPacket packet);
-            return packet;
         }
 
         public int WritePacket<TPacket>(TPacket packet)
@@ -82,10 +75,10 @@ namespace MinecraftServerSharp.Network
         }
 
         /// <summary>
-        /// Removes the current message from the receive buffer
+        /// Removes the first message from the receive buffer
         /// while keeping all the to-be-processed data.
         /// </summary>
-        public void TrimCurrentReceivedMessage()
+        public void TrimFirstReceivedMessage()
         {
             int offset = TotalReceivedLength;
             TrimReceiveBuffer(offset);
@@ -113,11 +106,10 @@ namespace MinecraftServerSharp.Network
             KickCore(reason);
         }
 
-        /// <summary>
-        /// TODO
-        /// </summary>
         private void KickCore(string reason = null)
         {
+            // TODO: Send the reason as a message
+
             //var packet = new ServerDisconnect(new Chat(reason));
             //WritePacket(packet);
 

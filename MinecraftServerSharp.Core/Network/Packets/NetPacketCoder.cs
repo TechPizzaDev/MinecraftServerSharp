@@ -9,46 +9,64 @@ namespace MinecraftServerSharp.Network.Packets
     public abstract partial class NetPacketCoder<TPacketID>
         where TPacketID : Enum
     {
-        private const int MaxPacketIdMapIndex = 5;
-
-        protected Dictionary<Type, PacketStructInfo> RegisteredTypes { get; }
-        protected Dictionary<DataTypeKey, MethodInfo> ReadMethods { get; }
+        protected Dictionary<DataTypeKey, MethodInfo> DataTypes { get; }
+        protected Dictionary<Type, PacketStructInfo> RegisteredPacketTypes { get; }
         protected Dictionary<Type, Delegate> PacketCoderDelegates { get; }
 
         /// <summary>
-        /// Array of ID-to-packet type mappings,
+        /// Array of ID-to-packet mappings,
         /// indexed by the integer value of <see cref="ProtocolState"/>.
         /// </summary>
         protected Dictionary<int, PacketIdDefinition>[] PacketIdMaps { get; }
 
-        public int RegisteredTypeCount => RegisteredTypes.Count;
+        public int RegisteredTypeCount => RegisteredPacketTypes.Count;
         public int PreparedTypeCount => PacketCoderDelegates.Count;
-
-        #region Constructors
 
         public NetPacketCoder()
         {
-            RegisteredTypes = new Dictionary<Type, PacketStructInfo>();
-            ReadMethods = new Dictionary<DataTypeKey, MethodInfo>();
+            DataTypes = new Dictionary<DataTypeKey, MethodInfo>();
+            RegisteredPacketTypes = new Dictionary<Type, PacketStructInfo>();
             PacketCoderDelegates = new Dictionary<Type, Delegate>();
-
-            PacketIdMaps = new Dictionary<int, PacketIdDefinition>[MaxPacketIdMapIndex + 1];
-            InitializePacketIdMap();
+            PacketIdMaps = new Dictionary<int, PacketIdDefinition>[(int)ProtocolState.MAX];
         }
 
-        #endregion
+        protected abstract void RegisterDataType(params Type[] arguments);
 
-        protected virtual void InitializePacketIdMap()
+        #region PacketId-related methods
+
+        public virtual void InitializePacketIdMaps()
         {
-            var members = typeof(TPacketID).GetMembers();
-            Console.WriteLine(members);
+            var fields = typeof(TPacketID).GetFields();
+            var mappingAttributeList = fields
+                .Where(f => f.GetCustomAttribute<PacketIDMappingAttribute>() != null)
+                .Select(f => new PacketIDMappingInfo(f, f.GetCustomAttribute<PacketIDMappingAttribute>()))
+                .ToList();
+
+            for (int i = 0; i < PacketIdMaps.Length; i++)
+            {
+                PacketIdMaps[i] = new Dictionary<int, PacketIdDefinition>();
+                var state = (ProtocolState)i;
+
+                foreach (var mappingInfo in mappingAttributeList.Where(x => x.Attribute.State == state))
+                {
+                    foreach (var typeEntry in RegisteredPacketTypes)
+                    {
+                        var packetStructAttrib = typeEntry.Value.Attribute;
+                        var enumValue = mappingInfo.Field.GetRawConstantValue();
+                        if (packetStructAttrib.PacketID.Equals(enumValue))
+                        {
+                            var mapRawID = mappingInfo.Attribute.RawID;
+                            var mapID = EnumConverter<TPacketID>.Convert(packetStructAttrib.PacketID);
+                            PacketIdMaps[i].Add(mapRawID, new PacketIdDefinition(typeEntry.Key, mapRawID, mapID));
+                        }
+                    }
+                }
+            }
         }
 
         protected Dictionary<int, PacketIdDefinition> GetPacketIdMap(ProtocolState state)
         {
             int index = (int)state;
-            if (index < 0 || index > MaxPacketIdMapIndex)
-                throw new ArgumentOutOfRangeException(nameof(state));
             return PacketIdMaps[index];
         }
 
@@ -59,10 +77,30 @@ namespace MinecraftServerSharp.Network.Packets
             return map.TryGetValue(rawId, out definition);
         }
 
-        #region RegisterDataType[From]
+        public bool TryGetPacketIdDefinition(TPacketID id, out PacketIdDefinition definition)
+        {
+            for (int i = 0; i < PacketIdMaps.Length; i++)
+            {
+                var map = GetPacketIdMap((ProtocolState)i);
+                foreach (var value in map.Values)
+                {
+                    if (EqualityComparer<TPacketID>.Default.Equals(value.ID, id))
+                    {
+                        definition = value;
+                        return true;
+                    }
+                }
+            }
+            definition = default;
+            return false;
+        }
 
-        protected void RegisterDataTypeFrom(
-            Type type, string methodName, Type[] arguments = null)
+        #endregion
+
+        #region RegisterDataType[FromMethod]
+
+        protected void RegisterDataTypeFromMethod(
+            Type type, string methodName, params Type[] arguments)
         {
             try
             {
@@ -88,19 +126,17 @@ namespace MinecraftServerSharp.Network.Packets
                 throw new ArgumentNullException(nameof(method));
 
             var paramTypes = method.GetParameters().Select(x => x.ParameterType).ToArray();
-            lock (ReadMethods)
-                ReadMethods.Add(new DataTypeKey(method.ReturnType, paramTypes), method);
+            lock (DataTypes)
+                DataTypes.Add(new DataTypeKey(method.ReturnType, paramTypes), method);
         }
 
         #endregion
 
         #region RegisterPacketType[s]
 
-        public void RegisterPacketTypesFromCallingAssembly(Func<PacketStructInfo, bool> predicate)
+        public void RegisterPacketType(PacketStructInfo info)
         {
-            var assembly = Assembly.GetCallingAssembly();
-            var packetTypes = PacketStructInfo.GetPacketTypes(assembly);
-            RegisterPacketTypes(packetTypes.Where(predicate));
+            RegisteredPacketTypes.Add(info.Type, info);
         }
 
         public void RegisterPacketTypes(IEnumerable<PacketStructInfo> infos)
@@ -109,16 +145,27 @@ namespace MinecraftServerSharp.Network.Packets
                 RegisterPacketType(info);
         }
 
-        public void RegisterPacketType(PacketStructInfo info)
+        public void RegisterPacketTypesFromCallingAssembly(Func<PacketStructInfo, bool> predicate)
         {
-            RegisteredTypes.Add(info.Type, info);
+            var assembly = Assembly.GetCallingAssembly();
+            var packetTypes = PacketStructInfo.GetPacketTypes(assembly);
+            RegisterPacketTypes(packetTypes.Where(predicate));
         }
 
         #endregion
 
-        #region Coder Delegate methods
+        #region CoderDelegate-related methods
 
         protected abstract Delegate CreateCoderDelegate(PacketStructInfo structInfo);
+
+        public void CreateCoderDelegates()
+        {
+            foreach (var pair in RegisteredPacketTypes)
+            {
+                var coderDelegate = CreateCoderDelegate(pair.Value);
+                PacketCoderDelegates.Add(pair.Value.Type, coderDelegate);
+            }
+        }
 
         public Delegate GetPacketCoder(Type packetType)
         {
@@ -135,15 +182,6 @@ namespace MinecraftServerSharp.Network.Packets
                 }
             }
             return reader;
-        }
-
-        public void CreateCoderDelegates()
-        {
-            foreach (var pair in RegisteredTypes)
-            {
-                var coderDelegate = CreateCoderDelegate(pair.Value);
-                PacketCoderDelegates.Add(pair.Value.Type, coderDelegate);
-            }
         }
 
         #endregion

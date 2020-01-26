@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 
-namespace MinecraftServerSharp.DataTypes
+namespace MinecraftServerSharp
 {
     public readonly struct Identifier
     {
