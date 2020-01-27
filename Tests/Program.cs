@@ -1,5 +1,6 @@
 ﻿using System;
 using MinecraftServerSharp;
+using MinecraftServerSharp.Utility;
 
 namespace Tests
 {
@@ -9,6 +10,23 @@ namespace Tests
         {
             TestVarInt();
             Console.WriteLine(nameof(TestVarInt) + " passed");
+
+            TestStreamTrimStart();
+            Console.WriteLine(nameof(TestStreamTrimStart) + " passed");
+        }
+
+        private static void TestStreamTrimStart()
+        {
+            var mem = new RecyclableMemoryManager(2, 2, 2);
+            var stream = mem.GetStream(6);
+            for (int i = 0; i < 6; i++)
+                stream.WriteByte((byte)(i % 255));
+
+            stream.TrimStart(3);
+            if (stream.GetBlock(0).Span[0] != 3 ||
+                stream.GetBlock(0).Span[1] != 4 ||
+                stream.GetBlock(1).Span[0] != 5)
+                throw new Exception();
         }
 
         #region TestVarInt

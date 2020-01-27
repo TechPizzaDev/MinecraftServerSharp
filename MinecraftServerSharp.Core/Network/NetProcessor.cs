@@ -86,7 +86,7 @@ namespace MinecraftServerSharp.Network
             connection.ReceiveEvent.Completed += (s, e) => ProcessReceive((NetConnection)e.UserToken);
             connection.SendEvent.Completed += (s, e) => ProcessSend((NetConnection)e.UserToken);
 
-            // As soon as the client is connected, post a receive to the connection
+            // As soon as the client connects, start receiving
             if (!connection.Socket.ReceiveAsync(connection.ReceiveEvent))
                 ProcessReceive(connection);
         }
@@ -103,7 +103,7 @@ namespace MinecraftServerSharp.Network
 
             AfterReceive:
                 if (e.SocketError != SocketError.Success ||
-                    e.BytesTransferred == 0)
+                    e.BytesTransferred == 0) // 0 == closed connection
                 {
                     connection.Close();
                     return;
@@ -111,12 +111,13 @@ namespace MinecraftServerSharp.Network
 
                 // We process by the message length (unless it's a legacy server list ping), 
                 // so don't worry if we received parts of the next message.
+                connection.BytesReceived += e.BytesTransferred;
                 connection.ReceiveBuffer.Seek(0, SeekOrigin.End);
-                connection.ReceiveBuffer.Write(e.MemoryBuffer.Span.Slice(0, e.BytesTransferred));
+                connection.ReceiveBuffer.Write(e.MemoryBuffer.Slice(0, e.BytesTransferred).Span);
 
                 if (reader.Length > 0)
                 {
-                    reader.Seek(0, SeekOrigin.Begin);
+                    reader.Position = 0;
                     if (connection.ReceivedLength == -1)
                     {
                         if (reader.ReadByte() == LegacyServerListPingPacketDefinition.RawID)
@@ -131,7 +132,7 @@ namespace MinecraftServerSharp.Network
                         }
                         else
                         {
-                            reader.Seek(0, SeekOrigin.Begin);
+                            reader.Position = 0; 
                             if (reader.Read(out VarInt messageLength, out int messageLengthBytes) == ReadCode.Ok)
                             {
                                 connection.ReceivedLength = messageLength;
@@ -143,7 +144,7 @@ namespace MinecraftServerSharp.Network
                     if (connection.ReceivedLength != -1 &&
                         reader.Length >= connection.ReceivedLength)
                     {
-                        if (!ValidatePacket(connection, out var rawPacketId, out var packetIdDefinition))
+                        if (!ValidatePacketAndGetId(connection, out var rawPacketId, out var packetIdDefinition))
                             return;
 
                         if (packetIdDefinition.ID == ClientPacketID.Handshake)
@@ -178,25 +179,17 @@ namespace MinecraftServerSharp.Network
             try
             {
                 var e = connection.SendEvent;
-
-            AfterSend:
-                if (e.SocketError != SocketError.Success)
+                if (e.SocketError != SocketError.Success ||
+                    e.BytesTransferred == 0) // 0 == closed connection
                 {
                     connection.Close();
+                    return;
                 }
-                else
-                {
-                    connection.TrimSendBuffer(e.BytesTransferred);
 
-                    int nextSendLength = (int)connection.SendBuffer.Length;
-                    if (nextSendLength == 0)
-                        return;
+                connection.BytesSent += e.BytesTransferred;
+                connection.TrimSendBufferStart(e.BytesTransferred);
 
-                    // TODO: add sending by block instead of using GetBuffer()
-                    e.SetBuffer(connection.SendBuffer.GetBuffer(), 0, nextSendLength);
-                    if (!connection.Socket.SendAsync(e))
-                        goto AfterSend;
-                }
+                FlushSendBuffer(connection);
             }
             catch (Exception ex)
             {
@@ -205,7 +198,21 @@ namespace MinecraftServerSharp.Network
             }
         }
 
-        private bool ValidatePacket(
+        public void FlushSendBuffer(NetConnection connection)
+        {
+            int length = (int)connection.SendBuffer.Length;
+            if (length <= 0)
+                return;
+
+            var buffer = connection.SendBuffer.GetBlock(0);
+            int blockLength = Math.Min(connection.SendBuffer.BlockSize, length);
+            connection.SendEvent.SetBuffer(buffer.Slice(0, blockLength));
+
+            if (!connection.Socket.SendAsync(connection.SendEvent))
+                ProcessSend(connection);
+        }
+
+        private bool ValidatePacketAndGetId(
             NetConnection connection,
             out VarInt rawPacketId, out NetPacketDecoder.PacketIdDefinition definition)
         {
@@ -276,14 +283,6 @@ namespace MinecraftServerSharp.Network
                     isBeta, ProtocolVersion, GameVersion, motd, 0, 100);
 
                 connection.WritePacket(answer);
-
-                // TODO: fix this send mess
-                var buffer = connection.SendBuffer.GetBuffer();
-                connection.SendEvent.SetBuffer(
-                    buffer, 0, (int)connection.SendBuffer.Length);
-
-                if (!connection.Socket.SendAsync(connection.SendEvent))
-                    ProcessSend(connection);
 
                 return ReadCode.Ok;
             }

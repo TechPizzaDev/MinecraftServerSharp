@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 using MinecraftServerSharp.Network.Data;
 using MinecraftServerSharp.Network.Packets;
 using MinecraftServerSharp.Utility;
@@ -28,6 +29,9 @@ namespace MinecraftServerSharp.Network
         public int ReceivedLength { get; set; } = -1;
         public int ReceivedLengthBytes { get; set; } = -1;
         public int TotalReceivedLength => ReceivedLength + ReceivedLengthBytes;
+
+        public long BytesSent { get; set; }
+        public long BytesReceived { get; set; }
 
         #region Constructors
 
@@ -66,12 +70,29 @@ namespace MinecraftServerSharp.Network
             return (resultCode, length);
         }
 
-        public int WritePacket<TPacket>(TPacket packet)
+        public int WritePacket<TPacket>(TPacket packet, bool flush = true)
         {
             var writer = Processor.PacketEncoder.GetPacketWriter<TPacket>();
             long oldPosition = Writer.Position;
             writer.Invoke(Writer, packet);
-            return (int)(Writer.Position - oldPosition);
+            int length = (int)(Writer.Position - oldPosition);
+
+            if (flush)
+                Processor.FlushSendBuffer(this);
+            return length;
+        }
+
+        public void TrimReceiveBufferStart(int length)
+        {
+            ReceiveBuffer.TrimStart(length);
+
+            ReceivedLength = -1;
+            ReceivedLengthBytes = -1;
+        }
+
+        public void TrimSendBufferStart(int length)
+        {
+            SendBuffer.TrimStart(length);
         }
 
         /// <summary>
@@ -81,19 +102,7 @@ namespace MinecraftServerSharp.Network
         public void TrimFirstReceivedMessage()
         {
             int offset = TotalReceivedLength;
-            TrimReceiveBuffer(offset);
-        }
-
-        public void TrimReceiveBuffer(int length)
-        {
-            ReceiveBuffer.TrimStart(length);
-            ReceivedLength = -1;
-            ReceivedLengthBytes = -1;
-        }
-
-        public void TrimSendBuffer(int length)
-        {
-            SendBuffer.TrimStart(length);
+            TrimReceiveBufferStart(offset);
         }
 
         public void Kick(Exception exception)
@@ -120,6 +129,8 @@ namespace MinecraftServerSharp.Network
         {
             if (_closeAction == null)
                 return false;
+
+            Console.WriteLine("Connection metrics; Sent: " + BytesSent + ", Received: " + BytesReceived);
 
             _closeAction.Invoke(this);
             _closeAction = null;

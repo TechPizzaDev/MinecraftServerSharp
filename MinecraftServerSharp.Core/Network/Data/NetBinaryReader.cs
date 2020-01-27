@@ -13,31 +13,19 @@ namespace MinecraftServerSharp.Network.Data
         public long Length => BaseStream.Length;
         public long Remaining => Length - Position;
 
-        public NetBinaryReader(Stream stream)
-        {
-            BaseStream = stream;
-        }
+        public NetBinaryReader(Stream stream) => BaseStream = stream;
 
-        public long Seek(int offset, SeekOrigin origin)
-        {
-            return BaseStream.Seek(offset, origin);
-        }
+        public long Seek(int offset, SeekOrigin origin) => BaseStream.Seek(offset, origin);
 
-        public int ReadBytes(Span<byte> buffer)
-        {
-            return BaseStream.Read(buffer);
-        }
+        public int ReadBytes(Span<byte> buffer) => BaseStream.Read(buffer);
 
-        public int ReadByte()
-        {
-            return BaseStream.ReadByte();
-        }
+        public int ReadByte() => BaseStream.ReadByte();
 
         public int PeekByte()
         {
             int b = ReadByte();
             if (b != -1)
-                Seek(-1, SeekOrigin.Current);
+                Position -= 1;
             return b;
         }
 

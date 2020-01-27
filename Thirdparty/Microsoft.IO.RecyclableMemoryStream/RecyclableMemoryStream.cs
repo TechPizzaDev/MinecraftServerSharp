@@ -72,6 +72,10 @@ namespace MinecraftServerSharp.Utility
         /// </remarks>
         private byte[] _largeBuffer;
 
+        public int BlockSize => MemoryManager.BlockSize;
+
+        public int BlockCount => _blocks.Count;
+
         /// <summary>
         /// Unique identifier for this stream across it's entire lifetime
         /// </summary>
@@ -80,7 +84,7 @@ namespace MinecraftServerSharp.Utility
         {
             get
             {
-                CheckDisposed();
+                AssertNotDisposed();
                 return _id;
             }
         }
@@ -89,11 +93,11 @@ namespace MinecraftServerSharp.Utility
         /// A temporary identifier for the current usage of this stream.
         /// </summary>
         /// <exception cref="ObjectDisposedException">Object has been disposed</exception>
-        internal string Tag
+        public string Tag
         {
             get
             {
-                CheckDisposed();
+                AssertNotDisposed();
                 return _tag;
             }
         }
@@ -106,7 +110,7 @@ namespace MinecraftServerSharp.Utility
         {
             get
             {
-                CheckDisposed();
+                AssertNotDisposed();
                 return _memoryManager;
             }
         }
@@ -307,7 +311,7 @@ namespace MinecraftServerSharp.Utility
         #region MemoryStream overrides
 
         /// <summary>
-        /// Gets or sets the capacity
+        /// Gets or sets the capacity.
         /// </summary>
         /// <remarks>
         /// Capacity is always in multiples of the memory manager's block size, unless
@@ -321,7 +325,7 @@ namespace MinecraftServerSharp.Utility
         {
             get
             {
-                CheckDisposed();
+                AssertNotDisposed();
                 if (_largeBuffer != null)
                     return _largeBuffer.Length;
 
@@ -332,7 +336,7 @@ namespace MinecraftServerSharp.Utility
             {
                 // TODO: implement truncation (supplying a lower capacity than the current one)
 
-                CheckDisposed();
+                AssertNotDisposed();
                 EnsureCapacity(value);
             }
         }
@@ -345,7 +349,7 @@ namespace MinecraftServerSharp.Utility
         {
             get
             {
-                CheckDisposed();
+                AssertNotDisposed();
                 return _length;
             }
         }
@@ -358,12 +362,12 @@ namespace MinecraftServerSharp.Utility
         {
             get
             {
-                CheckDisposed();
+                AssertNotDisposed();
                 return _position;
             }
             set
             {
-                CheckDisposed();
+                AssertNotDisposed();
                 if (value < 0)
                     throw new ArgumentOutOfRangeException(nameof(value), "value must be non-negative");
 
@@ -406,7 +410,7 @@ namespace MinecraftServerSharp.Utility
         /// <exception cref="ObjectDisposedException">Object has been disposed</exception>
         public override byte[] GetBuffer()
         {
-            CheckDisposed();
+            AssertNotDisposed();
 
             if (_largeBuffer != null)
                 return _largeBuffer;
@@ -443,7 +447,7 @@ namespace MinecraftServerSharp.Utility
         /// always returns a valid ArraySegment to the same buffer returned by GetBuffer.</remarks>
         public override bool TryGetBuffer(out ArraySegment<byte> buffer)
         {
-            CheckDisposed();
+            AssertNotDisposed();
             buffer = new ArraySegment<byte>(GetBuffer(), 0, (int)Length);
             // GetBuffer has no failure modes, so this should always succeed
             return true;
@@ -460,7 +464,7 @@ namespace MinecraftServerSharp.Utility
         public override byte[] ToArray()
 #pragma warning restore CS0809
         {
-            CheckDisposed();
+            AssertNotDisposed();
             var newBuffer = new byte[Length];
 
             InternalRead(newBuffer, 0, _length, 0);
@@ -501,7 +505,7 @@ namespace MinecraftServerSharp.Utility
         /// <exception cref="ObjectDisposedException">Object has been disposed</exception>
         public int SafeRead(byte[] buffer, int offset, int count, ref int streamPosition)
         {
-            CheckDisposed();
+            AssertNotDisposed();
             if (buffer == null)
                 throw new ArgumentNullException(nameof(buffer));
 
@@ -539,7 +543,7 @@ namespace MinecraftServerSharp.Utility
         /// <exception cref="ObjectDisposedException">Object has been disposed</exception>
         public int SafeRead(Span<byte> buffer, ref int streamPosition)
         {
-            CheckDisposed();
+            AssertNotDisposed();
 
             int amountRead = InternalRead(buffer, streamPosition);
             streamPosition += amountRead;
@@ -558,7 +562,7 @@ namespace MinecraftServerSharp.Utility
         /// <exception cref="ObjectDisposedException">Object has been disposed</exception>
         public override void Write(byte[] buffer, int offset, int count)
         {
-            CheckDisposed();
+            AssertNotDisposed();
             if (buffer == null)
                 throw new ArgumentNullException(nameof(buffer));
 
@@ -584,7 +588,7 @@ namespace MinecraftServerSharp.Utility
             {
                 int bytesRemaining = count;
                 int bytesWritten = 0;
-                var blockAndOffset = GetBlockAndRelativeOffset(_position);
+                var blockAndOffset = GetBlockAndOffset(_position);
 
                 while (bytesRemaining > 0)
                 {
@@ -618,7 +622,7 @@ namespace MinecraftServerSharp.Utility
         /// <exception cref="ObjectDisposedException">Object has been disposed</exception>
         public override void Write(ReadOnlySpan<byte> source)
         {
-            CheckDisposed();
+            AssertNotDisposed();
 
             int blockSize = _memoryManager.BlockSize;
             long end = (long)_position + source.Length;
@@ -630,7 +634,7 @@ namespace MinecraftServerSharp.Utility
 
             if (_largeBuffer == null)
             {
-                var blockAndOffset = GetBlockAndRelativeOffset(_position);
+                var blockAndOffset = GetBlockAndOffset(_position);
 
                 while (source.Length > 0)
                 {
@@ -670,7 +674,7 @@ namespace MinecraftServerSharp.Utility
         /// <exception cref="ObjectDisposedException">Object has been disposed</exception>
         public override void WriteByte(byte value)
         {
-            CheckDisposed();
+            AssertNotDisposed();
             Span<byte> buffer = stackalloc byte[] { value };
             Write(buffer);
         }
@@ -693,14 +697,14 @@ namespace MinecraftServerSharp.Utility
         /// <exception cref="ObjectDisposedException">Object has been disposed</exception>
         public int SafeReadByte(ref int streamPosition)
         {
-            CheckDisposed();
+            AssertNotDisposed();
             if (streamPosition == _length)
                 return -1;
 
             byte value;
             if (_largeBuffer == null)
             {
-                var blockAndOffset = GetBlockAndRelativeOffset(streamPosition);
+                var blockAndOffset = GetBlockAndOffset(streamPosition);
                 value = _blocks[blockAndOffset.Block][blockAndOffset.Offset];
             }
             else
@@ -718,7 +722,7 @@ namespace MinecraftServerSharp.Utility
         /// <exception cref="ObjectDisposedException">Object has been disposed</exception>
         public override void SetLength(long value)
         {
-            CheckDisposed();
+            AssertNotDisposed();
             if (value < 0 || value > MaxStreamLength)
                 throw new ArgumentOutOfRangeException(
                     nameof(value), "value must be non-negative and at most " + MaxStreamLength);
@@ -742,7 +746,7 @@ namespace MinecraftServerSharp.Utility
         /// <exception cref="IOException">Attempt to set negative position</exception>
         public override long Seek(long offset, SeekOrigin origin)
         {
-            CheckDisposed();
+            AssertNotDisposed();
             if (offset > MaxStreamLength)
                 throw new ArgumentOutOfRangeException(nameof(offset), "offset cannot be larger than " + MaxStreamLength);
 
@@ -767,7 +771,7 @@ namespace MinecraftServerSharp.Utility
         /// <remarks>Important: This does a synchronous write, which may not be desired in some situations</remarks>
         public override void WriteTo(Stream stream)
         {
-            CheckDisposed();
+            AssertNotDisposed();
             if (stream == null)
                 throw new ArgumentNullException(nameof(stream));
 
@@ -791,13 +795,36 @@ namespace MinecraftServerSharp.Utility
                 stream.Write(_largeBuffer, 0, _length);
             }
         }
+        
         #endregion
+
+        public Memory<byte> GetBlock(int index)
+        {
+            return _blocks[index];
+        }
+
+        public void RemoveBlockRange(int index, int count)
+        {
+            AssertNotDisposed();
+
+            if (count < 0)
+                throw new ArgumentOutOfRangeException(nameof(count));
+            if (count == 0)
+                return;
+
+            for (int i = 0; i < count; i++)
+                _memoryManager.ReturnBlock(_blocks[i + index], _tag);
+
+            _blocks.RemoveRange(index, count);
+
+            _length -= count * BlockSize;
+        }
 
         #region Helper Methods
 
         public bool IsDisposed => Interlocked.Read(ref _disposedState) != 0;
 
-        private void CheckDisposed()
+        private void AssertNotDisposed()
         {
             if (IsDisposed)
                 throw new ObjectDisposedException(
@@ -813,21 +840,24 @@ namespace MinecraftServerSharp.Utility
 
             if (_largeBuffer == null)
             {
-                var blockAndOffset = GetBlockAndRelativeOffset(fromPosition);
+                var blockAndOffset = GetBlockAndOffset(fromPosition);
                 int bytesWritten = 0;
                 int bytesRemaining = Math.Min(count, _length - fromPosition);
 
                 while (bytesRemaining > 0)
                 {
-                    amountToCopy = Math.Min(_blocks[blockAndOffset.Block].Length - blockAndOffset.Offset,
-                                                bytesRemaining);
-                    Buffer.BlockCopy(_blocks[blockAndOffset.Block], blockAndOffset.Offset, buffer,
-                                     bytesWritten + offset, amountToCopy);
+                    amountToCopy = Math.Min(
+                        _blocks[blockAndOffset.Block].Length - blockAndOffset.Offset,
+                        bytesRemaining);
+
+                    Buffer.BlockCopy(
+                        _blocks[blockAndOffset.Block], blockAndOffset.Offset, buffer,
+                        bytesWritten + offset, amountToCopy);
 
                     bytesWritten += amountToCopy;
                     bytesRemaining -= amountToCopy;
 
-                    ++blockAndOffset.Block;
+                    blockAndOffset.Block++;
                     blockAndOffset.Offset = 0;
                 }
                 return bytesWritten;
@@ -846,21 +876,23 @@ namespace MinecraftServerSharp.Utility
 
             if (_largeBuffer == null)
             {
-                var blockAndOffset = GetBlockAndRelativeOffset(fromPosition);
+                var blockAndOffset = GetBlockAndOffset(fromPosition);
                 int bytesWritten = 0;
                 int bytesRemaining = Math.Min(buffer.Length, _length - fromPosition);
 
                 while (bytesRemaining > 0)
                 {
-                    amountToCopy = Math.Min(_blocks[blockAndOffset.Block].Length - blockAndOffset.Offset,
-                                            bytesRemaining);
+                    amountToCopy = Math.Min(
+                        _blocks[blockAndOffset.Block].Length - blockAndOffset.Offset,
+                        bytesRemaining);
+
                     _blocks[blockAndOffset.Block].AsSpan(blockAndOffset.Offset, amountToCopy)
                         .CopyTo(buffer.Slice(bytesWritten));
 
                     bytesWritten += amountToCopy;
                     bytesRemaining -= amountToCopy;
 
-                    ++blockAndOffset.Block;
+                    blockAndOffset.Block++;
                     blockAndOffset.Offset = 0;
                 }
                 return bytesWritten;
@@ -870,7 +902,7 @@ namespace MinecraftServerSharp.Utility
             return amountToCopy;
         }
 
-        private struct BlockAndOffset
+        public struct BlockAndOffset
         {
             public int Block;
             public int Offset;
@@ -882,10 +914,9 @@ namespace MinecraftServerSharp.Utility
             }
         }
 
-        private BlockAndOffset GetBlockAndRelativeOffset(int offset)
+        public BlockAndOffset GetBlockAndOffset(int offset)
         {
-            var blockSize = _memoryManager.BlockSize;
-            return new BlockAndOffset(offset / blockSize, offset % blockSize);
+            return new BlockAndOffset(offset / BlockSize, offset % BlockSize);
         }
 
         private void EnsureCapacity(int newCapacity)
@@ -937,6 +968,7 @@ namespace MinecraftServerSharp.Utility
 
             _largeBuffer = null;
         }
+
         #endregion
     }
 }

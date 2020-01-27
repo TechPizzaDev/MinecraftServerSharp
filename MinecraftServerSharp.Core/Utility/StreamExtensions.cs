@@ -8,29 +8,36 @@ namespace MinecraftServerSharp.Utility
         /// <summary>
         /// Removes a front portion of the memory stream.
         /// </summary>
-        public static void TrimStart(this MemoryStream stream, int length)
+        public static void TrimStart(this RecyclableMemoryStream stream, int length)
         {
             if (length == 0)
                 return;
 
-            // Seek past the data.
-            stream.Seek(length, SeekOrigin.Begin);
-
-            // TODO: make better use of these stream instances;
-            //       we currently allocate one per message ;/
-            int requiredSize = (int)(stream.Length - length);
-            using var tmp = RecyclableMemoryManager.Default.GetStream(requiredSize);
-
-            // Copy all the future data.
-            stream.PooledCopyTo(tmp);
-
-            // Remove all buffered data.
-            stream.SetLength(0);
-            stream.Capacity = 0;
-
-            // Copy back the future data.
-            tmp.WriteTo(stream);
             stream.Position = 0;
+
+            var helper = stream.GetBlockAndOffset(length);
+            stream.RemoveBlockRange(0, helper.Block);
+
+            // Now we need to shift data in trailing blocks.
+            for (int i = 0; i < stream.BlockCount; i++)
+            {
+                var currentBlock = stream.GetBlock(i);
+
+                int previous = i - 1;
+                if (previous >= 0)
+                {
+                    var previousBlock = stream.GetBlock(previous);
+
+                    var bytesToMoveBack = currentBlock.Slice(0, helper.Offset);
+                    var backDst = previousBlock.Slice(previousBlock.Length - helper.Offset);
+                    bytesToMoveBack.CopyTo(backDst);
+                }
+
+                var bytesToShift = currentBlock.Slice(helper.Offset);
+                bytesToShift.Span.CopyTo(currentBlock.Span);
+            }
+
+            stream.SetLength(stream.Length - helper.Offset);
         }
 
         /// <summary>

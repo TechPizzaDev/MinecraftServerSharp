@@ -59,15 +59,15 @@ namespace MinecraftServerSharp.Network
             var receiveEvent = new SocketAsyncEventArgs(); // TODO: pool 
             var sendEvent = new SocketAsyncEventArgs(); // TODO: pool 
 
-            byte[] receiveBuffer = new byte[4096];
-            receiveEvent.SetBuffer(receiveBuffer, 0, receiveBuffer.Length);
-
             var connection = new NetConnection(
                 Processor,
                 acceptEvent.AcceptSocket,
                 receiveEvent,
                 sendEvent,
                 closeAction: CloseClientSocket);
+            
+            byte[] receiveBuffer = new byte[4096];
+            receiveEvent.SetBuffer(receiveBuffer, 0, receiveBuffer.Length);
 
             receiveEvent.UserToken = connection;
             sendEvent.UserToken = connection;
