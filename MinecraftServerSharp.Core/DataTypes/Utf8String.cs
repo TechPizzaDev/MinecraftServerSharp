@@ -5,7 +5,7 @@ using System.Diagnostics;
 namespace MinecraftServerSharp
 {
     [DebuggerDisplay("{ToString()}")]
-    public readonly struct Utf8String
+    public readonly struct Utf8String : IComparable<Utf8String>, IEquatable<Utf8String>
     {
         public static Utf8String Empty { get; } = new Utf8String(Array.Empty<byte>());
 
@@ -43,6 +43,17 @@ namespace MinecraftServerSharp
             var str = new Utf8String(length);
             action.Invoke(str._bytes, state);
             return str;
+        }
+
+        public int CompareTo(Utf8String other)
+        {
+            return Bytes.SequenceCompareTo(other.Bytes);
+        }
+
+        public bool Equals(Utf8String other)
+        {
+            return Length == other.Length 
+                && Bytes.SequenceEqual(other.Bytes);
         }
 
         /// <summary>
