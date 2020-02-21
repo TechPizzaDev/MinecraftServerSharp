@@ -46,9 +46,9 @@ namespace MinecraftServerSharp.Network
 
         #endregion
 
-        #region SetupCoders
+        #region SetupCodecs
 
-        public void SetupCoders()
+        public void SetupCodecs()
         {
             SetupDecoder();
             SetupEncoder();
@@ -61,7 +61,7 @@ namespace MinecraftServerSharp.Network
 
             PacketDecoder.InitializePacketIdMaps();
 
-            PacketDecoder.CreateCoderDelegates();
+            PacketDecoder.CreateCodecDelegates();
 
             if (!PacketDecoder.TryGetPacketIdDefinition(ClientPacketID.LegacyServerListPing, out var definition))
                 throw new InvalidOperationException(
@@ -76,7 +76,7 @@ namespace MinecraftServerSharp.Network
 
             PacketEncoder.InitializePacketIdMaps();
 
-            PacketEncoder.CreateCoderDelegates();
+            PacketEncoder.CreateCodecDelegates();
         }
 
         #endregion
@@ -101,7 +101,7 @@ namespace MinecraftServerSharp.Network
                 var e = connection.ReceiveEvent;
                 var reader = connection.Reader;
 
-            AfterReceive:
+                AfterReceive:
                 if (e.SocketError != SocketError.Success ||
                     e.BytesTransferred == 0) // 0 == closed connection
                 {
@@ -115,29 +115,24 @@ namespace MinecraftServerSharp.Network
                 connection.ReceiveBuffer.Seek(0, SeekOrigin.End);
                 connection.ReceiveBuffer.Write(e.MemoryBuffer.Slice(0, e.BytesTransferred).Span);
 
-                if (reader.Length > 0)
+                while (reader.Length > 0)
                 {
                     reader.Position = 0;
                     if (connection.ReceivedLength == -1)
                     {
-                        if (reader.ReadByte() == LegacyServerListPingPacketDefinition.RawID)
+                        if (reader.PeekByte() == LegacyServerListPingPacketDefinition.RawID)
                         {
-                            var readCode = ReadLegacyServerListPing(connection);
-                            if (readCode == ReadCode.Ok ||
-                                readCode == ReadCode.InvalidData)
+                            reader.Position++;
+                            if (ReadLegacyServerListPing(connection) != ReadCode.EndOfStream)
                             {
                                 connection.Close();
                                 return;
                             }
                         }
-                        else
+                        else if (reader.Read(out VarInt messageLength, out int messageLengthBytes) == ReadCode.Ok)
                         {
-                            reader.Position = 0; 
-                            if (reader.Read(out VarInt messageLength, out int messageLengthBytes) == ReadCode.Ok)
-                            {
-                                connection.ReceivedLength = messageLength;
-                                connection.ReceivedLengthBytes = messageLengthBytes;
-                            }
+                            connection.ReceivedLength = messageLength;
+                            connection.ReceivedLengthBytes = messageLengthBytes;
                         }
                     }
 
@@ -151,16 +146,44 @@ namespace MinecraftServerSharp.Network
                         {
                             if (connection.ReadPacket<ClientHandshake>(out var handshakePacket).Code == ReadCode.Ok)
                             {
-                                Console.WriteLine("owo");
+                                if (handshakePacket.NextState != ProtocolState.Status &&
+                                    handshakePacket.NextState != ProtocolState.Login)
+                                    return;
+
+                                connection.State = handshakePacket.NextState;
                             }
                         }
+                        else if (packetIdDefinition.ID == ClientPacketID.Request)
+                        {
+                            if (connection.ReadPacket<ClientRequest>(out var requestPacket).Code == ReadCode.Ok)
+                            {
+                                var jsonResponse = new Utf8String(File.ReadAllText("omegalul.json"));
+                                var answer = new ServerResponse(jsonResponse);
 
-                        Console.WriteLine(
-                            "(" + connection.ReceivedLengthBytes + ") " +
-                            connection.ReceivedLength + ": " +
-                            packetIdDefinition.ID);
+                                connection.EnqueuePacket(answer);
+                            }
+                        }
+                        else if (packetIdDefinition.ID == ClientPacketID.Ping)
+                        {
+                            if (connection.ReadPacket<ClientPing>(out var pingPacket).Code == ReadCode.Ok)
+                            {
+                                var answer = new ServerPong(pingPacket.Payload);
+                                connection.EnqueuePacket(answer);
+                            }
+                        }
+                        else
+                        {
+                            Console.WriteLine(
+                                "(" + connection.ReceivedLengthBytes + ") " +
+                                connection.ReceivedLength + ": " +
+                                packetIdDefinition.ID);
+                        }
 
                         connection.TrimFirstReceivedMessage();
+                    }
+                    else
+                    {
+                        break;
                     }
                 }
 
@@ -200,16 +223,20 @@ namespace MinecraftServerSharp.Network
 
         public void FlushSendBuffer(NetConnection connection)
         {
-            int length = (int)connection.SendBuffer.Length;
-            if (length <= 0)
-                return;
+            lock (connection.SendMutex)
+            {
+                int length = (int)connection.SendBuffer.Length;
+                if (length <= 0 ||
+                    connection.State == ProtocolState.Disconnected)
+                    return;
 
-            var buffer = connection.SendBuffer.GetBlock(0);
-            int blockLength = Math.Min(connection.SendBuffer.BlockSize, length);
-            connection.SendEvent.SetBuffer(buffer.Slice(0, blockLength));
+                var buffer = connection.SendBuffer.GetBlock(0);
+                int blockLength = Math.Min(connection.SendBuffer.BlockSize, length);
+                connection.SendEvent.SetBuffer(buffer.Slice(0, blockLength));
 
-            if (!connection.Socket.SendAsync(connection.SendEvent))
-                ProcessSend(connection);
+                if (!connection.Socket.SendAsync(connection.SendEvent))
+                    ProcessSend(connection);
+            }
         }
 
         private bool ValidatePacketAndGetId(
@@ -282,7 +309,7 @@ namespace MinecraftServerSharp.Network
                 var answer = new ServerLegacyServerListPong(
                     isBeta, ProtocolVersion, GameVersion, motd, 0, 100);
 
-                connection.WritePacket(answer);
+                connection.EnqueuePacket(answer);
 
                 return ReadCode.Ok;
             }

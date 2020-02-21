@@ -10,8 +10,8 @@ namespace MinecraftServerSharp.Network.Packets
 
         #region Status
 
-        Response,
-        Pong,
+        [Mapping(0x00, State.Status)] Response,
+        [Mapping(0x01, State.Status)] Pong,
 
         #endregion
 

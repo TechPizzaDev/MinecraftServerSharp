@@ -3,7 +3,7 @@ using System.Reflection;
 
 namespace MinecraftServerSharp.Network.Packets
 {
-    public abstract partial class NetPacketCoder<TPacketID>
+    public abstract partial class NetPacketCodec<TPacketID>
         where TPacketID : Enum
     {
         private class PacketIDMappingInfo

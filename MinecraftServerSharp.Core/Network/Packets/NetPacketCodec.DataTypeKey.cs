@@ -3,7 +3,7 @@ using System.Linq;
 
 namespace MinecraftServerSharp.Network.Packets
 {
-    public abstract partial class NetPacketCoder<TPacketID>
+    public abstract partial class NetPacketCodec<TPacketID>
         where TPacketID : Enum
     {
         public readonly struct DataTypeKey : IEquatable<DataTypeKey>
@@ -15,6 +15,11 @@ namespace MinecraftServerSharp.Network.Packets
             {
                 ReturnType = returnType ?? throw new ArgumentNullException(nameof(returnType));
                 Parameters = arguments ?? Array.Empty<Type>();
+            }
+
+            public static DataTypeKey FromVoid(params Type[] arguments)
+            {
+                return new DataTypeKey(typeof(void), arguments);
             }
 
             public bool Equals(DataTypeKey other)

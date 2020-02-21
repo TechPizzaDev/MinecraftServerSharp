@@ -6,12 +6,12 @@ using MinecraftServerSharp.Utility;
 
 namespace MinecraftServerSharp.Network.Packets
 {
-    public abstract partial class NetPacketCoder<TPacketID>
+    public abstract partial class NetPacketCodec<TPacketID>
         where TPacketID : Enum
     {
         protected Dictionary<DataTypeKey, MethodInfo> DataTypes { get; }
         protected Dictionary<Type, PacketStructInfo> RegisteredPacketTypes { get; }
-        protected Dictionary<Type, Delegate> PacketCoderDelegates { get; }
+        protected Dictionary<Type, Delegate> PacketCodecDelegates { get; }
 
         /// <summary>
         /// Array of ID-to-packet mappings,
@@ -19,15 +19,24 @@ namespace MinecraftServerSharp.Network.Packets
         /// </summary>
         protected Dictionary<int, PacketIdDefinition>[] PacketIdMaps { get; }
 
-        public int RegisteredTypeCount => RegisteredPacketTypes.Count;
-        public int PreparedTypeCount => PacketCoderDelegates.Count;
+        /// <summary>
+        /// Array of packet-to-ID mappings,
+        /// indexed by the integer value of <see cref="ProtocolState"/>.
+        /// </summary>
+        protected Dictionary<Type, PacketIdDefinition>[] TypeToPacketIdMaps { get; }
 
-        public NetPacketCoder()
+        public int RegisteredTypeCount => RegisteredPacketTypes.Count;
+        public int PreparedTypeCount => PacketCodecDelegates.Count;
+
+        public NetPacketCodec()
         {
             DataTypes = new Dictionary<DataTypeKey, MethodInfo>();
             RegisteredPacketTypes = new Dictionary<Type, PacketStructInfo>();
-            PacketCoderDelegates = new Dictionary<Type, Delegate>();
-            PacketIdMaps = new Dictionary<int, PacketIdDefinition>[(int)ProtocolState.MAX];
+            PacketCodecDelegates = new Dictionary<Type, Delegate>();
+
+            int stateCount = Enum.GetValues(typeof(ProtocolState)).Length;
+            PacketIdMaps = new Dictionary<int, PacketIdDefinition>[stateCount];
+            TypeToPacketIdMaps = new Dictionary<Type, PacketIdDefinition>[stateCount];
         }
 
         protected abstract void RegisterDataType(params Type[] arguments);
@@ -42,11 +51,12 @@ namespace MinecraftServerSharp.Network.Packets
                 .Select(f => new PacketIDMappingInfo(f, f.GetCustomAttribute<PacketIDMappingAttribute>()))
                 .ToList();
 
-            for (int i = 0; i < PacketIdMaps.Length; i++)
+            for (int stateIndex = 0; stateIndex < PacketIdMaps.Length; stateIndex++)
             {
-                PacketIdMaps[i] = new Dictionary<int, PacketIdDefinition>();
-                var state = (ProtocolState)i;
+                PacketIdMaps[stateIndex] = new Dictionary<int, PacketIdDefinition>();
+                TypeToPacketIdMaps[stateIndex] = new Dictionary<Type, PacketIdDefinition>();
 
+                var state = (ProtocolState)stateIndex;
                 foreach (var mappingInfo in mappingAttributeList.Where(x => x.Attribute.State == state))
                 {
                     foreach (var typeEntry in RegisteredPacketTypes)
@@ -57,7 +67,10 @@ namespace MinecraftServerSharp.Network.Packets
                         {
                             var mapRawID = mappingInfo.Attribute.RawID;
                             var mapID = EnumConverter<TPacketID>.Convert(packetStructAttrib.PacketID);
-                            PacketIdMaps[i].Add(mapRawID, new PacketIdDefinition(typeEntry.Key, mapRawID, mapID));
+                            var definition = new PacketIdDefinition(typeEntry.Key, mapRawID, mapID);
+
+                            PacketIdMaps[stateIndex].Add(definition.RawID, definition);
+                            TypeToPacketIdMaps[stateIndex].Add(definition.Type, definition);
                         }
                     }
                 }
@@ -70,11 +83,24 @@ namespace MinecraftServerSharp.Network.Packets
             return PacketIdMaps[index];
         }
 
+        protected Dictionary<Type, PacketIdDefinition> GetTypeToPacketIdMap(ProtocolState state)
+        {
+            int index = (int)state;
+            return TypeToPacketIdMaps[index];
+        }
+
         public bool TryGetPacketIdDefinition(
             ProtocolState state, int rawId, out PacketIdDefinition definition)
         {
             var map = GetPacketIdMap(state);
             return map.TryGetValue(rawId, out definition);
+        }
+
+        public bool TryGetPacketIdDefinition(
+            ProtocolState state, Type packetType, out PacketIdDefinition definition)
+        {
+            var map = GetTypeToPacketIdMap(state);
+            return map.TryGetValue(packetType, out definition);
         }
 
         public bool TryGetPacketIdDefinition(TPacketID id, out PacketIdDefinition definition)
@@ -156,29 +182,29 @@ namespace MinecraftServerSharp.Network.Packets
 
         #region CoderDelegate-related methods
 
-        protected abstract Delegate CreateCoderDelegate(PacketStructInfo structInfo);
+        protected abstract Delegate CreateCodecDelegate(PacketStructInfo structInfo);
 
-        public void CreateCoderDelegates()
+        public void CreateCodecDelegates()
         {
             foreach (var pair in RegisteredPacketTypes)
             {
-                var coderDelegate = CreateCoderDelegate(pair.Value);
-                PacketCoderDelegates.Add(pair.Value.Type, coderDelegate);
+                var codecDelegate = CreateCodecDelegate(pair.Value);
+                PacketCodecDelegates.Add(pair.Value.Type, codecDelegate);
             }
         }
 
-        public Delegate GetPacketCoder(Type packetType)
+        public Delegate GetPacketCodec(Type packetType)
         {
-            if (!PacketCoderDelegates.TryGetValue(packetType, out var reader))
+            if (!PacketCodecDelegates.TryGetValue(packetType, out var reader))
             {
-                CreateCoderDelegate(new PacketStructInfo(packetType));
+                CreateCodecDelegate(new PacketStructInfo(packetType));
                 try
                 {
-                    reader = PacketCoderDelegates[packetType];
+                    reader = PacketCodecDelegates[packetType];
                 }
                 catch (KeyNotFoundException)
                 {
-                    throw new Exception($"Missing packet coder for \"{packetType}\".");
+                    throw new Exception($"Missing packet codec for \"{packetType}\".");
                 }
             }
             return reader;

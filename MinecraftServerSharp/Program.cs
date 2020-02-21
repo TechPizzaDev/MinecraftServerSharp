@@ -4,10 +4,17 @@ using MinecraftServerSharp.Network;
 
 namespace MinecraftServerSharp
 {
+    public class World
+    {
+
+    }
+
     internal class Program
     {
         private static void Main(string[] args)
         {
+            var ticker = new Ticker();
+
             var manager = new NetManager();
             manager.Listener.Connection += Manager_Connection;
             manager.Listener.Disconnection += Manager_Disconnection;
@@ -25,7 +32,14 @@ namespace MinecraftServerSharp
 
             manager.Listen(backlog);
             Console.WriteLine("Listening for connections...");
-            
+
+            ticker.Tick += (ticker) =>
+            {
+                //world.Tick();
+                manager.Flush();
+            };
+            ticker.Run();
+
             Console.ReadKey();
             return;
         }

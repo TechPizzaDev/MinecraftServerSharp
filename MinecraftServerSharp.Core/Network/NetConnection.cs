@@ -1,18 +1,17 @@
 ﻿using System;
 using System.Net;
 using System.Net.Sockets;
-using System.Threading;
 using MinecraftServerSharp.Network.Data;
 using MinecraftServerSharp.Network.Packets;
 using MinecraftServerSharp.Utility;
 
 namespace MinecraftServerSharp.Network
 {
-    public class NetConnection
+    public partial class NetConnection
     {
         private Action<NetConnection> _closeAction;
 
-        public NetProcessor Processor { get; }
+        public NetOrchestrator Orchestrator { get; }
         public Socket Socket { get; }
         public SocketAsyncEventArgs ReceiveEvent { get; }
         public SocketAsyncEventArgs SendEvent { get; }
@@ -24,7 +23,8 @@ namespace MinecraftServerSharp.Network
         public NetBinaryReader Reader { get; }
         public NetBinaryWriter Writer { get; }
 
-        public ProtocolState State { get; set; }
+        public object WriteMutex { get; } = new object();
+        public object SendMutex { get; } = new object();
 
         public int ReceivedLength { get; set; } = -1;
         public int ReceivedLengthBytes { get; set; } = -1;
@@ -33,53 +33,48 @@ namespace MinecraftServerSharp.Network
         public long BytesSent { get; set; }
         public long BytesReceived { get; set; }
 
+        public ProtocolState State { get; set; }
+
         #region Constructors
 
         public NetConnection(
-            NetProcessor processor,
+            NetOrchestrator orchestrator,
             Socket socket,
             SocketAsyncEventArgs receiveEvent,
             SocketAsyncEventArgs sendEvent,
             Action<NetConnection> closeAction)
         {
-            Processor = processor ?? throw new ArgumentNullException(nameof(processor));
+            Orchestrator = orchestrator ?? throw new ArgumentNullException(nameof(orchestrator));
             Socket = socket ?? throw new ArgumentNullException(nameof(socket));
             ReceiveEvent = receiveEvent ?? throw new ArgumentNullException(nameof(receiveEvent));
             SendEvent = sendEvent ?? throw new ArgumentNullException(nameof(sendEvent));
             _closeAction = closeAction ?? throw new ArgumentNullException(nameof(closeAction));
 
-            ReceiveBuffer = Processor.MemoryManager.GetStream();
-            SendBuffer = Processor.MemoryManager.GetStream();
+            ReceiveBuffer = Orchestrator.Processor.MemoryManager.GetStream();
+            SendBuffer = Orchestrator.Processor.MemoryManager.GetStream();
             Reader = new NetBinaryReader(ReceiveBuffer);
             Writer = new NetBinaryWriter(SendBuffer);
 
-            State = ProtocolState.Handshaking;
-
             // get it here as we can't get it later if the socket gets disposed
             RemoteEndPoint = (IPEndPoint)socket.RemoteEndPoint;
+
+            State = ProtocolState.Handshaking;
         }
 
         #endregion
 
         public (ReadCode Code, int Length) ReadPacket<TPacket>(out TPacket packet)
         {
-            var reader = Processor.PacketDecoder.GetPacketReader<TPacket>();
+            var reader = Orchestrator.Processor.PacketDecoder.GetPacketReader<TPacket>();
             long oldPosition = Reader.Position;
             var resultCode = reader.Invoke(Reader, out packet);
             int length = (int)(Reader.Position - oldPosition);
             return (resultCode, length);
         }
-
-        public int WritePacket<TPacket>(TPacket packet, bool flush = true)
+        
+        public PacketHolder<TPacket> EnqueuePacket<TPacket>(TPacket packet)
         {
-            var writer = Processor.PacketEncoder.GetPacketWriter<TPacket>();
-            long oldPosition = Writer.Position;
-            writer.Invoke(Writer, packet);
-            int length = (int)(Writer.Position - oldPosition);
-
-            if (flush)
-                Processor.FlushSendBuffer(this);
-            return length;
+            return Orchestrator.EnqueuePacket(this, packet);
         }
 
         public void TrimReceiveBufferStart(int length)
@@ -127,15 +122,19 @@ namespace MinecraftServerSharp.Network
 
         public bool Close()
         {
-            if (_closeAction == null)
-                return false;
+            lock (SendMutex)
+            {
+                if (_closeAction == null)
+                    return false;
 
-            Console.WriteLine("Connection metrics; Sent: " + BytesSent + ", Received: " + BytesReceived);
+                State = ProtocolState.Disconnected;
+                _closeAction.Invoke(this);
+                _closeAction = null;
 
-            _closeAction.Invoke(this);
-            _closeAction = null;
-            State = ProtocolState.Disconnected;
-            return true;
+                Console.WriteLine("Connection metrics; Sent: " + BytesSent + ", Received: " + BytesReceived);
+
+                return true;
+            }
         }
     }
 }

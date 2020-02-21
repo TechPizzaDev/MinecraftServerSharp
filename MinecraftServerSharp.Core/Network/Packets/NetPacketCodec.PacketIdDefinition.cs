@@ -2,7 +2,7 @@
 
 namespace MinecraftServerSharp.Network.Packets
 {
-    public abstract partial class NetPacketCoder<TPacketID>
+    public abstract partial class NetPacketCodec<TPacketID>
         where TPacketID : Enum
     {
         public readonly struct PacketIdDefinition

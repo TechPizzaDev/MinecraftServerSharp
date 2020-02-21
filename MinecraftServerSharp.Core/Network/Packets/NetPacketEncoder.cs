@@ -10,9 +10,9 @@ namespace MinecraftServerSharp.Network.Packets
     /// <summary>
     /// Gives access to delegates that turn packets into network messages.
     /// </summary>
-    public partial class NetPacketEncoder : NetPacketCoder<ServerPacketID>
+    public partial class NetPacketEncoder : NetPacketCodec<ServerPacketID>
     {
-        public delegate void PacketWriterDelegate<TPacket>(NetBinaryWriter writer, TPacket packet);
+        public delegate void PacketWriterDelegate<TPacket>(NetBinaryWriter writer, in TPacket packet);
 
         public NetPacketEncoder() : base()
         {
@@ -44,6 +44,8 @@ namespace MinecraftServerSharp.Network.Packets
 
             RegisterDataType(typeof(Utf8String));
             RegisterDataType(typeof(string));
+
+            RegisterDataType(typeof(Chat));
         }
 
         #endregion
@@ -55,14 +57,14 @@ namespace MinecraftServerSharp.Network.Packets
 
         public PacketWriterDelegate<TPacket> GetPacketWriter<TPacket>()
         {
-            return (PacketWriterDelegate<TPacket>)GetPacketCoder(typeof(TPacket));
+            return (PacketWriterDelegate<TPacket>)GetPacketCodec(typeof(TPacket));
         }
 
-        protected override Delegate CreateCoderDelegate(PacketStructInfo structInfo)
+        protected override Delegate CreateCodecDelegate(PacketStructInfo structInfo)
         {
             var expressions = new List<Expression>();
             var writerParam = Expression.Parameter(typeof(NetBinaryWriter), "Writer");
-            var packetParam = Expression.Parameter(structInfo.Type, "Packet");
+            var packetParam = Expression.Parameter(structInfo.Type.MakeByRefType(), "Packet");
 
             if (typeof(IWritablePacket).IsAssignableFrom(structInfo.Type))
             {
@@ -73,7 +75,7 @@ namespace MinecraftServerSharp.Network.Packets
             }
             else
             {
-                CreateComplexPacketWriter(expressions, writerParam, packetParam);
+                CreateComplexPacketWriter(expressions, packetParam, writerParam);
             }
 
             var writerDelegate = typeof(PacketWriterDelegate<>).MakeGenericType(structInfo.Type);
@@ -104,23 +106,24 @@ namespace MinecraftServerSharp.Network.Packets
 
             for (int i = 0; i < packetPropertyList.Count; i++)
             {
-                var property = packetPropertyList[i];
-                var propertyAccessor = Expression.Property(packetParam, property.Property);
+                var propertyInfo = packetPropertyList[i];
+                var property = Expression.Property(packetParam, propertyInfo.Property);
+                var propertyWriteMethod = DataTypes[DataTypeKey.FromVoid(propertyInfo.Type)];
                 
-                var writeMethod = DataTypes[new DataTypeKey(typeof(void), new[] { property.Type })];
-                var args = new[] { propertyAccessor };
-                
-                var lengthPrefixedAttrib = writeMethod.GetCustomAttribute<LengthPrefixedAttribute>();
+                var lengthPrefixedAttrib = propertyWriteMethod.GetCustomAttribute<LengthPrefixedAttribute>();
                 if (lengthPrefixedAttrib != null)
                 {
-                    var lengthProperty = Expression.Property(propertyAccessor, "Length");
-                    args = new[] { propertyAccessor, lengthProperty };
+                    throw new NotImplementedException();
+
+                    var lengthProperty = Expression.Property(property, "Length");
+                    var lengthWriteMethod = DataTypes[DataTypeKey.FromVoid(lengthPrefixedAttrib.LengthType)];
+                    var lengthPropertyCast = Expression.Convert(lengthProperty, lengthPrefixedAttrib.LengthType);
+
+                    expressions.Add(Expression.Call(writerParam, lengthWriteMethod, new[] { lengthPropertyCast }));
                 }
 
-                var call = Expression.Call(writerParam, writeMethod, args);
-                expressions.Add(call);
+                expressions.Add(Expression.Call(writerParam, propertyWriteMethod, new[] { property }));
             }
-
         }
     }
 }

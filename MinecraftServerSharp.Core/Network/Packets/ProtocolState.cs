@@ -5,16 +5,12 @@ namespace MinecraftServerSharp.Network.Packets
     {
         Undefined = 0,
 
-        Handshaking = 1,
-        Status = 2,
-        Login = 3,
-        Play = 4,
+        Status = 1,
+        Login = 2,
 
-        Disconnected = 5,
+        Handshaking,
+        Play,
 
-        /// <summary>
-        /// Represents the maximum integer value of this enum.
-        /// </summary>
-        MAX = 6
+        Disconnected
     }
 }

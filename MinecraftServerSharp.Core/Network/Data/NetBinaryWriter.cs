@@ -2,7 +2,6 @@
 using System.Buffers.Binary;
 using System.IO;
 using System.Text;
-using MinecraftServerSharp.Network.Packets;
 
 namespace MinecraftServerSharp.Network.Data
 {
@@ -13,7 +12,10 @@ namespace MinecraftServerSharp.Network.Data
 		public long Position { get => BaseStream.Position; set => BaseStream.Position = value; }
 		public long Length => BaseStream.Length;
 
-		public NetBinaryWriter(Stream stream) => BaseStream = stream;
+		public NetBinaryWriter(Stream stream)
+		{
+			BaseStream = stream ?? throw new ArgumentNullException(nameof(stream));
+		}
 
 		public long Seek(int offset, SeekOrigin origin) => BaseStream.Seek(offset, origin);
 
@@ -73,12 +75,10 @@ namespace MinecraftServerSharp.Network.Data
 
 		#region String Write
 
-		[LengthPrefixed(typeof(VarInt))]
 		public void Write(string value) => Write(value, StringHelper.BigUtf16, true);
 
 		public void WriteRaw(string value) => Write(value, StringHelper.BigUtf16, false);
 
-		[LengthPrefixed(typeof(VarInt))]
 		public void Write(Utf8String value) => Write(value.ToString(), StringHelper.Utf8, true);
 
 		public void WriteRaw(Utf8String value) => Write(value.ToString(), StringHelper.Utf8, false);
@@ -108,5 +108,10 @@ namespace MinecraftServerSharp.Network.Data
 		}
 
 		#endregion
+
+		public void Write(Chat chat)
+		{
+			Write(chat.Value);
+		}
 	}
 }

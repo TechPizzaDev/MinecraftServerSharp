@@ -16,8 +16,8 @@ namespace MinecraftServerSharp.Network.Packets
 
         #region Status
 
-        Request,
-        Ping,
+        [Mapping(0x00, State.Status)] Request,
+        [Mapping(0x01, State.Status)] Ping,
 
         #endregion
 

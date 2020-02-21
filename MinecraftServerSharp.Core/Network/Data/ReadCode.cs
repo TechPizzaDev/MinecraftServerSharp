@@ -1,5 +1,4 @@
-﻿using System;
-
+﻿
 namespace MinecraftServerSharp.Network.Data
 {
     public enum ReadCode

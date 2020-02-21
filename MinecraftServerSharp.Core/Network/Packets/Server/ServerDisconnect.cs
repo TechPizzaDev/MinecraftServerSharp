@@ -5,7 +5,6 @@ namespace MinecraftServerSharp.Network.Packets
     {
         [PacketProperty(0)] public Chat Reason { get; }
 
-        [PacketConstructor]
         public ServerDisconnect(Chat reason)
         {
             Reason = reason;

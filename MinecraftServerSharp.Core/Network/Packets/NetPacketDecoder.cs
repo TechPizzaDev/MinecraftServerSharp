@@ -10,7 +10,7 @@ namespace MinecraftServerSharp.Network.Packets
     /// <summary>
     /// Gives access to delegates that turn network messages into packets.
     /// </summary>
-    public partial class NetPacketDecoder : NetPacketCoder<ClientPacketID>
+    public partial class NetPacketDecoder : NetPacketCodec<ClientPacketID>
     {
         public delegate ReadCode PacketReaderDelegate<TPacket>(NetBinaryReader reader, out TPacket packet);
 
@@ -60,10 +60,10 @@ namespace MinecraftServerSharp.Network.Packets
 
         public PacketReaderDelegate<TPacket> GetPacketReader<TPacket>()
         {
-            return (PacketReaderDelegate<TPacket>)GetPacketCoder(typeof(TPacket));
+            return (PacketReaderDelegate<TPacket>)GetPacketCodec(typeof(TPacket));
         }
 
-        protected override Delegate CreateCoderDelegate(PacketStructInfo structInfo)
+        protected override Delegate CreateCodecDelegate(PacketStructInfo structInfo)
         {
             var constructors = structInfo.Type.GetConstructors();
             var constructorInfoList = constructors
@@ -71,53 +71,62 @@ namespace MinecraftServerSharp.Network.Packets
                 .Select(c => new PacketConstructorInfo(c, c.GetCustomAttribute<PacketConstructorAttribute>()))
                 .ToList();
 
-            if (constructorInfoList.Count == 0)
-                throw new Exception("No packet constructors are defined.");
             if (constructorInfoList.Count > 1)
                 throw new Exception("Only one packet constructor may be defined.");
-
-            var constructInfo = constructorInfoList[0];
-            var constructorParams = constructInfo.Constructor.GetParameters();
 
             var variables = new List<ParameterExpression>();
             var expressions = new List<Expression>();
             var constructorArgs = new List<Expression>();
 
+            var constructor = constructorInfoList.Count > 0 ? constructorInfoList[0].Constructor : null;
+            var constructorParams = constructor?.GetParameters();
+
             // TODO: instead of only giving readMethod a NetBinaryReader, 
             // give it a state object with user-defined values/objects
             var readerParam = Expression.Parameter(typeof(NetBinaryReader), "Reader");
             var outPacketParam = Expression.Parameter(structInfo.Type.MakeByRefType(), "Packet");
+
             var resultCodeVar = Expression.Variable(typeof(ReadCode), "ReadCode");
             variables.Add(resultCodeVar);
 
-            var returnTarget = Expression.Label("Return");
-            
-            if (constructorParams.Length == 2 &&
-                constructorParams[0].ParameterType == typeof(NetBinaryReader) &&
-                constructorParams[1].ParameterType == typeof(ReadCode).MakeByRefType())
+            NewExpression newPacket;
+            LabelTarget returnTarget = null;
+            if (constructor != null)
             {
-                constructorArgs.Add(readerParam);
-                constructorArgs.Add(resultCodeVar);
+                if (constructorParams.Length == 2 &&
+                    constructorParams[0].ParameterType == typeof(NetBinaryReader) &&
+                    constructorParams[1].ParameterType == typeof(ReadCode).MakeByRefType())
+                {
+                    constructorArgs.Add(readerParam);
+                    constructorArgs.Add(resultCodeVar);
+                }
+                else
+                {
+                    returnTarget = Expression.Label("Return");
+
+                    CreateComplexPacketReader(
+                        variables, constructorArgs, expressions,
+                        readerParam, resultCodeVar,
+                        returnTarget, constructorParams);
+                }
+                newPacket = Expression.New(constructor, constructorArgs);
             }
             else
             {
-                CreateComplexPacketReader(
-                    variables, constructorArgs, expressions,
-                    readerParam, resultCodeVar,
-                    returnTarget, constructorParams);
+                newPacket = Expression.New(structInfo.Type);
+                expressions.Add(Expression.Assign(resultCodeVar, Expression.Constant(ReadCode.Ok)));
             }
-
-            var newPacket = Expression.New(constructInfo.Constructor, constructorArgs);
             expressions.Add(Expression.Assign(outPacketParam, newPacket));
 
-            expressions.Add(Expression.Label(returnTarget));
-            expressions.Add(resultCodeVar);
+            if (returnTarget != null)
+                expressions.Add(Expression.Label(returnTarget));
 
-            var readerDelegate = typeof(PacketReaderDelegate<>).MakeGenericType(structInfo.Type);
+            expressions.Add(resultCodeVar); // Return the read code by putting it as the last expression.
+
+            var delegateType = typeof(PacketReaderDelegate<>).MakeGenericType(structInfo.Type);
             var lambdaBody = Expression.Block(variables, expressions);
-            var lambdaParams = new[] { readerParam, outPacketParam };
-            var resultLambda = Expression.Lambda(readerDelegate, lambdaBody, lambdaParams);
-            return resultLambda.Compile();
+            var lambda = Expression.Lambda(delegateType, lambdaBody, new[] { readerParam, outPacketParam });
+            return lambda.Compile();
         }
 
         private void CreateComplexPacketReader(

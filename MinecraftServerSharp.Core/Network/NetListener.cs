@@ -20,12 +20,12 @@ namespace MinecraftServerSharp.Network
         public event ConnectionEvent Connection;
         public event ConnectionEvent Disconnection;
 
-        private NetProcessor Processor { get; }
+        private NetOrchestrator Orchestrator { get; }
         public Socket Socket { get; }
 
-        public NetListener(NetProcessor processor)
+        public NetListener(NetOrchestrator orchestrator)
         {
-            Processor = processor;
+            Orchestrator = orchestrator ?? throw new ArgumentNullException(nameof(orchestrator));
             Socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
         }
 
@@ -60,7 +60,7 @@ namespace MinecraftServerSharp.Network
             var sendEvent = new SocketAsyncEventArgs(); // TODO: pool 
 
             var connection = new NetConnection(
-                Processor,
+                Orchestrator,
                 acceptEvent.AcceptSocket,
                 receiveEvent,
                 sendEvent,
