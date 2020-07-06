@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
@@ -10,9 +11,9 @@ namespace MinecraftServerSharp.Network.Packets
     /// <summary>
     /// Gives access to delegates that turn network messages into packets.
     /// </summary>
-    public partial class NetPacketDecoder : NetPacketCodec<ClientPacketID>
+    public partial class NetPacketDecoder : NetPacketCodec<ClientPacketId>
     {
-        public delegate ReadCode PacketReaderDelegate<TPacket>(NetBinaryReader reader, out TPacket packet);
+        public delegate OperationStatus PacketReaderDelegate<TPacket>(NetBinaryReader reader, out TPacket packet);
 
         public NetPacketDecoder() : base()
         {
@@ -68,7 +69,7 @@ namespace MinecraftServerSharp.Network.Packets
             var constructors = structInfo.Type.GetConstructors();
             var constructorInfoList = constructors
                 .Where(c => c.GetCustomAttribute<PacketConstructorAttribute>() != null)
-                .Select(c => new PacketConstructorInfo(c, c.GetCustomAttribute<PacketConstructorAttribute>()))
+                .Select(c => new PacketConstructorInfo(c, c.GetCustomAttribute<PacketConstructorAttribute>()!))
                 .ToList();
 
             if (constructorInfoList.Count > 1)
@@ -78,24 +79,26 @@ namespace MinecraftServerSharp.Network.Packets
             var expressions = new List<Expression>();
             var constructorArgs = new List<Expression>();
 
-            var constructor = constructorInfoList.Count > 0 ? constructorInfoList[0].Constructor : null;
-            var constructorParams = constructor?.GetParameters();
-
             // TODO: instead of only giving readMethod a NetBinaryReader, 
             // give it a state object with user-defined values/objects
             var readerParam = Expression.Parameter(typeof(NetBinaryReader), "Reader");
             var outPacketParam = Expression.Parameter(structInfo.Type.MakeByRefType(), "Packet");
 
-            var resultCodeVar = Expression.Variable(typeof(ReadCode), "ReadCode");
+            var resultCodeVar = Expression.Variable(typeof(OperationStatus), "OperationStatus");
             variables.Add(resultCodeVar);
 
             NewExpression newPacket;
-            LabelTarget returnTarget = null;
+            LabelTarget? returnTarget = null;
+            ConstructorInfo? constructor = constructorInfoList.Count > 0 
+                ? constructorInfoList[0].Constructor : null;
+
             if (constructor != null)
             {
+                var constructorParams = constructor.GetParameters();
+
                 if (constructorParams.Length == 2 &&
                     constructorParams[0].ParameterType == typeof(NetBinaryReader) &&
-                    constructorParams[1].ParameterType == typeof(ReadCode).MakeByRefType())
+                    constructorParams[1].ParameterType == typeof(OperationStatus).MakeByRefType())
                 {
                     constructorArgs.Add(readerParam);
                     constructorArgs.Add(resultCodeVar);
@@ -114,7 +117,7 @@ namespace MinecraftServerSharp.Network.Packets
             else
             {
                 newPacket = Expression.New(structInfo.Type);
-                expressions.Add(Expression.Assign(resultCodeVar, Expression.Constant(ReadCode.Ok)));
+                expressions.Add(Expression.Assign(resultCodeVar, Expression.Constant(OperationStatus.Done)));
             }
             expressions.Add(Expression.Assign(outPacketParam, newPacket));
 
@@ -148,13 +151,15 @@ namespace MinecraftServerSharp.Network.Packets
                 variables.Add(resultVar);
                 constructorArgs.Add(resultVar);
 
-                var dataTypeKey = new DataTypeKey(typeof(ReadCode), constructorParam.ParameterType.MakeByRefType());
-                var readMethod = DataTypes[dataTypeKey];
+                var dataTypeKey = new DataTypeKey(
+                    typeof(OperationStatus), constructorParam.ParameterType.MakeByRefType());
+
+                var readMethod = DataTypeHandlers[dataTypeKey];
                 var readCall = Expression.Call(readerParam, readMethod, arguments: resultVar);
                 expressions.Add(Expression.Assign(resultCodeVar, readCall));
 
                 expressions.Add(Expression.IfThen(
-                    test: Expression.NotEqual(resultCodeVar, Expression.Constant(ReadCode.Ok)),
+                    test: Expression.NotEqual(resultCodeVar, Expression.Constant(OperationStatus.Done)),
                     ifTrue: Expression.Goto(returnTarget)));
             }
         }

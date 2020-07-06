@@ -9,7 +9,14 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Tests", "Tests\Tests.csproj
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MinecraftServerSharp.Core", "MinecraftServerSharp.Core\MinecraftServerSharp.Core.csproj", "{13DFF001-2284-4CF1-A6DA-F2FB64C3C7EE}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sandbox", "Sandbox\Sandbox.csproj", "{329B9739-540E-4DD5-B3D6-00AABF32A79D}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Sandbox", "Sandbox\Sandbox.csproj", "{329B9739-540E-4DD5-B3D6-00AABF32A79D}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{E2E3F77B-956B-402C-8D75-D25CCAC0B3D2}"
+	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
+	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MinecraftServerSharp.NBT", "MinecraftServerSharp.NBT\MinecraftServerSharp.NBT.csproj", "{83B54FEE-D441-49F8-B8DC-5F0532F7D216}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -33,6 +40,10 @@ Global
 		{329B9739-540E-4DD5-B3D6-00AABF32A79D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{329B9739-540E-4DD5-B3D6-00AABF32A79D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{329B9739-540E-4DD5-B3D6-00AABF32A79D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{83B54FEE-D441-49F8-B8DC-5F0532F7D216}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{83B54FEE-D441-49F8-B8DC-5F0532F7D216}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{83B54FEE-D441-49F8-B8DC-5F0532F7D216}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{83B54FEE-D441-49F8-B8DC-5F0532F7D216}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

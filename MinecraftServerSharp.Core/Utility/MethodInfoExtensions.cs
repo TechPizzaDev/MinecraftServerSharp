@@ -8,6 +8,9 @@ namespace MinecraftServerSharp
         public static TDelegate CreateDelegate<TDelegate>(this MethodInfo methodInfo)
             where TDelegate : Delegate
         {
+            if (methodInfo == null)
+                throw new ArgumentNullException(nameof(methodInfo));
+
             var type = typeof(TDelegate);
             return (TDelegate)methodInfo.CreateDelegate(type);
         }

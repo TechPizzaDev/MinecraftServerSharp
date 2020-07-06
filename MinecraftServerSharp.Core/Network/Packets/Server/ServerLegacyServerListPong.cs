@@ -4,7 +4,7 @@ using MinecraftServerSharp.Network.Data;
 
 namespace MinecraftServerSharp.Network.Packets
 {
-    [PacketStruct(ServerPacketID.LegacyServerListPong)]
+    [PacketStruct(ServerPacketId.LegacyServerListPong)]
     public readonly struct ServerLegacyServerListPong : IWritablePacket
     {
         public bool IsBeta { get; }
@@ -16,8 +16,11 @@ namespace MinecraftServerSharp.Network.Packets
 
         public ServerLegacyServerListPong(
             bool isBeta,
-            int protocolVersion, MinecraftVersion minecraftVersion,
-            string messageOfTheDay, int currentPlayerCount, int maxPlayers)
+            int protocolVersion, 
+            MinecraftVersion minecraftVersion,
+            string messageOfTheDay,
+            int currentPlayerCount, 
+            int maxPlayers)
         {
             IsBeta = isBeta;
             ProtocolVersion = protocolVersion;

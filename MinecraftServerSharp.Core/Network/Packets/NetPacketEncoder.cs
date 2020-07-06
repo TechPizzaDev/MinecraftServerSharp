@@ -10,7 +10,7 @@ namespace MinecraftServerSharp.Network.Packets
     /// <summary>
     /// Gives access to delegates that turn packets into network messages.
     /// </summary>
-    public partial class NetPacketEncoder : NetPacketCodec<ServerPacketID>
+    public partial class NetPacketEncoder : NetPacketCodec<ServerPacketId>
     {
         public delegate void PacketWriterDelegate<TPacket>(NetBinaryWriter writer, in TPacket packet);
 
@@ -46,6 +46,7 @@ namespace MinecraftServerSharp.Network.Packets
             RegisterDataType(typeof(string));
 
             RegisterDataType(typeof(Chat));
+            RegisterDataType(typeof(EntityId));
         }
 
         #endregion
@@ -101,14 +102,17 @@ namespace MinecraftServerSharp.Network.Packets
                 return new PacketPropertyInfo(property, propertyAttribute, lengthConstraintAttrib);
             });
 
-            var packetPropertyList = packetProperties.Where(x => x != null).ToList();
+            List<PacketPropertyInfo> packetPropertyList = packetProperties.Where(x => x != null).ToList()!;
             packetPropertyList.Sort((x, y) => x.SerializationOrder.CompareTo(y.SerializationOrder));
 
             for (int i = 0; i < packetPropertyList.Count; i++)
             {
                 var propertyInfo = packetPropertyList[i];
                 var property = Expression.Property(packetParam, propertyInfo.Property);
-                var propertyWriteMethod = DataTypes[DataTypeKey.FromVoid(propertyInfo.Type)];
+
+                var propertyTypeKey = DataTypeKey.FromVoid(propertyInfo.Type);
+                if (!DataTypeHandlers.TryGetValue(propertyTypeKey, out var propertyWriteMethod))
+                    throw new Exception("Missing write method \"" + propertyTypeKey + "\".");
                 
                 var lengthPrefixedAttrib = propertyWriteMethod.GetCustomAttribute<LengthPrefixedAttribute>();
                 if (lengthPrefixedAttrib != null)
@@ -116,7 +120,7 @@ namespace MinecraftServerSharp.Network.Packets
                     throw new NotImplementedException();
 
                     var lengthProperty = Expression.Property(property, "Length");
-                    var lengthWriteMethod = DataTypes[DataTypeKey.FromVoid(lengthPrefixedAttrib.LengthType)];
+                    var lengthWriteMethod = DataTypeHandlers[DataTypeKey.FromVoid(lengthPrefixedAttrib.LengthType)];
                     var lengthPropertyCast = Expression.Convert(lengthProperty, lengthPrefixedAttrib.LengthType);
 
                     expressions.Add(Expression.Call(writerParam, lengthWriteMethod, new[] { lengthPropertyCast }));

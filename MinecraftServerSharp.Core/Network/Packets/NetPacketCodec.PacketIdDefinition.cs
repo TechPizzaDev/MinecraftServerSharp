@@ -2,20 +2,20 @@
 
 namespace MinecraftServerSharp.Network.Packets
 {
-    public abstract partial class NetPacketCodec<TPacketID>
-        where TPacketID : Enum
+    public abstract partial class NetPacketCodec<TPacketId>
+        where TPacketId : Enum
     {
         public readonly struct PacketIdDefinition
         {
             public Type Type { get; }
-            public int RawID { get; }
-            public TPacketID ID { get; }
+            public int RawId { get; }
+            public TPacketId Id { get; }
 
-            public PacketIdDefinition(Type type, int rawID, TPacketID id)
+            public PacketIdDefinition(Type type, int rawId, TPacketId id)
             {
                 Type = type ?? throw new ArgumentNullException(nameof(type));
-                RawID = rawID;
-                ID = id;
+                RawId = rawId;
+                Id = id;
             }
         }
     }

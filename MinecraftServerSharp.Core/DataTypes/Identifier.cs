@@ -6,39 +6,26 @@ namespace MinecraftServerSharp
 {
     public readonly struct Identifier
     {
-        private static HashSet<char> _validNamespaceCharacters;
-        private static HashSet<char> _validLocationCharacters;
+        private static HashSet<char> _validLocationCharacters = new HashSet<char>(ValidLocationCharacters.ToArray());
+        private static HashSet<char> _validNamespaceCharacters = new HashSet<char>(ValidNamespaceCharacters.ToArray());
 
-        public static ReadOnlyMemory<char> ValidNamespaceCharacters { get; }
-        public static ReadOnlyMemory<char> ValidLocationCharacters { get; }
+        public static ReadOnlyMemory<char> ValidLocationCharacters { get; } = new char[]
+        {
+            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+            'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j',
+            'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
+            'u', 'v', 'w', 'x', 'y', 'z', '-', '_', '/', '.'
+        };
 
+        public static ReadOnlyMemory<char> ValidNamespaceCharacters { get; } = ValidLocationCharacters[0..^2];
+
+        // TODO: move this somewhere else
         public const string DefaultNamespace = "minecraft";
         public const string Separator = ":";
 
         public string Value { get; }
         public string Namespace { get; }
         public string Location { get; }
-
-        #region Static Constructor
-
-        static Identifier()
-        {
-            var validCharacters = new char[]
-            {
-                '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-                'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j',
-                'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
-                'u', 'v', 'w', 'x', 'y', 'z', '-', '_', '/', '.'
-            };
-
-            ValidNamespaceCharacters = validCharacters.AsMemory(0..^2);
-            ValidLocationCharacters = validCharacters.AsMemory();
-
-            _validNamespaceCharacters = new HashSet<char>(validCharacters[0..^2]);
-            _validLocationCharacters = new HashSet<char>(validCharacters);
-        }
-
-        #endregion
 
         #region Constructors
 
@@ -48,7 +35,8 @@ namespace MinecraftServerSharp
 
             string[] parts = Value.Split(Separator, StringSplitOptions.None);
             if (parts.Length != 0)
-                throw new ArgumentException("Could not separate identifier.", nameof(value));
+                throw new ArgumentException(
+                    "Could not separate identifier into a namespace and location.", nameof(value));
 
             ValidateParts(parts[0], parts[1]);
 
@@ -71,13 +59,13 @@ namespace MinecraftServerSharp
         private static void ValidateParts(string @namespace, string location)
         {
             if (!IsValidNamespace(@namespace))
-                throw new ArgumentException(nameof(@namespace));
+                throw new ArgumentException("The namespace contains invalid characters.", nameof(@namespace));
 
             if (location == null)
                 throw new ArgumentNullException(nameof(location));
 
             if (!IsValidLocation(location))
-                throw new ArgumentException(nameof(location));
+                throw new ArgumentException("The location contains invalid characters.", nameof(location));
         }
 
         public static bool IsValidNamespace(ReadOnlySpan<char> value)

@@ -1,25 +1,52 @@
 ﻿using System;
+using System.Buffers;
 using System.Buffers.Binary;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace MinecraftServerSharp.Network.Data
 {
+    // TODO: add buffering
     public readonly struct NetBinaryReader
     {
         public Stream BaseStream { get; }
 
-        public long Position { get => BaseStream.Position; set => BaseStream.Position = value; }
         public long Length => BaseStream.Length;
         public long Remaining => Length - Position;
 
-        public NetBinaryReader(Stream stream) => BaseStream = stream;
+        public long Position
+        {
+            get => BaseStream.Position;
+            set => BaseStream.Position = value;
+        }
 
-        public long Seek(int offset, SeekOrigin origin) => BaseStream.Seek(offset, origin);
+        public NetBinaryReader(Stream stream)
+        {
+            BaseStream = stream ?? throw new ArgumentNullException(nameof(stream));
 
-        public int ReadBytes(Span<byte> buffer) => BaseStream.Read(buffer);
+            if (!BaseStream.CanRead)
+                throw new IOException("The stream is not readable.");
 
-        public int ReadByte() => BaseStream.ReadByte();
+            if (!BaseStream.CanSeek)
+                throw new IOException("The stream is not seekable.");
+        }
+
+        public long Seek(int offset, SeekOrigin origin)
+        {
+            return BaseStream.Seek(offset, origin);
+        }
+
+        public int ReadBytes(Span<byte> buffer)
+        {
+            return BaseStream.Read(buffer);
+        }
+
+        public int ReadByte()
+        {
+            return BaseStream.ReadByte();
+        }
 
         public int PeekByte()
         {
@@ -29,167 +56,195 @@ namespace MinecraftServerSharp.Network.Data
             return b;
         }
 
-        public ReadCode Read(Span<byte> buffer)
+        public OperationStatus Read(Span<byte> buffer)
         {
-            int read = BaseStream.Read(buffer);
-            if (read != buffer.Length)
-                return ReadCode.EndOfStream;
-            return ReadCode.Ok;
+            if (Remaining < buffer.Length)
+                return OperationStatus.NeedMoreData;
+
+            int read;
+            while ((read = ReadBytes(buffer)) > 0)
+                buffer = buffer.Slice(read);
+
+            if (buffer.Length > 0)
+                // this should not happen if everything else works correctly
+                throw new EndOfStreamException();
+
+            return OperationStatus.Done;
         }
 
-        public ReadCode Read(out bool value)
+        public OperationStatus Read(out bool value)
         {
-            if (Remaining < sizeof(bool))
+            Span<byte> buffer = stackalloc byte[sizeof(bool)];
+            var status = Read(buffer);
+            if (status != OperationStatus.Done)
             {
                 value = default;
-                return ReadCode.EndOfStream;
+                return status;
             }
-            value = ReadByte() != 0;
-            return ReadCode.Ok;
+            value = buffer[0] != 0;
+            return OperationStatus.Done;
         }
 
-        public ReadCode Read(out sbyte value)
+        public OperationStatus Read(out sbyte value)
         {
-            if (Remaining < sizeof(sbyte))
+            Span<byte> buffer = stackalloc byte[sizeof(sbyte)];
+            var status = Read(buffer);
+            if (status != OperationStatus.Done)
             {
                 value = default;
-                return ReadCode.EndOfStream;
+                return status;
             }
-            value = (sbyte)ReadByte();
-            return ReadCode.Ok;
+            value = (sbyte)buffer[0];
+            return OperationStatus.Done;
         }
 
-        public ReadCode Read(out byte value)
+        public OperationStatus Read(out byte value)
         {
-            if (Remaining < sizeof(byte))
+            Span<byte> buffer = stackalloc byte[sizeof(byte)];
+            var status = Read(buffer);
+            if (status != OperationStatus.Done)
             {
                 value = default;
-                return ReadCode.EndOfStream;
+                return status;
             }
-            value = (byte)ReadByte();
-            return ReadCode.Ok;
+            value = buffer[0];
+            return OperationStatus.Done;
         }
 
-        public ReadCode Read(out short value)
+        public OperationStatus Read(out short value)
         {
-            if (Remaining < sizeof(short))
-            {
-                value = default;
-                return ReadCode.EndOfStream;
-            }
             Span<byte> buffer = stackalloc byte[sizeof(short)];
-            this.Read(buffer);
+            var status = Read(buffer);
+            if (status != OperationStatus.Done)
+            {
+                value = default;
+                return status;
+            }
             value = BinaryPrimitives.ReadInt16BigEndian(buffer);
-            return ReadCode.Ok;
+            return OperationStatus.Done;
         }
 
-        public ReadCode Read(out ushort value)
+        public OperationStatus Read(out ushort value)
         {
-            if (Remaining < sizeof(ushort))
-            {
-                value = default;
-                return ReadCode.EndOfStream;
-            }
             Span<byte> buffer = stackalloc byte[sizeof(ushort)];
-            this.Read(buffer);
+            var status = Read(buffer);
+            if (status != OperationStatus.Done)
+            {
+                value = default;
+                return status;
+            }
             value = BinaryPrimitives.ReadUInt16BigEndian(buffer);
-            return ReadCode.Ok;
+            return OperationStatus.Done;
         }
 
-        public ReadCode Read(out int value)
+        public OperationStatus Read(out int value)
         {
-            if (Remaining < sizeof(int))
-            {
-                value = default;
-                return ReadCode.EndOfStream;
-            }
             Span<byte> buffer = stackalloc byte[sizeof(int)];
-            this.Read(buffer);
+            var status = Read(buffer);
+            if (status != OperationStatus.Done)
+            {
+                value = default;
+                return status;
+            }
             value = BinaryPrimitives.ReadInt32BigEndian(buffer);
-            return ReadCode.Ok;
+            return OperationStatus.Done;
         }
 
-        public ReadCode Read(out long value)
+        public OperationStatus Read(out long value)
         {
-            if (Remaining < sizeof(long))
-            {
-                value = default;
-                return ReadCode.EndOfStream;
-            }
             Span<byte> buffer = stackalloc byte[sizeof(long)];
-            this.Read(buffer);
+            var status = Read(buffer);
+            if (status != OperationStatus.Done)
+            {
+                value = default;
+                return status;
+            }
             value = BinaryPrimitives.ReadInt64BigEndian(buffer);
-            return ReadCode.Ok;
+            return OperationStatus.Done;
         }
 
-        public ReadCode Read(out float value)
+        public OperationStatus Read(out float value)
         {
-            var code = Read(out int intValue);
-            if (code != ReadCode.Ok)
+            Span<byte> buffer = stackalloc byte[sizeof(float)];
+            var status = Read(buffer);
+            if (status != OperationStatus.Done)
             {
                 value = default;
-                return code;
+                return status;
             }
-            value = BitConverter.Int32BitsToSingle(intValue);
-            return ReadCode.Ok;
+            value = Unsafe.ReadUnaligned<float>(ref MemoryMarshal.GetReference(buffer));
+            return OperationStatus.Done;
         }
 
-        public ReadCode Read(out double value)
+        public OperationStatus Read(out double value)
         {
-            var code = Read(out long longValue);
-            if (code != ReadCode.Ok)
+            Span<byte> buffer = stackalloc byte[sizeof(double)];
+            var status = Read(buffer);
+            if (status != OperationStatus.Done)
             {
                 value = default;
-                return code;
+                return status;
             }
-            value = BitConverter.Int64BitsToDouble(longValue);
-            return ReadCode.Ok;
+            value = Unsafe.ReadUnaligned<double>(ref MemoryMarshal.GetReference(buffer));
+            return OperationStatus.Done;
         }
 
-        public ReadCode Read(out VarInt value, out int bytes) => VarInt.TryDecode(BaseStream, out value, out bytes);
+        public OperationStatus Read(out VarInt value, out int bytes)
+        {
+            return VarInt.TryDecode(BaseStream, out value, out bytes);
+        }
 
-        public ReadCode Read(out VarInt value) => Read(out value, out _);
+        public OperationStatus Read(out VarInt value)
+        {
+            return Read(out value, out _);
+        }
 
-        public ReadCode Read(out VarLong value, out int bytes) => VarLong.TryDecode(BaseStream, out value, out bytes);
+        public OperationStatus Read(out VarLong value, out int bytes)
+        {
+            return VarLong.TryDecode(BaseStream, out value, out bytes);
+        }
 
-        public ReadCode Read(out VarLong value) => Read(out value, out _);
+        public OperationStatus Read(out VarLong value)
+        {
+            return Read(out value, out _);
+        }
 
         #region Read(string)
 
-        public ReadCode Read(out string value)
+        public OperationStatus Read(out string value)
         {
             var code = Read(out VarInt byteCount, out int lengthBytes);
-            if (code != ReadCode.Ok)
+            if (code != OperationStatus.Done)
             {
-                value = default;
+                value = string.Empty;
                 return code;
             }
             if (lengthBytes > 3)
             {
-                value = default;
-                return ReadCode.InvalidData;
+                value = string.Empty;
+                return OperationStatus.InvalidData;
             }
 
             int length = byteCount / sizeof(char);
             return Read(length, out value);
         }
 
-        public unsafe ReadCode Read(int length, out string value)
+        public unsafe OperationStatus Read(int length, out string value)
         {
             if (!StringHelper.IsValidStringByteLength(length * sizeof(char)))
             {
-                value = default;
-                return ReadCode.InvalidData;
+                value = string.Empty;
+                return OperationStatus.InvalidData;
             }
 
-            var code = ReadCode.Ok;
+            var code = OperationStatus.Done;
             var readState = new StringReadState(this, &code);
 
             value = string.Create(length, readState, (output, state) =>
             {
                 // We can use the string as the backing buffer.
                 var outputBytes = MemoryMarshal.AsBytes(output);
-                if ((state.Code = state.Reader.Read(outputBytes)) != ReadCode.Ok)
+                if ((state.Code = state.Reader.Read(outputBytes)) != OperationStatus.Done)
                     return;
 
                 StringHelper.BigUtf16.GetChars(outputBytes, output);
@@ -201,10 +256,10 @@ namespace MinecraftServerSharp.Network.Data
 
         #region Read(Utf8String)
 
-        public ReadCode Read(out Utf8String value)
+        public OperationStatus Read(out Utf8String value)
         {
             var code = Read(out VarInt byteCount, out int lengthBytes);
-            if (code != ReadCode.Ok)
+            if (code != OperationStatus.Done)
             {
                 value = default;
                 return code;
@@ -212,19 +267,19 @@ namespace MinecraftServerSharp.Network.Data
             if (lengthBytes > 3)
             {
                 value = default;
-                return ReadCode.InvalidData;
+                return OperationStatus.InvalidData;
             }
 
             int length = byteCount / sizeof(byte);
             return Read(length, out value);
         }
 
-        public unsafe ReadCode Read(int length, out Utf8String value)
+        public unsafe OperationStatus Read(int length, out Utf8String value)
         {
             // length is already in bytes
             StringHelper.AssertValidStringByteLength(length);
 
-            var code = ReadCode.Ok;
+            var code = OperationStatus.Done;
             var readState = new StringReadState(this, &code);
 
             value = Utf8String.Create(length, readState, (output, state) =>
@@ -240,12 +295,12 @@ namespace MinecraftServerSharp.Network.Data
         // TODO: put this under an unsafe conditional
         private unsafe struct StringReadState
         {
-            private ReadCode* _codeOutput;
+            private OperationStatus* _codeOutput;
 
             public NetBinaryReader Reader { get; }
-            public ReadCode Code { get => *_codeOutput; set => *_codeOutput = value; }
+            public OperationStatus Code { get => *_codeOutput; set => *_codeOutput = value; }
 
-            public StringReadState(NetBinaryReader reader, ReadCode* codeOutput)
+            public StringReadState(NetBinaryReader reader, OperationStatus* codeOutput)
             {
                 Reader = reader;
                 _codeOutput = codeOutput;

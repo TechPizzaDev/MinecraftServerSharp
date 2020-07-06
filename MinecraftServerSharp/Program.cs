@@ -1,5 +1,8 @@
 ﻿using System;
 using System.Net;
+using System.Numerics;
+using System.Text;
+using System.Text.Json;
 using MinecraftServerSharp.Network;
 
 namespace MinecraftServerSharp
@@ -13,7 +16,7 @@ namespace MinecraftServerSharp
     {
         private static void Main(string[] args)
         {
-            var ticker = new Ticker();
+            var gameTicker = new Ticker(targetTickTime: TimeSpan.FromMilliseconds(50));
 
             var manager = new NetManager();
             manager.Listener.Connection += Manager_Connection;
@@ -27,19 +30,41 @@ namespace MinecraftServerSharp
             Console.WriteLine("Setting up network manager...");
             manager.Setup();
 
-            int backlog = 100;
+            int backlog = 200;
             Console.WriteLine("Listener backlog queue size: " + backlog);
 
             manager.Listen(backlog);
             Console.WriteLine("Listening for connections...");
 
-            ticker.Tick += (ticker) =>
+            int tickCount = 0;
+            var rng = new Random();
+
+            gameTicker.Tick += (ticker) =>
             {
+                tickCount++;
+                if (tickCount % 10 == 0)
+                {
+                    //Console.WriteLine(
+                    //    "Tick Time: " +
+                    //    ticker.ElapsedTime.TotalMilliseconds.ToString("00.00") +
+                    //    "/" +
+                    //    ticker.TargetTime.TotalMilliseconds.ToString("00") + " ms" +
+                    //    " | " +
+                    //    (ticker.ElapsedTime.Ticks / (float)ticker.TargetTime.Ticks * 100f).ToString("00.0") + "%");
+
+                    lock (manager.ConnectionMutex)
+                    {
+                        int count = manager.Connections.Count;
+                        if (count > 0)
+                            Console.WriteLine(count + " connections");
+                    }
+                }
+
                 //world.Tick();
                 manager.Flush();
             };
-            ticker.Run();
-
+            gameTicker.Run();
+            
             Console.ReadKey();
             return;
         }

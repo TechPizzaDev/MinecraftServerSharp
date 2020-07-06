@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Reflection;
 
 namespace MinecraftServerSharp.Network
 {
@@ -24,7 +23,7 @@ namespace MinecraftServerSharp.Network
 
         public void Start(int workerCount)
         {
-            workerCount = Math.Min(workerCount, Environment.ProcessorCount * 2);
+            workerCount = Math.Min(workerCount, Environment.ProcessorCount);
 
             for (int i = 0; i < workerCount; i++)
             {
@@ -40,33 +39,49 @@ namespace MinecraftServerSharp.Network
         public void Stop()
         {
             foreach (var worker in _workers)
-            {
                 worker.Stop();
-            }
+
             _workers.Clear();
         }
 
         public void Flush()
         {
             foreach (var worker in _workers)
-                worker.Flush();
-
-            foreach (var worker in _workers)
-                worker.AwaitFlush();
+                worker.RequestFlush();
         }
 
-        public PacketHolder<TPacket> EnqueuePacket<TPacket>(NetConnection target, TPacket packet)
+        public PacketHolder<TPacket> GetPacketHolder<TPacket>(NetConnection target, TPacket packet)
         {
+            if (target == null)
+                throw new ArgumentNullException(nameof(target));
+
+            if (packet == null)
+                throw new ArgumentNullException(nameof(packet));
+
             // TODO: pool packet holders
             var writerDelegate = Processor.PacketEncoder.GetPacketWriter<TPacket>();
             var holder = new PacketHolder<TPacket>(writerDelegate);
 
+            holder.State = target.State;
             holder.TargetConnection = target;
             holder.Packet = packet;
 
-            PacketSendQueue.Enqueue(holder);
-
             return holder;
+        }
+
+        public void EnqueuePacket(PacketHolder packetHolder)
+        {
+            PacketSendQueue.Enqueue(packetHolder);
+
+            // TODO: get a heuristic of which worker would be most likely to flush packet
+            foreach (var worker in _workers)
+                worker.RequestFlush();
+        }
+
+        public void EnqueuePacket<TPacket>(NetConnection target, TPacket packet)
+        {
+            var packetHolder = GetPacketHolder(target, packet);
+            EnqueuePacket(packetHolder);
         }
     }
 }

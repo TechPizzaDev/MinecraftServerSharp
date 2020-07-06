@@ -1,7 +1,7 @@
 ﻿
 namespace MinecraftServerSharp.Network.Packets
 {
-    [PacketStruct(ServerPacketID.Pong)]
+    [PacketStruct(ServerPacketId.Pong)]
     public readonly struct ServerPong
     {
         [PacketProperty(0)] public long Payload { get; }

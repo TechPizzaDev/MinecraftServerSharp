@@ -79,6 +79,8 @@ namespace MinecraftServerSharp.Network.Data
 
 		public void WriteRaw(string value) => Write(value, StringHelper.BigUtf16, false);
 
+		// TODO: optimize
+
 		public void Write(Utf8String value) => Write(value.ToString(), StringHelper.Utf8, true);
 
 		public void WriteRaw(Utf8String value) => Write(value.ToString(), StringHelper.Utf8, false);
@@ -89,7 +91,7 @@ namespace MinecraftServerSharp.Network.Data
 			if (includeLength)
 				Write((VarInt)byteCount);
 
-			int sliceSize = 256;
+			int sliceSize = 512;
 			int maxBytesPerSlice = encoding.GetMaxByteCount(sliceSize);
 			Span<byte> byteBuffer = stackalloc byte[maxBytesPerSlice];
 
@@ -112,6 +114,11 @@ namespace MinecraftServerSharp.Network.Data
 		public void Write(Chat chat)
 		{
 			Write(chat.Value);
+		}
+
+		public void Write(EntityId entityId)
+		{
+			Write(entityId.Value);
 		}
 	}
 }

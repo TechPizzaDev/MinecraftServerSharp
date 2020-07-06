@@ -1,12 +1,13 @@
 ﻿using System;
+using System.Diagnostics.CodeAnalysis;
 using MinecraftServerSharp.Network.Packets;
 
 namespace MinecraftServerSharp.Network
 {
     public abstract class PacketHolder
     {
-        public long TransactionID { get; internal set; }
-        public NetConnection TargetConnection { get; internal set; }
+        public long TransactionId { get; set; }
+        public NetConnection? TargetConnection { get; set; }
 
         public abstract Type PacketType { get; }
     }
@@ -14,7 +15,10 @@ namespace MinecraftServerSharp.Network
     public class PacketHolder<TPacket> : PacketHolder
     {
         public NetPacketEncoder.PacketWriterDelegate<TPacket> WriterDelegate { get; }
-        public TPacket Packet { get; internal set; }
+        public ProtocolState State { get; set; }
+
+        [AllowNull]
+        public TPacket Packet { get; set; }
 
         public override Type PacketType => typeof(TPacket);
 

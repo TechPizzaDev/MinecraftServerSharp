@@ -2,13 +2,15 @@
 
 namespace MinecraftServerSharp.Network.Packets
 {
-    [AttributeUsage(AttributeTargets.Field, AllowMultiple = false, Inherited = false)]
-    public class PacketIDMappingAttribute : Attribute
-    {
-        public int RawID { get; }
-        public ProtocolState State { get; }
+    // TODO: add dynamic ID mapping by file
 
-        public PacketIDMappingAttribute(int rawID, ProtocolState state)
+    [AttributeUsage(AttributeTargets.Field, AllowMultiple = false, Inherited = false)]
+    public class PacketIdMappingAttribute : Attribute
+    {
+        public ProtocolState State { get; }
+        public int RawId { get; }
+
+        public PacketIdMappingAttribute(ProtocolState state, int rawId)
         {
             switch (state)
             {
@@ -24,8 +26,8 @@ namespace MinecraftServerSharp.Network.Packets
                     throw new ArgumentOutOfRangeException(nameof(state));
             }
 
-            RawID = rawID;
             State = state;
+            RawId = rawId;
         }
     }
 }

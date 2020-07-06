@@ -10,12 +10,15 @@ namespace MinecraftServerSharp.Utility
         /// </summary>
         public static void TrimStart(this RecyclableMemoryStream stream, int length)
         {
+            if (stream == null)
+                throw new ArgumentNullException(nameof(stream));
+
             if (length == 0)
                 return;
 
             stream.Position = 0;
 
-            var helper = stream.GetBlockAndOffset(length);
+            var helper = stream.GetBlockOffset(length);
             stream.RemoveBlockRange(0, helper.Block);
 
             // Now we need to shift data in trailing blocks.
@@ -46,7 +49,13 @@ namespace MinecraftServerSharp.Utility
         /// </summary>
         public static void SCopyTo(this Stream source, Stream destination)
         {
-            Span<byte> buffer = stackalloc byte[2048];
+            if (source == null)
+                throw new ArgumentNullException(nameof(source));
+
+            if (destination == null)
+                throw new ArgumentNullException(nameof(destination));
+
+            Span<byte> buffer = stackalloc byte[4096];
             int read;
             while ((read = source.Read(buffer)) != 0)
                 destination.Write(buffer.Slice(0, read));
@@ -57,7 +66,7 @@ namespace MinecraftServerSharp.Utility
         ///  using a stack-allocated buffer and reporting every write.
         /// </summary>
         public static void SCopyTo(
-            this Stream source, Stream destination, Action<int> onWrite)
+            this Stream source, Stream destination, Action<int>? onWrite)
         {
             if (onWrite == null)
             {
@@ -65,7 +74,13 @@ namespace MinecraftServerSharp.Utility
                 return;
             }
 
-            Span<byte> buffer = stackalloc byte[2048];
+            if (source == null)
+                throw new ArgumentNullException(nameof(source));
+
+            if (destination == null)
+                throw new ArgumentNullException(nameof(destination));
+
+            Span<byte> buffer = stackalloc byte[4096];
             int read;
             while ((read = source.Read(buffer)) != 0)
             {

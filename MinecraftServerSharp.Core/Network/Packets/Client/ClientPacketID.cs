@@ -1,38 +1,40 @@
-﻿using Mapping = MinecraftServerSharp.Network.Packets.PacketIDMappingAttribute;
+﻿using Mapping = MinecraftServerSharp.Network.Packets.PacketIdMappingAttribute;
 using State = MinecraftServerSharp.Network.Packets.ProtocolState;
 
 namespace MinecraftServerSharp.Network.Packets
 {
-    public enum ClientPacketID
+    public enum ClientPacketId
     {
         Undefined,
 
         #region Handshaking
 
-        [Mapping(0x00, State.Handshaking)] Handshake,
-        [Mapping(0xfe, State.Handshaking)] LegacyServerListPing,
+        [Mapping(State.Handshaking, 0x00)] Handshake,
+        [Mapping(State.Handshaking, 0xfe)] LegacyServerListPing,
 
         #endregion
 
         #region Status
 
-        [Mapping(0x00, State.Status)] Request,
-        [Mapping(0x01, State.Status)] Ping,
+        [Mapping(State.Status, 0x00)] Request,
+        [Mapping(State.Status, 0x01)] Ping,
 
         #endregion
 
         #region Login
 
-        LoginStart,
-        EncryptionResponse,
-        LoginPluginResponse,
+        [Mapping(State.Login, 0x00)] LoginStart,
+        [Mapping(State.Login, 0x01)] EncryptionResponse,
+        [Mapping(State.Login, 0x02)] LoginPluginResponse,
 
         #endregion
 
         #region Play
 
-        [Mapping(0x03, State.Play)] ChatMessage
-        
+        [Mapping(State.Play, 0x03)] ChatMessage,
+        [Mapping(State.Play, 0x05)] ClientSettings,
+        [Mapping(State.Play, 0x0B)] PluginMessage
+
         #endregion
     }
 }

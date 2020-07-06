@@ -1,19 +1,14 @@
-﻿
+﻿using MinecraftServerSharp.Utility;
+
 namespace MinecraftServerSharp
 {
-    public readonly struct EntityID
+    public readonly struct EntityId
     {
-        public byte X { get; }
-        public byte Y { get; }
-        public byte Z { get; }
-        public byte W { get; }
+        public int Value { get; }
 
-        public EntityID(byte x, byte y, byte z, byte w)
+        public EntityId(int value)
         {
-            X = x;
-            Y = y;
-            Z = z;
-            W = w;
+            Value = value;
         }
     }
 }

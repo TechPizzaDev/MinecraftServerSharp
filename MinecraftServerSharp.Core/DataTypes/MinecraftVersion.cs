@@ -1,4 +1,5 @@
-﻿
+﻿using System.Globalization;
+
 namespace MinecraftServerSharp
 {
     public class MinecraftVersion
@@ -16,7 +17,9 @@ namespace MinecraftServerSharp
 
         public override string ToString()
         {
-            return string.Join('.', Major.ToString(), Minor.ToString(), Patch.ToString());
+            var provider = CultureInfo.CurrentCulture;
+            return string.Join(
+                '.', Major.ToString(provider), Minor.ToString(provider), Patch.ToString(provider));
         }
     }
 }

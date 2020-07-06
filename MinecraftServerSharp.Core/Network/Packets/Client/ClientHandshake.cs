@@ -1,7 +1,7 @@
 ﻿
 namespace MinecraftServerSharp.Network.Packets
 {
-    [PacketStruct(ClientPacketID.Handshake)]
+    [PacketStruct(ClientPacketId.Handshake)]
     public readonly struct ClientHandshake
     {
         public VarInt ProtocolVersion { get; }

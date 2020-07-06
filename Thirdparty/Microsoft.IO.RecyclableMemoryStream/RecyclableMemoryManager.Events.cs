@@ -24,7 +24,7 @@ namespace MinecraftServerSharp.Utility
             }
 
             [Event(1, Level = EventLevel.Verbose)]
-            public void MemoryStreamCreated(Guid guid, string tag, int requestedSize)
+            public void MemoryStreamCreated(Guid guid, string? tag, int requestedSize)
             {
                 if (IsEnabled(EventLevel.Verbose, EventKeywords.None))
                 {
@@ -33,7 +33,7 @@ namespace MinecraftServerSharp.Utility
             }
 
             [Event(2, Level = EventLevel.Verbose)]
-            public void MemoryStreamDisposed(Guid guid, string tag)
+            public void MemoryStreamDisposed(Guid guid, string? tag)
             {
                 if (IsEnabled(EventLevel.Verbose, EventKeywords.None))
                 {
@@ -43,17 +43,21 @@ namespace MinecraftServerSharp.Utility
 
             [Event(3, Level = EventLevel.Critical)]
             public void MemoryStreamDoubleDispose(
-                Guid guid, string tag, string allocationStack, string disposeStack1, string disposeStack2)
+                Guid guid, string? tag, string? allocationStack, string? disposeStack1, string? disposeStack2)
             {
                 if (IsEnabled())
                 {
-                    WriteEvent(3, guid, tag ?? string.Empty, allocationStack ?? string.Empty,
-                                    disposeStack1 ?? string.Empty, disposeStack2 ?? string.Empty);
+                    WriteEvent(
+                        3, guid,
+                        tag ?? string.Empty,
+                        allocationStack ?? string.Empty,
+                        disposeStack1 ?? string.Empty,
+                        disposeStack2 ?? string.Empty);
                 }
             }
 
             [Event(4, Level = EventLevel.Error)]
-            public void MemoryStreamFinalized(Guid guid, string tag, string allocationStack)
+            public void MemoryStreamFinalized(Guid guid, string? tag, string? allocationStack)
             {
                 if (IsEnabled())
                 {
@@ -62,7 +66,7 @@ namespace MinecraftServerSharp.Utility
             }
 
             [Event(5, Level = EventLevel.Verbose)]
-            public void MemoryStreamToArray(Guid guid, string tag, string stack, int size)
+            public void MemoryStreamToArray(Guid guid, string? tag, string? stack, int size)
             {
                 if (IsEnabled(EventLevel.Verbose, EventKeywords.None))
                 {
@@ -100,7 +104,7 @@ namespace MinecraftServerSharp.Utility
 
             [Event(9, Level = EventLevel.Verbose)]
             public void MemoryStreamNonPooledLargeBufferCreated(
-                int requiredSize, string tag, string allocationStack)
+                int requiredSize, string? tag, string? allocationStack)
             {
                 if (IsEnabled(EventLevel.Verbose, EventKeywords.None))
                 {
@@ -110,7 +114,7 @@ namespace MinecraftServerSharp.Utility
 
             [Event(10, Level = EventLevel.Warning)]
             public void MemoryStreamDiscardBuffer(
-                MemoryStreamBufferType bufferType, string tag, MemoryStreamDiscardReason reason)
+                MemoryStreamBufferType bufferType, string? tag, MemoryStreamDiscardReason reason)
             {
                 if (IsEnabled())
                 {
@@ -120,7 +124,7 @@ namespace MinecraftServerSharp.Utility
 
             [Event(11, Level = EventLevel.Error)]
             public void MemoryStreamOverCapacity(
-                int requestedCapacity, long maxCapacity, string tag, string allocationStack)
+                int requestedCapacity, long maxCapacity, string? tag, string? allocationStack)
             {
                 if (IsEnabled())
                 {

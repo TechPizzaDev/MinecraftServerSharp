@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Buffers;
 using System.Net;
 using System.Net.Sockets;
+using System.Text.Json;
 using MinecraftServerSharp.Network.Data;
 using MinecraftServerSharp.Network.Packets;
 using MinecraftServerSharp.Utility;
@@ -9,7 +11,7 @@ namespace MinecraftServerSharp.Network
 {
     public partial class NetConnection
     {
-        private Action<NetConnection> _closeAction;
+        private Action<NetConnection>? _closeAction;
 
         public NetOrchestrator Orchestrator { get; }
         public Socket Socket { get; }
@@ -33,6 +35,7 @@ namespace MinecraftServerSharp.Network
         public long BytesSent { get; set; }
         public long BytesReceived { get; set; }
 
+        // TODO: add thread-safe protocol state propagation
         public ProtocolState State { get; set; }
 
         #region Constructors
@@ -50,31 +53,31 @@ namespace MinecraftServerSharp.Network
             SendEvent = sendEvent ?? throw new ArgumentNullException(nameof(sendEvent));
             _closeAction = closeAction ?? throw new ArgumentNullException(nameof(closeAction));
 
+            // get it here as we can't get it later if the socket gets disposed
+            RemoteEndPoint = (IPEndPoint)socket.RemoteEndPoint;
+
             ReceiveBuffer = Orchestrator.Processor.MemoryManager.GetStream();
             SendBuffer = Orchestrator.Processor.MemoryManager.GetStream();
             Reader = new NetBinaryReader(ReceiveBuffer);
             Writer = new NetBinaryWriter(SendBuffer);
-
-            // get it here as we can't get it later if the socket gets disposed
-            RemoteEndPoint = (IPEndPoint)socket.RemoteEndPoint;
 
             State = ProtocolState.Handshaking;
         }
 
         #endregion
 
-        public (ReadCode Code, int Length) ReadPacket<TPacket>(out TPacket packet)
+        public (OperationStatus Status, int Length) ReadPacket<TPacket>(out TPacket packet)
         {
             var reader = Orchestrator.Processor.PacketDecoder.GetPacketReader<TPacket>();
             long oldPosition = Reader.Position;
-            var resultCode = reader.Invoke(Reader, out packet);
+            var status = reader.Invoke(Reader, out packet);
             int length = (int)(Reader.Position - oldPosition);
-            return (resultCode, length);
+            return (status, length);
         }
-        
-        public PacketHolder<TPacket> EnqueuePacket<TPacket>(TPacket packet)
+
+        public void EnqueuePacket<TPacket>(TPacket packet)
         {
-            return Orchestrator.EnqueuePacket(this, packet);
+            Orchestrator.EnqueuePacket(this, packet);
         }
 
         public void TrimReceiveBufferStart(int length)
@@ -100,40 +103,74 @@ namespace MinecraftServerSharp.Network
             TrimReceiveBufferStart(offset);
         }
 
-        public void Kick(Exception exception)
+        public void Kick(Exception? exception)
         {
-            KickCore("Server Error:\n" + exception);
+            Chat? chat = null;
+            if (exception != null)
+            {
+                var dyn = new[]
+                {
+                    new { text = "Server Exception\n", bold = true },
+                    new { text = exception.ToString(), bold = false }
+                };
+                chat = new Chat(JsonSerializer.Serialize(dyn));
+            }
+            Kick(chat);
         }
 
-        public void Kick(string reason)
+        public void Kick(string? reason = null)
         {
-            KickCore(reason);
+            Chat? chat = null;
+            if (reason != null)
+            {
+                var dyn = new[]
+                {
+                    new { text = "Kicked by server\n", bold = true },
+                    new { text = reason, bold = false }
+                };
+                chat = new Chat(JsonSerializer.Serialize(dyn));
+            }
+            Kick(chat);
         }
 
-        private void KickCore(string reason = null)
+        public void Kick(Chat? reason = null)
         {
-            // TODO: Send the reason as a message
+            if (reason != null)
+            {
+                if (State == ProtocolState.Play)
+                {
+                    var packet = new ServerPlayDisconnect(reason.Value);
+                    EnqueuePacket(packet);
+                }
+                else if (State == ProtocolState.Login)
+                {
+                    var packet = new ServerLoginDisconnect(reason.Value);
+                    EnqueuePacket(packet);
+                }
+                Orchestrator.Flush();
+            }
 
-            //var packet = new ServerDisconnect(new Chat(reason));
-            //WritePacket(packet);
-
-            Close();
+            Close(immediate: false);
         }
 
-        public bool Close()
+        public void Close(bool immediate)
         {
+            if (!immediate)
+            {
+                State = ProtocolState.Closing;
+                return;
+            }
+
             lock (SendMutex)
             {
                 if (_closeAction == null)
-                    return false;
+                    return;
 
                 State = ProtocolState.Disconnected;
                 _closeAction.Invoke(this);
                 _closeAction = null;
 
-                Console.WriteLine("Connection metrics; Sent: " + BytesSent + ", Received: " + BytesReceived);
-
-                return true;
+                //Console.WriteLine("Connection metrics; Sent: " + BytesSent + ", Received: " + BytesReceived);
             }
         }
     }

@@ -1,5 +1,4 @@
-﻿
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Threading;
 
@@ -9,25 +8,39 @@ namespace MinecraftServerSharp
     {
         public delegate void TickEvent(Ticker ticker);
 
-        public event TickEvent Tick;
+        public event TickEvent? Tick;
 
-        public GameTime Time { get; private set; }
+        public TimeSpan TargetTime { get; }
+
+        public TimeSpan ElapsedTime { get; private set; }
+        public TimeSpan FreeTime => TargetTime - ElapsedTime;
+
+        public Ticker(TimeSpan targetTickTime)
+        {
+            TargetTime = targetTickTime;
+        }
 
         public void Run()
         {
-            int target = 50;
-            var watch = new Stopwatch();
+            long lastTicks = Stopwatch.GetTimestamp();
+            long targetSleepTicks = 0;
+
             while (true)
             {
-                watch.Restart();
+                long currentTicks = Stopwatch.GetTimestamp();
+                long actualSleepTicks = currentTicks - lastTicks;
                 Tick?.Invoke(this);
-                watch.Stop();
+                lastTicks = Stopwatch.GetTimestamp();
+                ElapsedTime = TimeSpan.FromTicks(lastTicks - currentTicks);
 
-                //Console.WriteLine("Tick Time: " + Math.Round(watch.Elapsed.TotalMilliseconds, 3) + "/" + target + " ms");
+                // Try to sleep for as long as possible without overshooting the target time.
+                var preciseSleepTime = TargetTime - ElapsedTime;
+                long sleepOverheadTicks = Math.Max(0, actualSleepTicks - targetSleepTicks);
+                targetSleepTicks = preciseSleepTime.Ticks - sleepOverheadTicks;
 
-                int sleep = (int)(target - Math.Floor(watch.Elapsed.TotalMilliseconds));
-                if (sleep > 0)
-                    Thread.Sleep(sleep);
+                int sleepMillis = (int)(targetSleepTicks / TimeSpan.TicksPerMillisecond);
+                if (sleepMillis > 0)
+                    Thread.Sleep(sleepMillis);
             }
         }
     }

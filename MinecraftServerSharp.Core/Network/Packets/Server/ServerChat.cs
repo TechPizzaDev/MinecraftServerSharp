@@ -1,7 +1,7 @@
 ﻿
 namespace MinecraftServerSharp.Network.Packets
 {
-    [PacketStruct(ServerPacketID.ChatMessage)]
+    [PacketStruct(ServerPacketId.ChatMessage)]
     public readonly struct ServerChat
     {
         [PacketProperty(0)] public Chat JsonData { get; }

@@ -1,0 +1,22 @@
+﻿[*.cs]
+
+# CA1707: Identifiers should not contain underscores
+dotnet_diagnostic.CA1707.severity = none
+
+# CA2214: Do not call overridable methods in constructors
+dotnet_diagnostic.CA2214.severity = none
+
+# CA1720: Identifier contains type name
+dotnet_diagnostic.CA1720.severity = none
+
+# CA1000: Do not declare static members on generic types
+dotnet_diagnostic.CA1000.severity = none
+
+# CA1034: Nested types should not be visible
+dotnet_diagnostic.CA1034.severity = none
+
+# CA1051: Do not declare visible instance fields
+dotnet_diagnostic.CA1051.severity = suggestion
+
+# CA1028: Enum Storage should be Int32
+dotnet_diagnostic.CA1028.severity = none

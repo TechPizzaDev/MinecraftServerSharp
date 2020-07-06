@@ -3,18 +3,21 @@ using System.Linq;
 
 namespace MinecraftServerSharp.Network.Packets
 {
-    public abstract partial class NetPacketCodec<TPacketID>
-        where TPacketID : Enum
+    public abstract partial class NetPacketCodec<TPacketId>
+        where TPacketId : Enum
     {
         public readonly struct DataTypeKey : IEquatable<DataTypeKey>
         {
+            private readonly Type[] _parameters;
+
             public Type ReturnType { get; }
-            public Type[] Parameters { get; }
+            public ReadOnlyMemory<Type> Parameters { get; }
 
             public DataTypeKey(Type returnType, params Type[] arguments)
             {
                 ReturnType = returnType ?? throw new ArgumentNullException(nameof(returnType));
-                Parameters = arguments ?? Array.Empty<Type>();
+                _parameters = arguments ?? Array.Empty<Type>();
+                Parameters = _parameters;
             }
 
             public static DataTypeKey FromVoid(params Type[] arguments)
@@ -24,13 +27,12 @@ namespace MinecraftServerSharp.Network.Packets
 
             public bool Equals(DataTypeKey other)
             {
-                return ReturnType == other.ReturnType
-                    && Parameters.SequenceEqual(other.Parameters);
+                return this == other;
             }
 
-            public override bool Equals(object obj)
+            public override bool Equals(object? obj)
             {
-                return obj is DataTypeKey key ? Equals(key) : false;
+                return obj is DataTypeKey key && Equals(key);
             }
 
             public override int GetHashCode()
@@ -38,10 +40,28 @@ namespace MinecraftServerSharp.Network.Packets
                 var hash = new HashCode();
                 hash.Add(ReturnType);
 
-                for (int i = 0; i < Parameters.Length; i++)
-                    hash.Add(Parameters[i]);
+                for (int i = 0; i < _parameters.Length; i++)
+                    hash.Add(_parameters[i]);
 
                 return hash.ToHashCode();
+            }
+
+            public override string ToString()
+            {
+                return $"{ReturnType.Name} ({string.Join(", ", (object[])_parameters)})";
+            }
+
+            public static bool operator ==(
+                NetPacketCodec<TPacketId>.DataTypeKey left, NetPacketCodec<TPacketId>.DataTypeKey right)
+            {
+                return left.ReturnType == right.ReturnType
+                    && left._parameters.SequenceEqual(right._parameters);
+            }
+
+            public static bool operator !=(
+                NetPacketCodec<TPacketId>.DataTypeKey left, NetPacketCodec<TPacketId>.DataTypeKey right)
+            {
+                return !(left == right);
             }
         }
     }

@@ -1,7 +1,7 @@
 ﻿
 namespace MinecraftServerSharp.Network.Packets
 {
-    [PacketStruct(ClientPacketID.Request)]
+    [PacketStruct(ClientPacketId.Request)]
     public readonly struct ClientRequest
     {
     }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Net.Sockets;
 
@@ -14,11 +15,11 @@ namespace MinecraftServerSharp.Network
         public delegate void ListenerEvent(NetListener sender);
         public delegate void ConnectionEvent(NetListener sender, NetConnection connection);
 
-        public event ListenerEvent Started;
-        public event ListenerEvent Stopped;
+        public event ListenerEvent? Started;
+        public event ListenerEvent? Stopped;
 
-        public event ConnectionEvent Connection;
-        public event ConnectionEvent Disconnection;
+        public event ConnectionEvent? Connection;
+        public event ConnectionEvent? Disconnection;
 
         private NetOrchestrator Orchestrator { get; }
         public Socket Socket { get; }
@@ -29,11 +30,12 @@ namespace MinecraftServerSharp.Network
             Socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
         }
 
-        public void Bind(IPEndPoint localEndPoint)
+        public void Bind(EndPoint localEndPoint)
         {
             Socket.Bind(localEndPoint);
         }
 
+        [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "Async Sockets")]
         public void Start(int backlog)
         {
             Socket.Listen(backlog);
@@ -47,6 +49,9 @@ namespace MinecraftServerSharp.Network
 
         public void StartAccept(SocketAsyncEventArgs acceptEvent)
         {
+            if (acceptEvent == null)
+                throw new ArgumentNullException(nameof(acceptEvent));
+
             // clear since the context is reused
             acceptEvent.AcceptSocket = null;
 
@@ -66,7 +71,7 @@ namespace MinecraftServerSharp.Network
                 sendEvent,
                 closeAction: CloseClientSocket);
             
-            byte[] receiveBuffer = new byte[4096];
+            var receiveBuffer = new byte[4096];
             receiveEvent.SetBuffer(receiveBuffer, 0, receiveBuffer.Length);
 
             receiveEvent.UserToken = connection;
@@ -87,14 +92,13 @@ namespace MinecraftServerSharp.Network
         {
             try
             {
-                connection.Socket.Shutdown(SocketShutdown.Both);
                 connection.Socket.Close(CloseTimeout);
             }
             catch (Exception) // throws if client process has already closed
             {
             }
 
-            // m_readWritePool.Push(e); // TODO: pool
+            // _readWritePool.Push(e); // TODO: pool
 
             Disconnection?.Invoke(this, connection);
         }

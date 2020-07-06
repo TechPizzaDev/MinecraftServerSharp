@@ -11,6 +11,7 @@ namespace MinecraftServerSharp.Network.Packets
         Handshaking,
         Play,
 
+        Closing,
         Disconnected
     }
 }

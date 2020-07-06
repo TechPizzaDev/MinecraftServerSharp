@@ -67,7 +67,7 @@ namespace MinecraftServerSharp.Utility
         private long _smallPoolInUseSize;
 
         private static object _defaultInitMutex = new object();
-        private static RecyclableMemoryManager _default;
+        private static RecyclableMemoryManager? _default;
 
         public static RecyclableMemoryManager Default
         {
@@ -83,8 +83,8 @@ namespace MinecraftServerSharp.Utility
                         _default = new RecyclableMemoryManager();
                         _default.AggressiveBufferReturn = true;
                     }
-                    return _default;
                 }
+                return _default;
             }
         }
 
@@ -294,7 +294,7 @@ namespace MinecraftServerSharp.Utility
         /// <returns>A byte[] array</returns>
         public byte[] GetBlock()
         {
-            if (!_smallPool.TryPop(out byte[] block))
+            if (!_smallPool.TryPop(out var block))
             {
                 // We'll add this back to the pool when the stream is disposed
                 // (unless our free pool is too large)
@@ -318,11 +318,11 @@ namespace MinecraftServerSharp.Utility
         /// <param name="requiredSize">The minimum length of the buffer</param>
         /// <param name="tag">The tag of the stream returning this buffer, for logging if necessary.</param>
         /// <returns>A buffer of at least the required size.</returns>
-        public byte[] GetLargeBuffer(int requiredSize, string tag)
+        public byte[] GetLargeBuffer(int requiredSize, string? tag = null)
         {
             requiredSize = RoundToLargeBufferSize(requiredSize);
 
-            byte[] buffer;
+            byte[]? buffer;
             int poolIndex = GetPoolIndex(requiredSize);
             if (poolIndex < _largePools.Length)
             {
@@ -348,7 +348,7 @@ namespace MinecraftServerSharp.Utility
 
                 // We still want to round up to reduce heap fragmentation.
                 buffer = new byte[requiredSize];
-                string callStack = null;
+                string? callStack = null;
                 if (GenerateCallStacks)
                 {
                     // Grab the stack -- we want to know who requires such large buffers
@@ -407,7 +407,7 @@ namespace MinecraftServerSharp.Utility
         /// <param name="tag">The tag of the stream returning this buffer, for logging if necessary.</param>
         /// <exception cref="ArgumentNullException">buffer is null</exception>
         /// <exception cref="ArgumentException">buffer.Length is not a multiple/exponential of LargeBufferMultiple (it did not originate from this pool)</exception>
-        public void ReturnLargeBuffer(byte[] buffer, string tag)
+        public void ReturnLargeBuffer(byte[] buffer, string? tag = null)
         {
             if (buffer == null)
                 throw new ArgumentNullException(nameof(buffer));
@@ -459,7 +459,7 @@ namespace MinecraftServerSharp.Utility
         /// <param name="tag">The tag of the stream returning these blocks, for logging if necessary.</param>
         /// <exception cref="ArgumentNullException">blocks is null</exception>
         /// <exception cref="ArgumentException">blocks contains buffers that are the wrong size (or null) for this memory manager</exception>
-        public void ReturnBlock(byte[] block, string tag = null)
+        public void ReturnBlock(byte[] block, string? tag = null)
         {
             if (block == null)
                 throw new ArgumentNullException(nameof(block));
@@ -479,7 +479,7 @@ namespace MinecraftServerSharp.Utility
         /// <param name="tag">The tag of the stream returning these blocks, for logging if necessary.</param>
         /// <exception cref="ArgumentNullException">blocks is null</exception>
         /// <exception cref="ArgumentException">blocks contains buffers that are the wrong size (or null) for this memory manager</exception>
-        public void ReturnBlocks(IList<byte[]> blocks, string tag)
+        public void ReturnBlocks(IList<byte[]> blocks, string? tag = null)
         {
             if (blocks == null)
                 throw new ArgumentNullException(nameof(blocks));
@@ -505,7 +505,7 @@ namespace MinecraftServerSharp.Utility
                 _smallPoolInUseSize, _smallPoolFreeSize, LargePoolInUseSize, LargePoolFreeSize);
         }
 
-        private bool ReturnBlockCore(byte[] block, string tag = null)
+        private bool ReturnBlockCore(byte[] block, string? tag = null)
         {
             if (MaximumFreeSmallPoolBytes == 0 || SmallPoolFreeSize < MaximumFreeSmallPoolBytes)
             {
@@ -567,7 +567,7 @@ namespace MinecraftServerSharp.Utility
         /// </summary>
         /// <param name="tag">A tag which can be used to track the source of the stream.</param>
         /// <returns>A MemoryStream.</returns>
-        public RecyclableMemoryStream GetStream(string tag) => new RecyclableMemoryStream(this, tag);
+        public RecyclableMemoryStream GetStream(string? tag) => new RecyclableMemoryStream(this, tag);
 
         /// <summary>
         /// Retrieve a new MemoryStream object with the given tag and a default initial capacity.
@@ -575,7 +575,7 @@ namespace MinecraftServerSharp.Utility
         /// <param name="id">A unique identifier which can be used to trace usages of the stream.</param>
         /// <param name="tag">A tag which can be used to track the source of the stream.</param>
         /// <returns>A MemoryStream.</returns>
-        public MemoryStream GetStream(Guid id, string tag) => new RecyclableMemoryStream(this, id, tag);
+        public MemoryStream GetStream(Guid id, string? tag) => new RecyclableMemoryStream(this, id, tag);
 
         /// <summary>
         /// Retrieve a new MemoryStream object with the given tag and at least the given capacity.
@@ -583,7 +583,7 @@ namespace MinecraftServerSharp.Utility
         /// <param name="tag">A tag which can be used to track the source of the stream.</param>
         /// <param name="requiredSize">The minimum desired capacity for the stream.</param>
         /// <returns>A MemoryStream.</returns>
-        public RecyclableMemoryStream GetStream(string tag, int requiredSize)
+        public RecyclableMemoryStream GetStream(string? tag, int requiredSize)
         {
             return new RecyclableMemoryStream(this, tag, requiredSize);
         }
@@ -602,7 +602,7 @@ namespace MinecraftServerSharp.Utility
         /// <param name="tag">A tag which can be used to track the source of the stream.</param>
         /// <param name="requiredSize">The minimum desired capacity for the stream.</param>
         /// <returns>A MemoryStream.</returns>
-        public RecyclableMemoryStream GetStream(Guid id, string tag, int requiredSize)
+        public RecyclableMemoryStream GetStream(Guid id, string? tag, int requiredSize)
         {
             return new RecyclableMemoryStream(this, id, tag, requiredSize);
         }
@@ -620,11 +620,11 @@ namespace MinecraftServerSharp.Utility
         /// <param name="requiredSize">The minimum desired capacity for the stream.</param>
         /// <param name="asContiguousBuffer">Whether to attempt to use a single contiguous buffer.</param>
         /// <returns>A MemoryStream.</returns>
-        public RecyclableMemoryStream GetStream(Guid id, string tag, int requiredSize, bool asContiguousBuffer)
+        public RecyclableMemoryStream GetStream(Guid id, string? tag, int requiredSize, bool asContiguousBuffer)
         {
             if (!asContiguousBuffer || requiredSize <= BlockSize)
                 return GetStream(id, tag, requiredSize);
-            
+
             return new RecyclableMemoryStream(this, id, tag, requiredSize, GetLargeBuffer(requiredSize, tag));
         }
 
@@ -640,9 +640,9 @@ namespace MinecraftServerSharp.Utility
         /// <param name="requiredSize">The minimum desired capacity for the stream.</param>
         /// <param name="asContiguousBuffer">Whether to attempt to use a single contiguous buffer.</param>
         /// <returns>A MemoryStream.</returns>
-        public RecyclableMemoryStream GetStream(string tag, int requiredSize, bool asContiguousBuffer)
+        public RecyclableMemoryStream GetStream(string? tag, int requiredSize, bool asContiguousBuffer)
         {
-            return GetStream(Guid.NewGuid(), tag, requiredSize, asContiguousBuffer);
+            return GetStream(Guid.Empty, tag, requiredSize, asContiguousBuffer);
         }
 
         /// <summary>
@@ -656,9 +656,9 @@ namespace MinecraftServerSharp.Utility
         /// <param name="offset">The offset from the start of the buffer to copy from.</param>
         /// <param name="count">The number of bytes to copy from the buffer.</param>
         /// <returns>A MemoryStream.</returns>
-        public RecyclableMemoryStream GetStream(Guid id, string tag, byte[] buffer, int offset, int count)
+        public RecyclableMemoryStream GetStream(Guid id, string? tag, byte[] buffer, int offset, int count)
         {
-            RecyclableMemoryStream stream = null;
+            RecyclableMemoryStream? stream = null;
             try
             {
                 stream = new RecyclableMemoryStream(this, id, tag, count);
@@ -682,7 +682,10 @@ namespace MinecraftServerSharp.Utility
         /// <returns>A MemoryStream.</returns>
         public RecyclableMemoryStream GetStream(byte[] buffer)
         {
-            return GetStream(null, buffer, 0, buffer.Length);
+            if (buffer == null)
+                throw new ArgumentNullException(nameof(buffer));
+
+            return GetStream(Guid.Empty, null, buffer, 0, buffer.Length);
         }
 
         /// <summary>
@@ -695,9 +698,9 @@ namespace MinecraftServerSharp.Utility
         /// <param name="offset">The offset from the start of the buffer to copy from.</param>
         /// <param name="count">The number of bytes to copy from the buffer.</param>
         /// <returns>A MemoryStream.</returns>
-        public RecyclableMemoryStream GetStream(string tag, byte[] buffer, int offset, int count)
+        public RecyclableMemoryStream GetStream(string? tag, byte[] buffer, int offset, int count)
         {
-            return GetStream(Guid.NewGuid(), tag, buffer, offset, count);
+            return GetStream(Guid.Empty, tag, buffer, offset, count);
         }
 
         /// <summary>

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Diagnostics;
 using System.IO;
 using MinecraftServerSharp.Network.Data;
@@ -9,11 +10,13 @@ namespace MinecraftServerSharp
     public readonly struct VarLong
     {
         public const int MaxEncodedSize = 10;
+        
+        public long Value { get; }
 
-        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public readonly long Value;
-
-        public VarLong(long value) => Value = value;
+        public VarLong(long value)
+        {
+            Value = value;
+        }
 
         public int Encode(Span<byte> destination)
         {
@@ -28,8 +31,11 @@ namespace MinecraftServerSharp
             return index;
         }
 
-        public static ReadCode TryDecode(Stream stream, out VarLong result, out int bytes)
+        public static OperationStatus TryDecode(Stream stream, out VarLong result, out int bytes)
         {
+            if (stream == null)
+                throw new ArgumentNullException(nameof(stream));
+
             bytes = 0;
             long count = 0;
             long b;
@@ -38,14 +44,14 @@ namespace MinecraftServerSharp
                 if (bytes == MaxEncodedSize)
                 {
                     result = default;
-                    return ReadCode.InvalidData;
+                    return OperationStatus.InvalidData;
                 }
 
                 b = stream.ReadByte();
                 if (b == -1)
                 {
                     result = default;
-                    return ReadCode.EndOfStream;
+                    return OperationStatus.NeedMoreData;
                 }
 
                 count |= (b & 0x7F) << (bytes * 7);
@@ -54,7 +60,12 @@ namespace MinecraftServerSharp
             } while ((b & 0x80) != 0);
 
             result = (VarLong)count;
-            return ReadCode.Ok;
+            return OperationStatus.Done;
+        }
+
+        public override string ToString()
+        {
+            return Value.ToString();
         }
 
         public static implicit operator long(VarLong value) => value.Value;

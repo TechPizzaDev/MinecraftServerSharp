@@ -48,7 +48,7 @@ namespace MinecraftServerSharp.Utility
 
         private readonly Guid _id;
         private readonly RecyclableMemoryManager _memoryManager;
-        private readonly string _tag;
+        private readonly string? _tag;
 
         private int _length;
         private int _position;
@@ -58,7 +58,7 @@ namespace MinecraftServerSharp.Utility
         /// This is for the cases where you have users of this class that may hold onto the buffers longer
         /// than they should and you want to prevent race conditions which could corrupt the data.
         /// </summary>
-        private List<byte[]> _dirtyBuffers;
+        private List<byte[]>? _dirtyBuffers;
 
         // long to allow Interlocked.Read (for .NET Standard 1.4 compat)
         private long _disposedState;
@@ -70,7 +70,7 @@ namespace MinecraftServerSharp.Utility
         /// <remarks>If this field is non-null, it contains the concatenation of the bytes found in the individual
         /// blocks. Once it is created, this (or a larger) largeBuffer will be used for the life of the stream.
         /// </remarks>
-        private byte[] _largeBuffer;
+        private byte[]? _largeBuffer;
 
         public int BlockSize => MemoryManager.BlockSize;
 
@@ -93,7 +93,7 @@ namespace MinecraftServerSharp.Utility
         /// A temporary identifier for the current usage of this stream.
         /// </summary>
         /// <exception cref="ObjectDisposedException">Object has been disposed</exception>
-        public string Tag
+        public string? Tag
         {
             get
             {
@@ -119,13 +119,13 @@ namespace MinecraftServerSharp.Utility
         /// Callstack of the constructor. It is only set if MemoryManager.GenerateCallStacks is true,
         /// which should only be in debugging situations.
         /// </summary>
-        internal string AllocationStack { get; }
+        internal string? AllocationStack { get; }
 
         /// <summary>
         /// Callstack of the Dispose call. It is only set if MemoryManager.GenerateCallStacks is true,
         /// which should only be in debugging situations.
         /// </summary>
-        internal string DisposeStack { get; private set; }
+        internal string? DisposeStack { get; private set; }
 
         #region Constructors
 
@@ -134,7 +134,7 @@ namespace MinecraftServerSharp.Utility
         /// </summary>
         /// <param name="memoryManager">The memory manager</param>
         public RecyclableMemoryStream(RecyclableMemoryManager memoryManager)
-            : this(memoryManager, Guid.NewGuid(), null, 0, null) 
+            : this(memoryManager, Guid.NewGuid(), null, 0, null)
         {
         }
 
@@ -153,8 +153,8 @@ namespace MinecraftServerSharp.Utility
         /// </summary>
         /// <param name="memoryManager">The memory manager</param>
         /// <param name="tag">A string identifying this stream for logging and debugging purposes</param>
-        public RecyclableMemoryStream(RecyclableMemoryManager memoryManager, string tag)
-            : this(memoryManager, Guid.NewGuid(), tag, 0, null) 
+        public RecyclableMemoryStream(RecyclableMemoryManager memoryManager, string? tag)
+            : this(memoryManager, Guid.NewGuid(), tag, 0, null)
         {
         }
 
@@ -164,7 +164,7 @@ namespace MinecraftServerSharp.Utility
         /// <param name="memoryManager">The memory manager</param>
         /// <param name="id">A unique identifier which can be used to trace usages of the stream.</param>
         /// <param name="tag">A string identifying this stream for logging and debugging purposes</param>
-        public RecyclableMemoryStream(RecyclableMemoryManager memoryManager, Guid id, string tag)
+        public RecyclableMemoryStream(RecyclableMemoryManager memoryManager, Guid id, string? tag)
             : this(memoryManager, id, tag, 0, null)
         {
         }
@@ -175,7 +175,7 @@ namespace MinecraftServerSharp.Utility
         /// <param name="memoryManager">The memory manager</param>
         /// <param name="tag">A string identifying this stream for logging and debugging purposes</param>
         /// <param name="requestedSize">The initial requested size to prevent future allocations</param>
-        public RecyclableMemoryStream(RecyclableMemoryManager memoryManager, string tag, int requestedSize)
+        public RecyclableMemoryStream(RecyclableMemoryManager memoryManager, string? tag, int requestedSize)
             : this(memoryManager, Guid.NewGuid(), tag, requestedSize, null)
         {
         }
@@ -188,8 +188,8 @@ namespace MinecraftServerSharp.Utility
         /// <param name="tag">A string identifying this stream for logging and debugging purposes</param>
         /// <param name="requestedSize">The initial requested size to prevent future allocations</param>
         public RecyclableMemoryStream(
-            RecyclableMemoryManager memoryManager, Guid id, string tag, int requestedSize)
-            : this(memoryManager, id, tag, requestedSize, null) 
+            RecyclableMemoryManager memoryManager, Guid id, string? tag, int requestedSize)
+            : this(memoryManager, id, tag, requestedSize, null)
         {
         }
 
@@ -205,10 +205,10 @@ namespace MinecraftServerSharp.Utility
         /// This buffer will be owned by the stream and returned to the memory manager upon Dispose.
         /// </param>
         internal RecyclableMemoryStream(
-            RecyclableMemoryManager memoryManager, Guid id, string tag, int requestedSize, byte[] initialLargeBuffer)
+            RecyclableMemoryManager memoryManager, Guid id, string? tag, int requestedSize, byte[]? initialLargeBuffer)
             : base(Array.Empty<byte>())
         {
-            _memoryManager = memoryManager;
+            _memoryManager = memoryManager ?? throw new ArgumentNullException(nameof(memoryManager));
             _id = id;
             _tag = tag;
 
@@ -426,7 +426,7 @@ namespace MinecraftServerSharp.Utility
 
             // InternalRead will check for existence of largeBuffer, so make sure we
             // don't set it until after we've copied the data.
-            InternalRead(newBuffer, 0, _length, 0);
+            InternalRead(newBuffer.AsSpan(0, _length), 0);
             _largeBuffer = newBuffer;
 
             if (_blocks.Count > 0 && _memoryManager.AggressiveBufferReturn)
@@ -467,8 +467,8 @@ namespace MinecraftServerSharp.Utility
             AssertNotDisposed();
             var newBuffer = new byte[Length];
 
-            InternalRead(newBuffer, 0, _length, 0);
-            string stack = _memoryManager.GenerateCallStacks ? Environment.StackTrace : null;
+            InternalRead(newBuffer.AsSpan(0, _length), 0);
+            var stack = _memoryManager.GenerateCallStacks ? Environment.StackTrace : null;
             RecyclableMemoryManager.Events.Writer.MemoryStreamToArray(_id, _tag, stack, 0);
             _memoryManager.ReportStreamToArray();
 
@@ -509,16 +509,7 @@ namespace MinecraftServerSharp.Utility
             if (buffer == null)
                 throw new ArgumentNullException(nameof(buffer));
 
-            if (offset < 0)
-                throw new ArgumentOutOfRangeException(nameof(offset), "offset cannot be negative");
-
-            if (count < 0)
-                throw new ArgumentOutOfRangeException(nameof(count), "count cannot be negative");
-
-            if (offset + count > buffer.Length)
-                throw new ArgumentException("buffer length must be at least offset + count");
-
-            int amountRead = InternalRead(buffer, offset, count, streamPosition);
+            int amountRead = InternalRead(buffer.AsSpan(offset, count), streamPosition);
             streamPosition += amountRead;
             return amountRead;
         }
@@ -588,22 +579,22 @@ namespace MinecraftServerSharp.Utility
             {
                 int bytesRemaining = count;
                 int bytesWritten = 0;
-                var blockAndOffset = GetBlockAndOffset(_position);
+                var blockOffset = GetBlockOffset(_position);
 
                 while (bytesRemaining > 0)
                 {
-                    byte[] currentBlock = _blocks[blockAndOffset.Block];
-                    int remainingInBlock = blockSize - blockAndOffset.Offset;
+                    byte[] currentBlock = _blocks[blockOffset.Block];
+                    int remainingInBlock = blockSize - blockOffset.Offset;
                     int amountToWriteInBlock = Math.Min(remainingInBlock, bytesRemaining);
 
-                    Buffer.BlockCopy(buffer, offset + bytesWritten, currentBlock, blockAndOffset.Offset,
+                    Buffer.BlockCopy(buffer, offset + bytesWritten, currentBlock, blockOffset.Offset,
                                      amountToWriteInBlock);
 
                     bytesRemaining -= amountToWriteInBlock;
                     bytesWritten += amountToWriteInBlock;
 
-                    ++blockAndOffset.Block;
-                    blockAndOffset.Offset = 0;
+                    blockOffset.Block++;
+                    blockOffset.Offset = 0;
                 }
             }
             else
@@ -634,21 +625,21 @@ namespace MinecraftServerSharp.Utility
 
             if (_largeBuffer == null)
             {
-                var blockAndOffset = GetBlockAndOffset(_position);
+                var blockOffset = GetBlockOffset(_position);
 
                 while (source.Length > 0)
                 {
-                    byte[] currentBlock = _blocks[blockAndOffset.Block];
-                    int remainingInBlock = blockSize - blockAndOffset.Offset;
+                    byte[] currentBlock = _blocks[blockOffset.Block];
+                    int remainingInBlock = blockSize - blockOffset.Offset;
                     int amountToWriteInBlock = Math.Min(remainingInBlock, source.Length);
 
                     source.Slice(0, amountToWriteInBlock)
-                        .CopyTo(currentBlock.AsSpan(blockAndOffset.Offset));
+                        .CopyTo(currentBlock.AsSpan(blockOffset.Offset));
 
                     source = source.Slice(amountToWriteInBlock);
 
-                    ++blockAndOffset.Block;
-                    blockAndOffset.Offset = 0;
+                    blockOffset.Block++;
+                    blockOffset.Offset = 0;
                 }
             }
             else
@@ -704,8 +695,8 @@ namespace MinecraftServerSharp.Utility
             byte value;
             if (_largeBuffer == null)
             {
-                var blockAndOffset = GetBlockAndOffset(streamPosition);
-                value = _blocks[blockAndOffset.Block][blockAndOffset.Offset];
+                var blockOffset = GetBlockOffset(streamPosition);
+                value = _blocks[blockOffset.Block][blockOffset.Offset];
             }
             else
             {
@@ -795,7 +786,7 @@ namespace MinecraftServerSharp.Utility
                 stream.Write(_largeBuffer, 0, _length);
             }
         }
-        
+
         #endregion
 
         public Memory<byte> GetBlock(int index)
@@ -831,42 +822,6 @@ namespace MinecraftServerSharp.Utility
                     $"The stream with Id {_id} and Tag {_tag} is disposed.");
         }
 
-        private int InternalRead(byte[] buffer, int offset, int count, int fromPosition)
-        {
-            if (_length - fromPosition <= 0)
-                return 0;
-
-            int amountToCopy;
-
-            if (_largeBuffer == null)
-            {
-                var blockAndOffset = GetBlockAndOffset(fromPosition);
-                int bytesWritten = 0;
-                int bytesRemaining = Math.Min(count, _length - fromPosition);
-
-                while (bytesRemaining > 0)
-                {
-                    amountToCopy = Math.Min(
-                        _blocks[blockAndOffset.Block].Length - blockAndOffset.Offset,
-                        bytesRemaining);
-
-                    Buffer.BlockCopy(
-                        _blocks[blockAndOffset.Block], blockAndOffset.Offset, buffer,
-                        bytesWritten + offset, amountToCopy);
-
-                    bytesWritten += amountToCopy;
-                    bytesRemaining -= amountToCopy;
-
-                    blockAndOffset.Block++;
-                    blockAndOffset.Offset = 0;
-                }
-                return bytesWritten;
-            }
-            amountToCopy = Math.Min(count, _length - fromPosition);
-            Buffer.BlockCopy(_largeBuffer, fromPosition, buffer, offset, amountToCopy);
-            return amountToCopy;
-        }
-
         private int InternalRead(Span<byte> buffer, int fromPosition)
         {
             if (_length - fromPosition <= 0)
@@ -876,24 +831,24 @@ namespace MinecraftServerSharp.Utility
 
             if (_largeBuffer == null)
             {
-                var blockAndOffset = GetBlockAndOffset(fromPosition);
+                var blockOffset = GetBlockOffset(fromPosition);
                 int bytesWritten = 0;
                 int bytesRemaining = Math.Min(buffer.Length, _length - fromPosition);
 
                 while (bytesRemaining > 0)
                 {
                     amountToCopy = Math.Min(
-                        _blocks[blockAndOffset.Block].Length - blockAndOffset.Offset,
+                        _blocks[blockOffset.Block].Length - blockOffset.Offset,
                         bytesRemaining);
 
-                    _blocks[blockAndOffset.Block].AsSpan(blockAndOffset.Offset, amountToCopy)
+                    _blocks[blockOffset.Block].AsSpan(blockOffset.Offset, amountToCopy)
                         .CopyTo(buffer.Slice(bytesWritten));
 
                     bytesWritten += amountToCopy;
                     bytesRemaining -= amountToCopy;
 
-                    blockAndOffset.Block++;
-                    blockAndOffset.Offset = 0;
+                    blockOffset.Block++;
+                    blockOffset.Offset = 0;
                 }
                 return bytesWritten;
             }
@@ -902,21 +857,21 @@ namespace MinecraftServerSharp.Utility
             return amountToCopy;
         }
 
-        public struct BlockAndOffset
+        public struct BlockOffset
         {
             public int Block;
             public int Offset;
 
-            public BlockAndOffset(int block, int offset)
+            public BlockOffset(int block, int offset)
             {
                 Block = block;
                 Offset = offset;
             }
         }
 
-        public BlockAndOffset GetBlockAndOffset(int offset)
+        public BlockOffset GetBlockOffset(int offset)
         {
-            return new BlockAndOffset(offset / BlockSize, offset % BlockSize);
+            return new BlockOffset(offset / BlockSize, offset % BlockSize);
         }
 
         private void EnsureCapacity(int newCapacity)
@@ -936,7 +891,7 @@ namespace MinecraftServerSharp.Utility
                 if (newCapacity > _largeBuffer.Length)
                 {
                     var newBuffer = _memoryManager.GetLargeBuffer(newCapacity, _tag);
-                    InternalRead(newBuffer, 0, _length, 0);
+                    InternalRead(newBuffer.AsSpan(0, _length), 0);
                     ReleaseLargeBuffer();
                     _largeBuffer = newBuffer;
                 }
