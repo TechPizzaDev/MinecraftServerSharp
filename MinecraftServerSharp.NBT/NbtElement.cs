@@ -109,26 +109,27 @@ namespace MinecraftServerSharp.NBT
         }
 
         /// <summary>
-        ///   Compares the text represented by <paramref name="utf8Text" /> to the string value of this element.
+        ///   Compares the data represented by <paramref name="data" /> to
+        ///   the value of this element, either a byte array or UTF-8 text.
         /// </summary>
-        /// <param name="utf8Text">The UTF-8 encoded text to compare against.</param>
+        /// <param name="data">The data to compare against, either a byte array or UTF-8 text.</param>
         /// <returns>
-        ///   <see langword="true" /> if the string value of this element has the same UTF-8 encoding as
-        ///   <paramref name="utf8Text" />, <see langword="false" /> otherwise.
+        ///   <see langword="true" /> if the value of this element is sequence equal to
+        ///   <paramref name="data" />, <see langword="false" /> otherwise.
         /// </returns>
         /// <exception cref="InvalidOperationException">
-        ///   This value's <see cref="ValueKind"/> is not <see cref="JsonValueKind.String"/>.
+        ///   This value is not a <see cref="NbtType.String"/> or <see cref="NbtType.ByteArray"/>.
         /// </exception>
         /// <remarks>
-        ///   This method is functionally equal to doing an ordinal comparison of the string produced by UTF-8 decoding
-        ///   <paramref name="utf8Text" /> with the result of calling <see cref="GetString" />, but avoids creating the
-        ///   string instances.
+        ///   This method is functionally equal to doing a comparison of <paramref name="data" />
+        ///   with the result of <see cref="GetString" /> or <see cref="GetByteArray"/>, 
+        ///   but avoids creating the string or array instance.
         /// </remarks>
-        public bool StringEquals(ReadOnlySpan<byte> utf8Text)
+        public bool StringOrArrayEquals(ReadOnlySpan<byte> data)
         {
             CheckValidInstance();
 
-            return _parent.StringEquals(_index, utf8Text);
+            return _parent.StringOrByteArrayEquals(_index, data);
         }
 
         /// <summary>

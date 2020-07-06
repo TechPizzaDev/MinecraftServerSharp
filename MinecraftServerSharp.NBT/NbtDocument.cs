@@ -181,7 +181,7 @@ namespace MinecraftServerSharp.NBT
             //OperationStatus status = Utf8.FromUtf16(otherText, otherUtf8Text, out int consumed, out int written);
             //Debug.Assert(status != OperationStatus.DestinationTooSmall);
             //bool result;
-            //if (status > OperationStatus.DestinationTooSmall)   // Equivalent to: (status == NeedMoreData || status == InvalidData)
+            //if (status == OperationStatus.NeedMoreData || status == OperationStatus.InvalidData)
             //{
             //    result = false;
             //}
@@ -202,30 +202,38 @@ namespace MinecraftServerSharp.NBT
             //return result;
         }
 
-        internal bool StringEquals(int index, ReadOnlySpan<byte> otherUtf8Text)
+        internal bool StringOrByteArrayEquals(int index, ReadOnlySpan<byte> otherData)
         {
             CheckNotDisposed();
 
             DbRow row = _metaDb.GetRow(index);
-            CheckExpectedType(NbtType.String, row.TagType);
+            var type = row.TagType;
 
-            ReadOnlySpan<byte> data = _data.Span;
-            ReadOnlySpan<byte> segment = data.Slice(row.Location + sizeof(short), row.Length);
-
-            if (otherUtf8Text.Length > segment.Length)
-                return false;
-
-            return segment.SequenceEqual(otherUtf8Text);
+            var segment = type switch
+            {
+                NbtType.ByteArray => _data.Span.Slice(row.Location + sizeof(int), row.Length * sizeof(sbyte)),
+                NbtType.String => _data.Span.Slice(row.Location + sizeof(short), row.Length * sizeof(byte)),
+                _ => throw GetWrongTagTypeException(type),
+            };
+            return segment.SequenceEqual(otherData);
         }
 
-        internal ReadOnlyMemory<byte> GetUnsignedByteArray(int index)
+        internal ReadOnlyMemory<byte> GetArray(int index)
         {
             CheckNotDisposed();
 
             DbRow row = _metaDb.GetRow(index);
-            CheckExpectedType(NbtType.ByteArray, row.TagType);
+            var type = row.TagType;
 
-            return _data.Slice(row.Location, row.Length * sizeof(sbyte));
+            var segment = type switch
+            {
+                NbtType.String => _data.Slice(row.Location + sizeof(ushort), row.Length * sizeof(byte)),
+                NbtType.ByteArray => _data.Slice(row.Location + sizeof(int), row.Length * sizeof(sbyte)),
+                NbtType.IntArray => _data.Slice(row.Location + sizeof(int), row.Length * sizeof(int)),
+                NbtType.LongArray => _data.Slice(row.Location + sizeof(int), row.Length * sizeof(long)),
+                _ => throw GetWrongTagTypeException(type),
+            };
+            return segment;
         }
 
         internal sbyte GetSByte(int index)
@@ -245,14 +253,15 @@ namespace MinecraftServerSharp.NBT
             CheckNotDisposed();
 
             DbRow row = _metaDb.GetRow(index);
+            var type = row.TagType;
 
             ReadOnlySpan<byte> data = _data.Span;
             ReadOnlySpan<byte> segment = data.Slice(row.Location);
-            return row.TagType switch
+            return type switch
             {
                 NbtType.Short => ReadShort(segment, isBigEndian),
                 NbtType.Byte => ReadSByte(segment),
-                _ => throw GetWrongTagTypeException(),
+                _ => throw GetWrongTagTypeException(type),
             };
         }
 
@@ -261,15 +270,16 @@ namespace MinecraftServerSharp.NBT
             CheckNotDisposed();
 
             DbRow row = _metaDb.GetRow(index);
+            var type = row.TagType;
 
             ReadOnlySpan<byte> data = _data.Span;
             ReadOnlySpan<byte> segment = data.Slice(row.Location);
-            return row.TagType switch
+            return type switch
             {
                 NbtType.Int => ReadInt(segment, isBigEndian),
                 NbtType.Short => ReadShort(segment, isBigEndian),
                 NbtType.Byte => ReadSByte(segment),
-                _ => throw GetWrongTagTypeException(),
+                _ => throw GetWrongTagTypeException(type),
             };
         }
 
@@ -278,10 +288,11 @@ namespace MinecraftServerSharp.NBT
             CheckNotDisposed();
 
             DbRow row = _metaDb.GetRow(index);
+            var type = row.TagType;
 
             ReadOnlySpan<byte> data = _data.Span;
             ReadOnlySpan<byte> segment = data.Slice(row.Location);
-            return row.TagType switch
+            return type switch
             {
                 NbtType.Float => ReadFloat(segment, isBigEndian),
                 NbtType.Double => (float)ReadDouble(segment, isBigEndian),
@@ -289,7 +300,7 @@ namespace MinecraftServerSharp.NBT
                 NbtType.Int => ReadInt(segment, isBigEndian),
                 NbtType.Short => ReadShort(segment, isBigEndian),
                 NbtType.Byte => ReadSByte(segment),
-                _ => throw GetWrongTagTypeException(),
+                _ => throw GetWrongTagTypeException(type),
             };
         }
 
@@ -298,10 +309,11 @@ namespace MinecraftServerSharp.NBT
             CheckNotDisposed();
 
             DbRow row = _metaDb.GetRow(index);
+            var type = row.TagType;
 
             ReadOnlySpan<byte> data = _data.Span;
             ReadOnlySpan<byte> segment = data.Slice(row.Location);
-            return row.TagType switch
+            return type switch
             {
                 NbtType.Double => ReadDouble(segment, isBigEndian),
                 NbtType.Float => ReadFloat(segment, isBigEndian),
@@ -309,7 +321,7 @@ namespace MinecraftServerSharp.NBT
                 NbtType.Int => ReadInt(segment, isBigEndian),
                 NbtType.Short => ReadShort(segment, isBigEndian),
                 NbtType.Byte => ReadSByte(segment),
-                _ => throw GetWrongTagTypeException(),
+                _ => throw GetWrongTagTypeException(type),
             };
         }
 
@@ -512,25 +524,15 @@ namespace MinecraftServerSharp.NBT
                 throw new ObjectDisposedException(nameof(NbtDocument));
         }
 
-        private void CheckExpectedType(ReadOnlySpan<NbtType> expected, NbtType actual)
-        {
-            for (int i = 0; i < expected.Length; i++)
-            {
-                if (expected[i] == actual)
-                    return;
-            }
-            throw GetWrongTagTypeException();
-        }
-
         private void CheckExpectedType(NbtType expected, NbtType actual)
         {
             if (expected != actual)
-                throw GetWrongTagTypeException();
+                throw GetWrongTagTypeException(actual);
         }
 
-        private static Exception GetWrongTagTypeException()
+        private static InvalidOperationException GetWrongTagTypeException(NbtType type)
         {
-            throw new Exception("Unexpected tag type.");
+            throw new InvalidOperationException($"Unexpected tag type \"{type}\".");
         }
 
         private static void CheckSupportedOptions(NbtReaderOptions readerOptions, string paramName)
