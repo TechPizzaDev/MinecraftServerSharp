@@ -12,12 +12,12 @@ namespace MinecraftServerSharp.NBT
         {
             private byte[] _data;
 
-            public int Length { get; private set; }
+            public int ByteLength { get; private set; }
 
-            public MetadataDb(byte[] completeDb, int length)
+            public MetadataDb(byte[] completeDb, int byteLength)
             {
                 _data = completeDb;
-                Length = length;
+                ByteLength = byteLength;
             }
 
             public MetadataDb(int payloadLength)
@@ -39,21 +39,21 @@ namespace MinecraftServerSharp.NBT
                     initialSize = OneMegabyte;
 
                 _data = ArrayPool<byte>.Shared.Rent(initialSize);
-                Length = 0;
+                ByteLength = 0;
             }
 
             public MetadataDb(MetadataDb source, bool useArrayPools)
             {
-                Length = source.Length;
+                ByteLength = source.ByteLength;
 
                 if (useArrayPools)
                 {
-                    _data = ArrayPool<byte>.Shared.Rent(Length);
-                    source._data.AsSpan(0, Length).CopyTo(_data);
+                    _data = ArrayPool<byte>.Shared.Rent(ByteLength);
+                    source._data.AsSpan(0, ByteLength).CopyTo(_data);
                 }
                 else
                 {
-                    _data = source._data.AsSpan(0, Length).ToArray();
+                    _data = source._data.AsSpan(0, ByteLength).ToArray();
                 }
             }
 
@@ -67,23 +67,23 @@ namespace MinecraftServerSharp.NBT
                 // lengths of tags in a document, but no content; so it does not
                 // need to be cleared.
                 ArrayPool<byte>.Shared.Return(data);
-                Length = 0;
+                ByteLength = 0;
             }
 
             public void TrimExcess()
             {
                 // There's a chance that the size we have is the size we'd get for this
                 // amount of usage (particularly if Enlarge ever got called); and there's
-                // the small copy-cost associated with trimming anyways. "Is half-empty" is
-                // just a rough metric for "is trimming worth it?".
-                if (Length <= _data.Length / 2)
+                // the small copy-cost associated with trimming anyways. 
+                // "Is half-empty" is just a rough metric for "is trimming worth it?".
+                if (ByteLength <= _data.Length / 2)
                 {
-                    byte[] newRent = ArrayPool<byte>.Shared.Rent(Length);
+                    byte[] newRent = ArrayPool<byte>.Shared.Rent(ByteLength);
                     byte[] returnBuf = newRent;
 
                     if (newRent.Length < _data.Length)
                     {
-                        Buffer.BlockCopy(_data, 0, newRent, 0, Length);
+                        Buffer.BlockCopy(_data, 0, newRent, 0, ByteLength);
                         returnBuf = _data;
                         _data = newRent;
                     }
@@ -95,14 +95,16 @@ namespace MinecraftServerSharp.NBT
                 }
             }
 
-            public void Append(int location, int length, int numberOfRows, NbtType tagType, bool hasName)
+            public int Append(int location, int containerLength, int numberOfRows, NbtType tagType, NbtFlags flags)
             {
-                if (Length >= _data.Length - DbRow.Size)
+                if (ByteLength >= _data.Length - DbRow.Size)
                     Enlarge();
 
-                var row = new DbRow(location, length, numberOfRows, tagType, hasName);
-                MemoryMarshal.Write(_data.AsSpan(Length), ref row);
-                Length += DbRow.Size;
+                var row = new DbRow(location, containerLength, numberOfRows, tagType, flags);
+                MemoryMarshal.Write(_data.AsSpan(ByteLength), ref row);
+                int index = ByteLength;
+                ByteLength += DbRow.Size;
+                return index;
             }
 
             private void Enlarge()
@@ -121,14 +123,14 @@ namespace MinecraftServerSharp.NBT
             private void AssertValidIndex(int index)
             {
                 Debug.Assert(index >= 0);
-                Debug.Assert(index <= Length - DbRow.Size, $"index {index} is out of bounds");
+                Debug.Assert(index <= ByteLength - DbRow.Size, $"index {index} is out of bounds");
                 Debug.Assert(index % DbRow.Size == 0, $"index {index} is not at a record start position");
             }
 
-            public DbRow GetRow(int index)
+            public ref readonly DbRow GetRow(int index)
             {
                 AssertValidIndex(index);
-                return MemoryMarshal.Read<DbRow>(_data.AsSpan(index));
+                return ref MemoryMarshal.GetReference(MemoryMarshal.Cast<byte, DbRow>(_data.AsSpan(index)));
             }
 
             public int GetLocation(int index)
@@ -143,16 +145,16 @@ namespace MinecraftServerSharp.NBT
                 return MemoryMarshal.Read<int>(_data.AsSpan(index + DbRow.LengthOffset));
             }
 
-            public int GetNumberOfRows(int index)
-            {
-                AssertValidIndex(index);
-                return MemoryMarshal.Read<int>(_data.AsSpan(index + DbRow.NumberOfRowsOffset));
-            }
-
             public NbtType GetTagType(int index)
             {
                 AssertValidIndex(index);
                 return MemoryMarshal.Read<NbtType>(_data.AsSpan(index + DbRow.TagTypeOffset));
+            }
+
+            public NbtFlags GetFlags(int index)
+            {
+                AssertValidIndex(index);
+                return MemoryMarshal.Read<NbtFlags>(_data.AsSpan(index + DbRow.FlagsOffset));
             }
 
             public void SetNumberOfRows(int index, int numberOfRows)
@@ -162,6 +164,13 @@ namespace MinecraftServerSharp.NBT
                 MemoryMarshal.Write(dataPos, ref numberOfRows);
             }
 
+            public void SetLength(int index, int length)
+            {
+                AssertValidIndex(index);
+                Span<byte> dataPos = _data.AsSpan(index + DbRow.LengthOffset);
+                MemoryMarshal.Write(dataPos, ref length);
+            }
+
             public MetadataDb CopySegment(int startIndex, int endIndex)
             {
                 Debug.Assert(
@@ -169,26 +178,7 @@ namespace MinecraftServerSharp.NBT
                     $"endIndex={endIndex} was at or before startIndex={startIndex}");
 
                 AssertValidIndex(startIndex);
-                Debug.Assert(endIndex <= Length);
-
-                DbRow start = GetRow(startIndex);
-
-#if DEBUG
-                DbRow end = GetRow(endIndex - DbRow.Size);
-
-                if (start.TagType == NbtType.Compound)
-                {
-                    Debug.Assert(
-                        end.TagType == NbtType.End,
-                        $"Compound paired with {end.TagType}");
-                }
-                else
-                {
-                    Debug.Assert(
-                        startIndex + DbRow.Size == endIndex,
-                        $"{start.TagType} should have been one row");
-                }
-#endif
+                Debug.Assert(endIndex <= ByteLength);
 
                 int length = endIndex - startIndex;
 

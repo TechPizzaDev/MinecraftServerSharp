@@ -13,4 +13,8 @@
     </PackageReference>
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\MinecraftServerSharp.Base\MinecraftServerSharp.Base.csproj" />
+  </ItemGroup>
+
 </Project>

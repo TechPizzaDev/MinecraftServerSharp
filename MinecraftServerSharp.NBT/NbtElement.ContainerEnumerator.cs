@@ -13,15 +13,8 @@ namespace MinecraftServerSharp.NBT
         public struct ContainerEnumerator : IEnumerable<NbtElement>, IEnumerator<NbtElement>
         {
             private readonly NbtElement _target;
-            private readonly int _endIndexOrVersion;
+            private readonly int _targetEndIndex;
             private int _currentIndex;
-
-            internal ContainerEnumerator(NbtElement target)
-            {
-                _target = target;
-                _endIndexOrVersion = target._parent.GetEndIndex(_target._index);
-                _currentIndex = -1;
-            }
 
             public NbtElement Current
             {
@@ -29,12 +22,18 @@ namespace MinecraftServerSharp.NBT
                 {
                     if (_currentIndex < 0)
                         return default;
-
                     return new NbtElement(_target._parent, _currentIndex);
                 }
             }
 
             object IEnumerator.Current => Current;
+
+            internal ContainerEnumerator(NbtElement target)
+            {
+                _target = target;
+                _targetEndIndex = target._parent.GetEndIndex(_target._index, false);
+                _currentIndex = -1;
+            }
 
             /// <summary>
             ///   Returns an enumerator that iterates through a collection.
@@ -50,13 +49,19 @@ namespace MinecraftServerSharp.NBT
                 return ator;
             }
 
-            IEnumerator<NbtElement> IEnumerable<NbtElement>.GetEnumerator() => GetEnumerator();
+            IEnumerator<NbtElement> IEnumerable<NbtElement>.GetEnumerator()
+            {
+                return GetEnumerator();
+            }
 
-            IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+            IEnumerator IEnumerable.GetEnumerator()
+            {
+                return GetEnumerator();
+            }
 
             public void Dispose()
             {
-                _currentIndex = _endIndexOrVersion;
+                _currentIndex = _targetEndIndex;
             }
 
             public void Reset()
@@ -66,15 +71,15 @@ namespace MinecraftServerSharp.NBT
 
             public bool MoveNext()
             {
-                if (_currentIndex >= _endIndexOrVersion)
+                if (_currentIndex >= _targetEndIndex)
                     return false;
 
                 if (_currentIndex < 0)
                     _currentIndex = _target._index + NbtDocument.DbRow.Size;
                 else
-                    _currentIndex = _target._parent.GetEndIndex(_currentIndex);
+                    _currentIndex = _target._parent.GetEndIndex(_currentIndex, true);
 
-                return _currentIndex < _endIndexOrVersion;
+                return _currentIndex < _targetEndIndex;
             }
         }
     }

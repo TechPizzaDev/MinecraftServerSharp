@@ -2,6 +2,7 @@
 using System.IO;
 using System.IO.Compression;
 using System.Net;
+using System.Threading;
 using MinecraftServerSharp.NBT;
 using MinecraftServerSharp.Network;
 using MinecraftServerSharp.Utility;
@@ -40,6 +41,7 @@ namespace MinecraftServerSharp
 
                     document = NbtDocument.Parse(memory);
                 }
+
                 Console.WriteLine();
                 Console.WriteLine(new string('-', 20));
                 Console.WriteLine();
@@ -49,23 +51,18 @@ namespace MinecraftServerSharp
 
             Console.WriteLine(root);
 
-            int rowIndex = 0;
-            for (int j = 0; j < document._metaDb.Length; j += NbtDocument.DbRow.Size)
+            void Log(NbtElement element, int depth = 0)
             {
-                var row = document._metaDb.GetRow(j);
+                string depthPad = new string(' ', depth * 3);
+                foreach (var item in element.EnumerateContainer())
+                {
+                    Console.WriteLine(depthPad + item);
 
-                Console.WriteLine($"[{rowIndex}] | <{row.TagType}> [{row.NumberOfRows}]");
-
-                rowIndex++;
+                    if (item.TagType.IsContainer())
+                        Log(item, depth + 1);
+                }
             }
-
-            return;
-
-            int i = 0;
-            foreach (var item in root.EnumerateContainer())
-            {
-                Console.WriteLine((++i) + ": " + item);
-            }
+            Log(root);
 
             return;
 

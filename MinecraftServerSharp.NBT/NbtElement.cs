@@ -1,8 +1,12 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Text;
 
 namespace MinecraftServerSharp.NBT
 {
+    // TODO: ArrayEnumerator<T>
+
+    [DebuggerDisplay("{ToString(), nq}")]
     public readonly partial struct NbtElement
     {
         private readonly NbtDocument _parent;
@@ -19,6 +23,12 @@ namespace MinecraftServerSharp.NBT
 
         public NbtType TagType => _parent?.GetTagType(_index) ?? NbtType.Null;
 
+        public NbtFlags Flags => _parent?.GetFlags(_index) ?? NbtFlags.None;
+
+        public ReadOnlySpan<byte> Name => _parent != null ? _parent.GetTagName(_index) : ReadOnlySpan<byte>.Empty;
+
+        // TODO: add debug tree view
+
         internal NbtElement(NbtDocument parent, int index)
         {
             // parent is usually not null, but the Current property
@@ -30,17 +40,73 @@ namespace MinecraftServerSharp.NBT
             _index = index;
         }
 
-        /// <summary>
-        /// Get the number of values contained within the current container element.
-        /// </summary>
-        /// <returns>The number of values contained within the current array value.</returns>
-        /// <exception cref="InvalidOperationException">This value is not a container.</exception>
-        /// <exception cref="ObjectDisposedException">The parent <see cref="NbtDocument"/> has been disposed.</exception>
-        public int GetContainerLength()
+        public NbtType GetBaseType()
         {
             CheckValidInstance();
 
-            return _parent.GetContainerLength(_index);
+            var type = TagType;
+            return type switch
+            {
+                NbtType.List => _parent.GetListType(_index),
+                NbtType.ByteArray => NbtType.Byte,
+                NbtType.IntArray => NbtType.Int,
+                NbtType.LongArray => NbtType.Long,
+                _ => type,
+            };
+        }
+
+        /// <summary>
+        /// Gets the number of values contained within the current array-like element.
+        /// </summary>
+        /// <returns>The number of values contained within the current element.</returns>
+        /// <exception cref="InvalidOperationException">This element is not an array-like element.</exception>
+        /// <exception cref="ObjectDisposedException">The parent <see cref="NbtDocument"/> has been disposed.</exception>
+        public int GetLength()
+        {
+            CheckValidInstance();
+            return _parent.GetLength(_index);
+        }
+
+        public sbyte GetByte()
+        {
+            CheckValidInstance();
+            return _parent.GetByte(_index);
+        }
+
+        public short GetShort()
+        {
+            CheckValidInstance();
+            return _parent.GetShort(_index);
+        }
+
+        public int GetInt()
+        {
+            CheckValidInstance();
+            return _parent.GetInt(_index);
+        }
+
+        public long GetLong()
+        {
+            CheckValidInstance();
+            return _parent.GetLong(_index);
+        }
+
+        public float GetFloat()
+        {
+            CheckValidInstance();
+            return _parent.GetFloat(_index);
+        }
+
+        public double GetDouble()
+        {
+            CheckValidInstance();
+            return _parent.GetDouble(_index);
+        }
+
+        public string GetString()
+        {
+            CheckValidInstance();
+            return _parent.GetString(_index);
         }
 
         public ContainerEnumerator EnumerateContainer()
@@ -109,27 +175,25 @@ namespace MinecraftServerSharp.NBT
         }
 
         /// <summary>
-        ///   Compares the data represented by <paramref name="data" /> to
-        ///   the value of this element, either a byte array or UTF-8 text.
+        ///   Compares <paramref name="data" /> to the value of this element, either an array or UTF-8 text.
         /// </summary>
-        /// <param name="data">The data to compare against, either a byte array or UTF-8 text.</param>
+        /// <param name="data">The data to compare against, either an array or UTF-8 text.</param>
         /// <returns>
         ///   <see langword="true" /> if the value of this element is sequence equal to
         ///   <paramref name="data" />, <see langword="false" /> otherwise.
         /// </returns>
         /// <exception cref="InvalidOperationException">
-        ///   This value is not a <see cref="NbtType.String"/> or <see cref="NbtType.ByteArray"/>.
+        ///   This value is not a <see cref="NbtType.String"/> or array.
         /// </exception>
         /// <remarks>
-        ///   This method is functionally equal to doing a comparison of <paramref name="data" />
-        ///   with the result of <see cref="GetString" /> or <see cref="GetByteArray"/>, 
-        ///   but avoids creating the string or array instance.
+        /// This method is endianness-sensitive for <see cref="NbtType.IntArray"/> and <see cref="NbtType.LongArray"/>,
+        /// meaning that <paramref name="data"/> needs to have the same endianness as the element.
         /// </remarks>
-        public bool StringOrArrayEquals(ReadOnlySpan<byte> data)
+        public bool SequenceEqual(ReadOnlySpan<byte> data)
         {
             CheckValidInstance();
 
-            return _parent.StringOrByteArrayEquals(_index, data);
+            return _parent.ArraySequenceEqual(_index, data);
         }
 
         /// <summary>
@@ -158,6 +222,72 @@ namespace MinecraftServerSharp.NBT
         {
             if (_parent == null)
                 throw new InvalidOperationException();
+        }
+
+        public override string ToString()
+        {
+            var name = Name.ToUtf8String();
+            var builder = new StringBuilder(name.Length + 10);
+
+            if (Flags.HasFlag(NbtFlags.Named))
+                builder.Append('"').Append(name).Append("\": ");
+
+            var tagType = TagType;
+            switch (tagType)
+            {
+                case NbtType.String:
+                    builder.Append('"').Append(GetString()).Append('"');
+                    break;
+
+                case NbtType.Byte:
+                    builder.Append(GetByte()).Append('b');
+                    break;
+
+                case NbtType.Short:
+                    builder.Append(GetShort()).Append('s');
+                    break;
+
+                case NbtType.Int:
+                    builder.Append(GetInt()).Append('i');
+                    break;
+
+                case NbtType.Long:
+                    builder.Append(GetLong()).Append('l');
+                    break;
+
+                case NbtType.Float:
+                    builder.Append(GetFloat()).Append('f');
+                    break;
+
+                case NbtType.Double:
+                    builder.Append(GetDouble()).Append('d');
+                    break;
+
+                case NbtType.Compound:
+                    builder.Append(tagType.ToString());
+                    builder.Append('{').Append(GetLength()).Append('}');
+                    break;
+
+                case NbtType.List:
+                    var listType = GetBaseType();
+                    builder.Append('<').Append(listType).Append('>');
+                    builder.Append('[').Append(GetLength()).Append(']');
+                    break;
+
+                case NbtType.ByteArray:
+                case NbtType.IntArray:
+                case NbtType.LongArray:
+                    var arrayType = GetBaseType();
+                    builder.Append(arrayType);
+                    builder.Append('[').Append(GetLength()).Append(']');
+                    break;
+
+                default:
+                    builder.Append(tagType.ToString());
+                    break;
+            }
+
+            return builder.ToString();
         }
     }
 }

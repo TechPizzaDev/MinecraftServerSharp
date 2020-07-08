@@ -48,9 +48,9 @@ namespace MinecraftServerSharp.Network.Packets
             var fields = typeof(TPacketId).GetFields();
             var mappingAttributeList = fields
                 .Where(f => f.GetCustomAttribute<PacketIdMappingAttribute>() != null)
-                .Select(f => new PacketIdMappingInfo(f, f.GetCustomAttribute<PacketIdMappingAttribute>()))
+                .Select(f => new PacketIdMappingInfo(f, f.GetCustomAttribute<PacketIdMappingAttribute>()!))
                 .ToList();
-
+            
             for (int stateIndex = 0; stateIndex < PacketIdMaps.Length; stateIndex++)
             {
                 PacketIdMaps[stateIndex] = new Dictionary<int, PacketIdDefinition>();
@@ -128,6 +128,9 @@ namespace MinecraftServerSharp.Network.Packets
         protected void RegisterDataTypeFromMethod(
             Type type, string methodName, params Type[] arguments)
         {
+            if (type == null)
+                throw new ArgumentNullException(nameof(type));
+
             try
             {
                 if (arguments == null)
@@ -167,6 +170,9 @@ namespace MinecraftServerSharp.Network.Packets
 
         public void RegisterPacketTypes(IEnumerable<PacketStructInfo> infos)
         {
+            if (infos == null)
+                throw new ArgumentNullException(nameof(infos));
+
             foreach (var info in infos)
                 RegisterPacketType(info);
         }

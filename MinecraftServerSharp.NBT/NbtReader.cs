@@ -1,41 +1,116 @@
 ﻿using System;
+using System.Buffers.Binary;
+using System.IO;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace MinecraftServerSharp.NBT
 {
-    public struct NbtReaderState
-    {
-        public NbtReaderOptions Options { get; }
-
-        public NbtReaderState(NbtReaderOptions options = default)
-        {
-            Options = options;
-        }
-    }
-
     public ref struct NbtReader
     {
+        private ReadOnlySpan<byte> _data;
         private NbtReaderState _state;
 
-        // Summary:
-        //     Initializes a new instance of the System.Text.Json.Utf8JsonReader structure that
-        //     processes a read-only span of UTF-8 encoded text and indicates whether the input
-        //     contains all the text to process.
-        //
-        // Parameters:
-        //   jsonData:
-        //     The UTF-8 encoded JSON text to process.
-        //
-        //   isFinalBlock:
-        //     true to indicate that the input sequence contains the entire data to process;
-        //     false to indicate that the input span contains partial data with more data to
-        //     follow.
-        //
-        //   state:
-        //     An object that contains the reader state. If this is the first call to the constructor,
-        //     pass the default state; otherwise, pass the value of the System.Text.Json.Utf8JsonReader.CurrentState
-        //     property from the previous instance of the System.Text.Json.Utf8JsonReader.
-        public NbtReader(ReadOnlySpan<byte> data, bool isFinalBlock, NbtReaderState state)
+        private int _consumed;
+
+        /// <summary>
+        /// Gets the mode of this instance of the <see cref="NbtReader"/> which indicates
+        /// whether all the data was provided or there is more data to come.
+        /// </summary>
+        /// <returns>
+        /// true if the reader was constructed with the input span containing
+        /// the entire data to process; false if the reader was constructed with an
+        /// input span that may contain partial data with more data to follow.
+        /// </returns>
+        public bool IsFinalBlock { get; }
+
+        /// <summary>
+        /// Gets the index that the last processed element starts at (within the given input data).
+        /// </summary>
+        public int TagStartIndex { get; private set; }
+
+        /// <summary>
+        /// Gets the type of the last processed element.
+        /// </summary>
+        public NbtType TagType { get; private set; }
+
+        public NbtFlags TagFlags { get; private set; }
+
+        /// <summary>
+        /// Gets the raw data of the last processed element as a slice of the input.
+        /// </summary>
+        public ReadOnlySpan<byte> TagSpan { get; private set; }
+
+        /// <summary>
+        /// Gets the raw name of the last processed element as a slice of the input.
+        /// </summary>
+        public ReadOnlySpan<byte> NameSpan { get; private set; }
+
+        /// <summary>
+        /// Gets the raw value of the last processed element as a slice of the input.
+        /// </summary>
+        public ReadOnlySpan<byte> ValueSpan { get; private set; }
+
+        /// <summary>
+        /// Gets the prefixed length of an array-like type.
+        /// <remarks>
+        /// <see cref="NbtType.Compound"/> does not provide a length.
+        /// </remarks>
+        /// </summary>
+        public int TagArrayLength { get; private set; }
+
+        /// <summary>
+        /// Gets the current <see cref="NbtReader"/> state to pass to a <see cref="NbtReader"/>
+        /// constructor with more data.
+        /// </summary>
+        public NbtReaderState CurrentState => _state;
+
+        public NbtOptions Options => _state.Options;
+
+        /// <summary>
+        /// Gets the depth of the current element.
+        /// </summary>
+        public int CurrentDepth
         {
+            get
+            {
+                int depth = _state._containerInfoStack.Count;
+                if (TagType.IsContainer())
+                    depth--;
+                return depth;
+            }
+        }
+
+        /// <summary>
+        /// Gets the total number of bytes consumed so far by this instance.
+        /// </summary>
+        public long BytesConsumed => _consumed;
+
+        #region Cosntructors
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="NbtReader"/> structure that
+        /// processes a read-only span of binary data and indicates whether the input
+        /// contains all the data to process.
+        /// </summary>
+        /// <param name="data">
+        /// The binary data to process.
+        /// </param>
+        /// <param name="isFinalBlock">
+        /// true to indicate that the input sequence contains the entire data to process;
+        /// false to indicate that the input span contains partial data with more data to follow.
+        /// </param>
+        /// <param name="state">
+        /// An object that contains the reader state. If this is the first call to the constructor,
+        /// pass the default state; otherwise, pass the value of the <see cref="CurrentState"/>
+        /// property from the previous instance of the <see cref="NbtReader"/>.
+        /// </param>
+        public NbtReader(ReadOnlySpan<byte> data, bool isFinalBlock, NbtReaderState state) : this()
+        {
+            _data = data;
+            IsFinalBlock = isFinalBlock;
+            _state = state;
+            TagType = NbtType.Null;
         }
 
         // Summary:
@@ -52,112 +127,422 @@ namespace MinecraftServerSharp.NBT
         //     when reading). By default, the System.Text.Json.Utf8JsonReader follows the JSON
         //     RFC strictly; comments within the JSON are invalid, and the maximum depth is
         //     64.
-        public NbtReader(ReadOnlySpan<byte> data, NbtReaderOptions options = default) :
+        public NbtReader(ReadOnlySpan<byte> data, NbtOptions? options = default) :
             this(data, true, new NbtReaderState(options))
         {
         }
 
-        /// <summary>
-        /// Gets the type of the last processed element.
-        /// </summary>
-        public NbtType TagType { get; }
+        #endregion
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private bool HasMoreData()
+        {
+            if (_consumed >= _data.Length)
+            {
+                //if (_isNotPrimitive && IsLastSpan)
+                //{
+                //    if (_bitStack.CurrentDepth != 0)
+                //    {
+                //        ThrowHelper.ThrowJsonReaderException(ref this, ExceptionResource.ZeroDepthAtEnd);
+                //    }
+                //
+                //    if (_tokenType != JsonTokenType.EndArray && _tokenType != JsonTokenType.EndObject)
+                //    {
+                //        ThrowHelper.ThrowJsonReaderException(ref this, ExceptionResource.InvalidEndOfJsonNonPrimitive);
+                //    }
+                //}
+                return false;
+            }
+            return true;
+        }
+
+        // TODO: NbtException type
 
         /// <summary>
-        /// Gets the index that the last processed element starts at (within the given input data).
+        /// Reads the next NBT element from the input source.
         /// </summary>
-        public readonly long TagStartIndex { get; }
+        /// <returns>true if the element was read successfully; otherwise, false.</returns>
+        /// <exception cref="Exception">
+        /// An invalid NBT element is encountered. -or- 
+        /// The current depth exceeds <see cref="NbtOptions.MaxDepth"/>.
+        /// </exception>
+        public bool Read()
+        {
+            TagSpan = default;
+            NameSpan = default;
+            ValueSpan = default;
+            TagFlags = default;
+            TagArrayLength = default;
 
-        /// <summary>
-        /// Gets the mode of this instance of the <see cref="NbtReader"/> which indicates
-        /// whether all the data was provided or there is more data to come.
-        /// </summary>
-        /// <returns>
-        /// true if the reader was constructed with the input span containing
-        /// the entire data to process; false if the reader was constructed with an
-        /// input span that may contain partial data with more data to follow.
-        /// </returns>
-        public bool IsFinalBlock { get; }
+            if (!HasMoreData())
+                return false;
 
-        /// <summary>
-        /// Gets the current <see cref="NbtReader"/> state to pass to a <see cref="NbtReader"/>
-        /// constructor with more data.
-        /// </summary>
-        public NbtReaderState CurrentState => _state;
+            // TODO: respect max depth setting and IsFinalBlock
 
-        /// <summary>
-        /// Gets the depth of the current element.
-        /// </summary>
-        public int CurrentDepth => 0;
+            // TODO: check if last tag was fully read
 
-        /// <summary>
-        /// Gets the total number of bytes consumed so far by this instance.
-        /// </summary>
-        public long BytesConsumed => 0;
+            var slice = _data.Slice(_consumed);
+            int read = 0;
 
-        /// <summary>
-        /// Gets the raw value of the last processed element as a slice of the input.
-        /// </summary>
-        public readonly ReadOnlySpan<byte> ValueSpan { get; }
+            // TODO: optimize stack usage between here and switch
 
-        // Summary:
-        //     Reads the next JSON token from the input source.
-        //
-        // Returns:
-        //     true if the token was read successfully; otherwise, false.
-        //
-        // Exceptions:
-        //   T:System.Text.Json.JsonException:
-        //     An invalid JSON token according to the JSON RFC is encountered. -or- The current
-        //     depth exceeds the recursive limit set by the maximum depth.
-        public bool Read();
+            _state._containerInfoStack.TryPeek(out ContainerInfo containerInfo);
+            if (containerInfo.InList && containerInfo.Length == 0)
+                containerInfo = _state._containerInfoStack.Pop();
+
+            TagType = containerInfo.Length > 0 ? containerInfo.Type : (NbtType)slice[read++];
+
+            if (containerInfo.InList)
+            {
+                containerInfo = _state._containerInfoStack.Pop();
+                containerInfo.Length--;
+                _state._containerInfoStack.Push(containerInfo);
+            }
+
+            if (!containerInfo.InList)
+            {
+                TagFlags |= NbtFlags.Typed;
+
+                // Tags in lists don't have a name.
+                // End tags don't have a name ever.
+                if (TagType != NbtType.End)
+                {
+                    TagFlags |= NbtFlags.Named;
+
+                    int nameLength = ReadStringLength(slice.Slice(read), Options, out int nameLengthBytes);
+                    read += nameLengthBytes;
+
+                    NameSpan = slice.Slice(read, nameLength);
+                    read += nameLength;
+                }
+            }
+
+            switch (TagType)
+            {
+                case NbtType.Compound:
+                    _state._containerInfoStack.Push(default);
+                    break;
+
+                case NbtType.End:
+                    _state._containerInfoStack.Pop();
+                    break;
+
+                case NbtType.List:
+                {
+                    var listType = (NbtType)slice[read];
+
+                    TagArrayLength = ReadListLength(
+                        slice.Slice(sizeof(byte) + read), Options, out int listLengthBytes);
+
+                    _state._containerInfoStack.Push(new ContainerInfo
+                    {
+                        Type = listType,
+                        Length = TagArrayLength,
+                        InList = true
+                    });
+                    ValueSpan = slice.Slice(read, sizeof(byte) + listLengthBytes);
+                    break;
+                }
+
+                case NbtType.ByteArray:
+                {
+                    TagArrayLength = ReadArrayLength(slice.Slice(read), Options, out int arrayLengthBytes);
+                    read += arrayLengthBytes;
+
+                    ValueSpan = slice.Slice(read, TagArrayLength * sizeof(sbyte));
+                    break;
+                }
+
+                case NbtType.IntArray:
+                {
+                    TagArrayLength = ReadArrayLength(slice.Slice(read), Options, out int arrayLengthBytes);
+                    read += arrayLengthBytes;
+
+                    ValueSpan = slice.Slice(read, TagArrayLength * sizeof(int));
+                    break;
+                }
+
+                case NbtType.LongArray:
+                {
+                    TagArrayLength = ReadArrayLength(slice.Slice(read), Options, out int arrayLengthBytes);
+                    read += arrayLengthBytes;
+
+                    ValueSpan = slice.Slice(read, TagArrayLength * sizeof(long));
+                    break;
+                }
+
+                case NbtType.String:
+                    TagArrayLength = ReadStringLength(slice.Slice(read), Options, out int stringLengthBytes);
+                    read += stringLengthBytes;
+
+                    ValueSpan = slice.Slice(read, TagArrayLength);
+                    break;
+
+                case NbtType.Byte:
+                    ValueSpan = slice.Slice(read, sizeof(sbyte));
+                    break;
+
+                case NbtType.Int:
+                    ValueSpan = slice.Slice(read, sizeof(int));
+                    break;
+
+                case NbtType.Short:
+                    ValueSpan = slice.Slice(read, sizeof(short));
+                    break;
+
+                case NbtType.Long:
+                    ValueSpan = slice.Slice(read, sizeof(long));
+                    break;
+
+                case NbtType.Float:
+                    ValueSpan = slice.Slice(read, sizeof(float));
+                    break;
+
+                case NbtType.Double:
+                    ValueSpan = slice.Slice(read, sizeof(double));
+                    break;
+
+                default:
+                    throw new InvalidDataException($"Unexpected tag type \"{TagType}\".");
+            }
+            read += ValueSpan.Length;
+
+            TagStartIndex = _consumed;
+            TagSpan = slice.Slice(0, read);
+            _consumed += read;
+            return true;
+        }
 
         // Summary:
         //     Skips the children of the current JSON token.
         //
         // Exceptions:
         //   T:System.InvalidOperationException:
-        //     The reader was given partial data with more data to follow (that is, System.Text.Json.Utf8JsonReader.IsFinalBlock
-        //     is false).
+        //     The reader was given partial data with more data to follow
+        //     (that is, System.Text.Json.Utf8JsonReader.IsFinalBlock is false).
         //
         //   T:System.Text.Json.JsonException:
         //     An invalid JSON token was encountered while skipping, according to the JSON RFC.
         //     -or- The current depth exceeds the recursive limit set by the maximum depth.
-        public void Skip();
+        public void Skip()
+        {
+            // remember IsFinalBlock
+            throw new NotImplementedException();
+        }
 
-        public bool TrySkip();
+        public bool TrySkip()
+        {
+            throw new NotImplementedException();
+        }
 
-        public sbyte GetSByte();
+        public sbyte GetSByte()
+        {
+            throw new NotImplementedException();
+        }
 
-        public double GetDouble();
+        public double GetDouble()
+        {
+            throw new NotImplementedException();
+        }
 
-        public short GetInt16();
+        public short GetInt16()
+        {
+            throw new NotImplementedException();
+        }
 
-        public int GetInt32();
+        public int GetInt32()
+        {
+            throw new NotImplementedException();
+        }
 
-        public long GetInt64();
+        public long GetInt64()
+        {
+            throw new NotImplementedException();
+        }
 
-        public float GetSingle();
+        public float GetSingle()
+        {
+            throw new NotImplementedException();
+        }
 
-        public string GetString();
+        public string GetString()
+        {
+            throw new NotImplementedException();
+        }
 
-        public bool TryGetSByte(out sbyte value);
+        public bool TryGetDouble(out double value)
+        {
+            throw new NotImplementedException();
+        }
 
-        public bool TryGetDouble(out double value);
+        public bool TryGetInt16(out short value)
+        {
+            throw new NotImplementedException();
+        }
 
-        public bool TryGetInt16(out short value);
+        public bool TryGetInt32(out int value)
+        {
+            throw new NotImplementedException();
+        }
 
-        public bool TryGetInt32(out int value);
+        public bool TryGetInt64(out long value)
+        {
+            throw new NotImplementedException();
+        }
 
-        public bool TryGetInt64(out long value);
+        public bool TryGetSByte(out sbyte value)
+        {
+            throw new NotImplementedException();
+        }
 
-        public bool TryGetSByte(out sbyte value);
+        public bool TryGetSingle(out float value)
+        {
+            throw new NotImplementedException();
+        }
 
-        public bool TryGetSingle(out float value);
+        public bool ValueSequenceEqual(ReadOnlySpan<byte> data)
+        {
+            throw new NotImplementedException();
+        }
 
-        public bool ValueTextEquals(ReadOnlySpan<byte> utf8Text);
+        public bool ValueStringEquals(ReadOnlySpan<char> text)
+        {
+            throw new NotImplementedException();
+        }
 
-        public bool ValueTextEquals(ReadOnlySpan<char> text);
+        public bool ValueStringEquals(string? text)
+        {
+            return ValueStringEquals(text.AsSpan());
+        }
 
-        public bool ValueTextEquals(string text);
+        #region Read Helpers
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static ReadOnlySpan<byte> SkipTagName(ReadOnlySpan<byte> source, NbtOptions options)
+        {
+            int nameLength = ReadStringLength(source, options, out int lengthBytes);
+            return source.Slice(lengthBytes + nameLength);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static ReadOnlySpan<byte> SkipTagType(ReadOnlySpan<byte> source)
+        {
+            return source.Slice(sizeof(byte));
+        }
+
+        public static int ReadStringLength(
+            ReadOnlySpan<byte> source, NbtOptions options, out int bytesConsumed)
+        {
+            int result;
+            if (options.IsVarInt)
+            {
+                var status = VarInt.TryDecode(source, out var value, out bytesConsumed);
+                if (status != System.Buffers.OperationStatus.Done)
+                    throw new Exception(status.ToString());
+                result = value;
+            }
+            else
+            {
+                result = ReadShort(source, options.IsBigEndian);
+                bytesConsumed = sizeof(short);
+
+                if (result > short.MaxValue)
+                    throw new Exception("Name length exceeds maximum.");
+            }
+
+            if (result < 0)
+                throw new Exception("Negative tag name length.");
+            return result;
+        }
+
+        public static int ReadArrayLength(
+            ReadOnlySpan<byte> source, NbtOptions options, out int bytesConsumed)
+        {
+            if (options.IsVarInt)
+            {
+                var status = VarInt.TryDecode(source, out var value, out bytesConsumed);
+                if (status != System.Buffers.OperationStatus.Done)
+                    throw new Exception(status.ToString());
+                return value;
+            }
+            else
+            {
+                int result = ReadInt(source, options.IsBigEndian);
+                bytesConsumed = sizeof(int);
+                return result;
+            }
+        }
+
+        public static int ReadListLength(
+            ReadOnlySpan<byte> source, NbtOptions options, out int bytesConsumed)
+        {
+            return ReadArrayLength(source, options, out bytesConsumed);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static sbyte ReadByte(ReadOnlySpan<byte> source)
+        {
+            return MemoryMarshal.Read<sbyte>(source);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static short ReadShort(ReadOnlySpan<byte> source, bool isBigEndian)
+        {
+            if (isBigEndian)
+                return BinaryPrimitives.ReadInt16BigEndian(source);
+            else
+                return BinaryPrimitives.ReadInt16LittleEndian(source);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ushort ReadUShort(ReadOnlySpan<byte> source, bool isBigEndian)
+        {
+            if (isBigEndian)
+                return BinaryPrimitives.ReadUInt16BigEndian(source);
+            else
+                return BinaryPrimitives.ReadUInt16LittleEndian(source);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int ReadInt(ReadOnlySpan<byte> source, bool isBigEndian)
+        {
+            if (isBigEndian)
+                return BinaryPrimitives.ReadInt32BigEndian(source);
+            else
+                return BinaryPrimitives.ReadInt32LittleEndian(source);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static long ReadLong(ReadOnlySpan<byte> source, bool isBigEndian)
+        {
+            if (isBigEndian)
+                return BinaryPrimitives.ReadInt64BigEndian(source);
+            else
+                return BinaryPrimitives.ReadInt64LittleEndian(source);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static float ReadFloat(ReadOnlySpan<byte> source, bool isBigEndian)
+        {
+            int intValue = ReadInt(source, isBigEndian);
+            return BitConverter.Int32BitsToSingle(intValue);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static double ReadDouble(ReadOnlySpan<byte> source, bool isBigEndian)
+        {
+            long intValue = ReadLong(source, isBigEndian);
+            return BitConverter.Int64BitsToDouble(intValue);
+        }
+
+        #endregion
+
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct ContainerInfo
+        {
+            public int Length;
+            public NbtType Type;
+            public bool InList;
+        }
     }
 }

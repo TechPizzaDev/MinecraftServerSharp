@@ -22,27 +22,26 @@ namespace MinecraftServerSharp.Network.Data
 
         public static int TryReadBytes(this NetBinaryReader reader, int count, Stream output)
         {
-            byte[] buffer = RecyclableMemoryManager.Default.GetBlock();
-            try
-            {
-                int numRead = 0;
-                do
-                {
-                    int n = reader.ReadBytes(buffer.AsSpan(0, count));
-                    if (n == 0)
-                        break;
+            if (output == null)
+                throw new ArgumentNullException(nameof(output));
 
-                    output.Write(buffer, 0, n);
-                    numRead += n;
-                    count -= n;
-                } while (count > 0);
+            if (count < 0)
+                throw new ArgumentOutOfRangeException(nameof(count));
 
-                return numRead;
-            }
-            finally
+            Span<byte> buffer = stackalloc byte[4096];
+            int total = 0;
+            while (count > 0)
             {
-                RecyclableMemoryManager.Default.ReturnBlock(buffer);
+                int read = reader.ReadBytes(buffer.Slice(0, Math.Min(buffer.Length, count)));
+                if (read == 0)
+                    break;
+
+                output.Write(buffer.Slice(0, read));
+                total += read;
+                count -= read;
             }
+
+            return total;
         }
     }
 }

@@ -1,6 +1,6 @@
 ﻿namespace MinecraftServerSharp.NBT
 {
-    public enum NbtType : byte
+    public enum NbtType
     {
         End = 0,
         Byte = 1,

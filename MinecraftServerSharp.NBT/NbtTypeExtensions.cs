@@ -7,6 +7,7 @@ namespace MinecraftServerSharp.NBT
         {
             switch (tagType)
             {
+                case NbtType.String:
                 case NbtType.ByteArray:
                 case NbtType.IntArray:
                 case NbtType.LongArray:

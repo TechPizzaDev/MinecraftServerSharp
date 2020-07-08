@@ -14,35 +14,34 @@ namespace MinecraftServerSharp.NBT
             public const int LocationOffset = 0;
             public const int LengthOffset = LocationOffset + sizeof(int);
             public const int NumberOfRowsOffset = LengthOffset + sizeof(int);
-            public const int TagTypeOffset = NumberOfRowsOffset + sizeof(int);
+            public const int FlagsOffset = NumberOfRowsOffset + sizeof(int);
+            public const int TagTypeOffset = FlagsOffset + sizeof(NbtFlags);
 
             public int Location { get; }
 
             /// <summary>
-            /// The amount of elements in an array-like tag or
-            /// the size of a primitive tag in bytes.
+            /// The amount of elements in a container tag.
             /// </summary>
-            public int Length { get; }
+            public int ContainerLength { get; }
 
             public int NumberOfRows { get; }
 
+            public NbtFlags Flags { get; }
             public NbtType TagType { get; }
-            public bool HasName { get; }
 
             public bool IsContainerType => TagType.IsContainer();
             public bool IsPrimitiveType => TagType.IsPrimitive();
 
-            public DbRow(int location, int length, int numberOfRows, NbtType tagType, bool hasName)
+            public DbRow(int location, int containerLength, int numberOfRows, NbtType tagType, NbtFlags flags)
             {
                 Debug.Assert(location >= 0);
-                Debug.Assert(numberOfRows >= 0);
                 Debug.Assert(tagType >= NbtType.End && tagType <= NbtType.LongArray);
 
                 Location = location;
-                Length = length;
+                ContainerLength = containerLength;
                 NumberOfRows = numberOfRows;
                 TagType = tagType;
-                HasName = hasName;
+                Flags = flags;
             }
         }
     }
