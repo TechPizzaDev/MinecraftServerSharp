@@ -26,6 +26,9 @@ namespace MinecraftServerSharp.Network.Packets
 
         public static IEnumerable<PacketStructInfo> GetPacketTypes(Assembly assembly)
         {
+            if (assembly == null)
+                throw new ArgumentNullException(nameof(assembly));
+
             foreach (Type type in assembly.ExportedTypes)
             {
                 var structAttribute = type.GetCustomAttribute<PacketStructAttribute>();

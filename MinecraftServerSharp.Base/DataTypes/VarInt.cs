@@ -31,17 +31,48 @@ namespace MinecraftServerSharp
             return index;
         }
 
-        public static OperationStatus TryDecode(Stream stream, out VarInt result, out int bytes)
+        public static OperationStatus TryDecode(
+            ReadOnlySpan<byte> source, out VarInt result, out int bytesConsumed)
+        {
+            bytesConsumed = 0;
+            int value = 0;
+            int b;
+            do
+            {
+                if (bytesConsumed == MaxEncodedSize)
+                {
+                    result = default;
+                    return OperationStatus.InvalidData;
+                }
+
+                if (source.Length - bytesConsumed <= 0)
+                {
+                    result = default;
+                    return OperationStatus.NeedMoreData;
+                }
+                b = source[bytesConsumed];
+
+                value |= (b & 0x7F) << (bytesConsumed * 7);
+                bytesConsumed++;
+
+            } while ((b & 0x80) != 0);
+
+            result = (VarInt)value;
+            return OperationStatus.Done;
+        }
+
+        public static OperationStatus TryDecode(
+            Stream stream, out VarInt result, out int bytesConsumed)
         {
             if (stream == null)
                 throw new ArgumentNullException(nameof(stream));
 
-            bytes = 0;
-            int count = 0;
+            bytesConsumed = 0;
+            int value = 0;
             int b;
             do
             {
-                if (bytes == MaxEncodedSize)
+                if (bytesConsumed == MaxEncodedSize)
                 {
                     result = default;
                     return OperationStatus.InvalidData;
@@ -54,12 +85,12 @@ namespace MinecraftServerSharp
                     return OperationStatus.NeedMoreData;
                 }
 
-                count |= (b & 0x7F) << (bytes * 7);
-                bytes++;
+                value |= (b & 0x7F) << (bytesConsumed * 7);
+                bytesConsumed++;
 
             } while ((b & 0x80) != 0);
 
-            result = (VarInt)count;
+            result = (VarInt)value;
             return OperationStatus.Done;
         }
 

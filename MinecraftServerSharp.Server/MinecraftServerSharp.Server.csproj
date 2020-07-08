@@ -19,16 +19,15 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="..\Thirdparty\Microsoft.IO.RecyclableMemoryStream\RecyclableMemoryManager.Events.cs" Link="Utility\RecyclableMemoryManager.Events.cs" />
-    <Compile Include="..\Thirdparty\Microsoft.IO.RecyclableMemoryStream\RecyclableMemoryManager.cs" Link="Utility\RecyclableMemoryManager.cs" />
-    <Compile Include="..\Thirdparty\Microsoft.IO.RecyclableMemoryStream\RecyclableMemoryStream.cs" Link="Utility\RecyclableMemoryStream.cs" />
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.FxCopAnalyzers" Version="3.0.0">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MinecraftServerSharp.Base\MinecraftServerSharp.Base.csproj" />
+    <ProjectReference Include="..\MinecraftServerSharp.NBT\MinecraftServerSharp.NBT.csproj" />
   </ItemGroup>
 
 </Project>

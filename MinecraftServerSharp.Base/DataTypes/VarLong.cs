@@ -2,7 +2,6 @@
 using System.Buffers;
 using System.Diagnostics;
 using System.IO;
-using MinecraftServerSharp.Network.Data;
 
 namespace MinecraftServerSharp
 {

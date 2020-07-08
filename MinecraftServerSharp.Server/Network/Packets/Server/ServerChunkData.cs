@@ -11,7 +11,9 @@ namespace MinecraftServerSharp.Network.Packets
         public int ChunkY { get; }
         public bool FullChunk { get; }
         public VarInt PrimaryBitMask { get; }
-        public 
+        // TODO:
+
+        
     }
 
 

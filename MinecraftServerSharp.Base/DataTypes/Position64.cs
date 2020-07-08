@@ -8,7 +8,10 @@ namespace MinecraftServerSharp
 
         public ulong Value;
 
-        public Position64(ulong value) => Value = value;
+        public Position64(ulong value)
+        {
+            Value = value;
+        }
 
         public int X
         {

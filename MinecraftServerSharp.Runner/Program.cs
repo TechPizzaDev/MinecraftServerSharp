@@ -1,9 +1,10 @@
 ﻿using System;
+using System.IO;
+using System.IO.Compression;
 using System.Net;
-using System.Numerics;
-using System.Text;
-using System.Text.Json;
+using MinecraftServerSharp.NBT;
 using MinecraftServerSharp.Network;
+using MinecraftServerSharp.Utility;
 
 namespace MinecraftServerSharp
 {
@@ -16,6 +17,58 @@ namespace MinecraftServerSharp
     {
         private static void Main(string[] args)
         {
+            NbtDocument document;
+
+            if (false)
+            {
+                document = NbtDocument.Parse(File.ReadAllBytes(@"C:\Users\Michal Piatkowski\Downloads\hello_world.nbt"));
+            }
+            else
+            {
+                using (var fs = File.OpenRead(@"C:\Users\Michal Piatkowski\Downloads\bigtest.nbt"))
+                using (var ds = new GZipStream(fs, CompressionMode.Decompress))
+                using (var ms = new MemoryStream())
+                {
+                    ds.SCopyTo(ms);
+                    var memory = ms.GetBuffer().AsMemory(0, (int)ms.Length);
+
+                    //var reader = new NbtReader(memory.Span);
+                    //while (reader.Read())
+                    //{
+                    //    //Console.WriteLine(reader.NameSpan.ToUtf8String() + ": " + reader.TagType);
+                    //}
+
+                    document = NbtDocument.Parse(memory);
+                }
+                Console.WriteLine();
+                Console.WriteLine(new string('-', 20));
+                Console.WriteLine();
+            }
+
+            var root = document.RootTag;
+
+            Console.WriteLine(root);
+
+            int rowIndex = 0;
+            for (int j = 0; j < document._metaDb.Length; j += NbtDocument.DbRow.Size)
+            {
+                var row = document._metaDb.GetRow(j);
+
+                Console.WriteLine($"[{rowIndex}] | <{row.TagType}> [{row.NumberOfRows}]");
+
+                rowIndex++;
+            }
+
+            return;
+
+            int i = 0;
+            foreach (var item in root.EnumerateContainer())
+            {
+                Console.WriteLine((++i) + ": " + item);
+            }
+
+            return;
+
             var gameTicker = new Ticker(targetTickTime: TimeSpan.FromMilliseconds(50));
 
             var manager = new NetManager();
@@ -64,7 +117,7 @@ namespace MinecraftServerSharp
                 manager.Flush();
             };
             gameTicker.Run();
-            
+
             Console.ReadKey();
             return;
         }

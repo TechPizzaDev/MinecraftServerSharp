@@ -5,6 +5,7 @@ using System.Diagnostics;
 namespace MinecraftServerSharp
 {
     // TODO: do stuff with JsonEncodedText and such
+    // TODO: overload + operator to more efficiently combine Utf8String and String instances
 
     [DebuggerDisplay("{ToString()}")]
     public class Utf8String : IComparable<Utf8String>, IEquatable<Utf8String>

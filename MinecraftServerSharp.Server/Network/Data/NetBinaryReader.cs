@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Buffers;
 using System.Buffers.Binary;
-using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -261,12 +260,12 @@ namespace MinecraftServerSharp.Network.Data
             var code = Read(out VarInt byteCount, out int lengthBytes);
             if (code != OperationStatus.Done)
             {
-                value = default;
+                value = default!;
                 return code;
             }
             if (lengthBytes > 3)
             {
-                value = default;
+                value = default!;
                 return OperationStatus.InvalidData;
             }
 

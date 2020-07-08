@@ -1,0 +1,17 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>enable</Nullable>
+    <AssemblyName>MinecraftServerSharp.Base</AssemblyName>
+    <RootNamespace>MinecraftServerSharp</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Thirdparty\Microsoft.IO.RecyclableMemoryStream\RecyclableMemoryManager.cs" Link="Utility\RecyclableMemoryManager.cs" />
+    <Compile Include="..\Thirdparty\Microsoft.IO.RecyclableMemoryStream\RecyclableMemoryManager.Events.cs" Link="Utility\RecyclableMemoryManager.Events.cs" />
+    <Compile Include="..\Thirdparty\Microsoft.IO.RecyclableMemoryStream\RecyclableMemoryStream.cs" Link="Utility\RecyclableMemoryStream.cs" />
+  </ItemGroup>
+
+</Project>
