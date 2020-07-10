@@ -31,9 +31,21 @@ namespace MinecraftServerSharp.Network.Packets
 
         #region Play
 
+        [Mapping(State.Play, 0x00)] TeleportConfirm,
         [Mapping(State.Play, 0x03)] ChatMessage,
         [Mapping(State.Play, 0x05)] ClientSettings,
-        [Mapping(State.Play, 0x0B)] PluginMessage
+        [Mapping(State.Play, 0x0A)] CloseWindow,
+        [Mapping(State.Play, 0x0B)] PluginMessage,
+        
+        [Mapping(State.Play, 0x11)] PlayerPosition,
+        [Mapping(State.Play, 0x12)] PlayerPositionRotation,
+        [Mapping(State.Play, 0x13)] PlayerRotation,
+
+        [Mapping(State.Play, 0x1B)] EntityAction,
+        [Mapping(State.Play, 0x1D)] RecipeBookData,
+
+        [Mapping(State.Play, 0x2A)] Animation,
+        [Mapping(State.Play, 0x23)] HeldItemChange,
 
         #endregion
     }

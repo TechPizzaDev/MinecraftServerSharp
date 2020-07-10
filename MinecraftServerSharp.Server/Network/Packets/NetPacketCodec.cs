@@ -50,7 +50,7 @@ namespace MinecraftServerSharp.Network.Packets
                 .Where(f => f.GetCustomAttribute<PacketIdMappingAttribute>() != null)
                 .Select(f => new PacketIdMappingInfo(f, f.GetCustomAttribute<PacketIdMappingAttribute>()!))
                 .ToList();
-            
+
             for (int stateIndex = 0; stateIndex < PacketIdMaps.Length; stateIndex++)
             {
                 PacketIdMaps[stateIndex] = new Dictionary<int, PacketIdDefinition>();
@@ -126,27 +126,27 @@ namespace MinecraftServerSharp.Network.Packets
         #region RegisterDataType[FromMethod]
 
         protected void RegisterDataTypeFromMethod(
-            Type type, string methodName, params Type[] arguments)
+            Type[] types, string methodName, params Type[] arguments)
         {
-            if (type == null)
-                throw new ArgumentNullException(nameof(type));
+            if (types == null)
+                throw new ArgumentNullException(nameof(types));
 
-            try
+            if (arguments == null)
+                arguments = Array.Empty<Type>();
+
+            MethodInfo? method = null;
+
+            foreach (var type in types)
             {
-                if (arguments == null)
-                    arguments = Array.Empty<Type>();
-
-                var method = type.GetMethod(methodName, arguments);
-                if (method == null)
-                    throw new Exception($"Could not find method \"{methodName}\"({arguments.ToListString()}).");
-
-                RegisterDataType(method);
+                method = type.GetMethod(methodName, arguments);
+                if (method != null)
+                    break;
             }
-            catch (Exception ex)
-            {
-                throw new Exception(
-                    $"Failed to create data type from method {type}.{methodName}({arguments.ToListString()}).", ex);
-            }
+
+            if (method == null)
+                throw new Exception($"Could not find method \"{methodName}\"({arguments.ToListString()}).");
+
+            RegisterDataType(method);
         }
 
         public void RegisterDataType(MethodInfo method)

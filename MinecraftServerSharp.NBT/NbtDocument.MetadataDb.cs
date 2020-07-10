@@ -139,10 +139,16 @@ namespace MinecraftServerSharp.NBT
                 return MemoryMarshal.Read<int>(_data.AsSpan(index + DbRow.LocationOffset));
             }
 
-            public int GetLength(int index)
+            public int GetContainerLength(int index)
             {
                 AssertValidIndex(index);
                 return MemoryMarshal.Read<int>(_data.AsSpan(index + DbRow.LengthOffset));
+            }
+
+            public int GetNumberOfRows(int index)
+            {
+                AssertValidIndex(index);
+                return MemoryMarshal.Read<int>(_data.AsSpan(index + DbRow.NumberOfRowsOffset));
             }
 
             public NbtType GetTagType(int index)

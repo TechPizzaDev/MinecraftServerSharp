@@ -3,9 +3,12 @@ using System.Buffers;
 using System.IO;
 using System.Net.Sockets;
 using System.Security.Cryptography;
+using MinecraftServerSharp.NBT;
 using MinecraftServerSharp.Network.Data;
 using MinecraftServerSharp.Network.Packets;
+using MinecraftServerSharp.Network.Packets.Client;
 using MinecraftServerSharp.Utility;
+using MinecraftServerSharp.World;
 
 namespace MinecraftServerSharp.Network
 {
@@ -187,16 +190,59 @@ namespace MinecraftServerSharp.Network
                             if (connection.ReadPacket<ClientLoginStart>(
                                 out var loginStartPacket).Status == OperationStatus.Done)
                             {
+                                var uuid = new UUID(0, 1);
+
                                 var name = loginStartPacket.Name;
-                                var answer = new ServerLoginSuccess(new UUID(0, 1).ToUtf8String(), name);
+                                var answer = new ServerLoginSuccess(uuid.ToUtf8String(), name);
 
                                 connection.EnqueuePacket(answer);
 
                                 connection.State = ProtocolState.Play;
 
-                                var joinAnswer = new ServerJoinGame(
-                                    new EntityId(69), 3, 0, 0, 0, "default", (VarInt)2, false, true);
-                                connection.EnqueuePacket(joinAnswer);
+                                var playerId = new EntityId(69);
+
+                                connection.EnqueuePacket(new ServerJoinGame(
+                                    playerId.Value, 3, 0, 0, 0, "default", 8, false, true));
+
+                                connection.EnqueuePacket(new ServerSpawnPosition(
+                                    new Position(0, 16, 0)));
+
+                                connection.EnqueuePacket(new ServerPlayerPositionLook(
+                                    0, 16, 0, 0, 0, ServerPlayerPositionLook.PositionRelatives.None, 1337));
+
+                                var dimension = new Dimension();
+                                var chunk1 = new Chunk(0, 0, dimension);
+                                var chunk2 = new Chunk(0, 1, dimension);
+                                var chunk3 = new Chunk(1, 0, dimension);
+                                var chunk4 = new Chunk(1, 1, dimension);
+                                var chunkData1 = new ServerChunkData(chunk1, true);
+                                var chunkData2 = new ServerChunkData(chunk2, true);
+                                var chunkData3 = new ServerChunkData(chunk3, true);
+                                var chunkData4 = new ServerChunkData(chunk4, true);
+                                connection.EnqueuePacket(chunkData1);
+                                connection.EnqueuePacket(chunkData2);
+                                connection.EnqueuePacket(chunkData3);
+                                connection.EnqueuePacket(chunkData4);
+                            }
+                        }
+                        else if(packetIdDefinition.Id == ClientPacketId.TeleportConfirm)
+                        {
+                            if(connection.ReadPacket<ClientTeleportConfirm>(
+                                out var teleportConfirmPacket).Status == OperationStatus.Done)
+                            {
+                                Console.WriteLine("Teleport Confirm: Id " + teleportConfirmPacket.TeleportId);
+                            }
+                        }
+                        else if (packetIdDefinition.Id == ClientPacketId.PlayerPosition)
+                        {
+                            if (connection.ReadPacket<ClientPlayerPosition>(
+                                  out var playerPositionPacket).Status == OperationStatus.Done)
+                            {
+                                Console.WriteLine(
+                                  "Player Position:" +
+                                  " X" + playerPositionPacket.X +
+                                  " Y" + playerPositionPacket.FeetY +
+                                  " Z" + playerPositionPacket.Z);
                             }
                         }
                         else
@@ -264,6 +310,7 @@ namespace MinecraftServerSharp.Network
                 var buffer = connection.SendBuffer.GetBlock(0);
                 int blockLength = Math.Min(connection.SendBuffer.BlockSize, length);
                 connection.SendEvent.SetBuffer(buffer.Slice(0, blockLength));
+                Console.WriteLine("sent " + blockLength);
 
                 if (!connection.Socket.SendAsync(connection.SendEvent))
                     ProcessSend(connection);

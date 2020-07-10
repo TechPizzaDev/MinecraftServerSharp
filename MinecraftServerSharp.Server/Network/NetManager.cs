@@ -38,8 +38,8 @@ namespace MinecraftServerSharp.Network
 
         public void Listen(int backlog)
         {
-            Orchestrator.Start(workerCount: 2);
-
+            Orchestrator.Start(workerCount: 1); // TODO: fix concurrency
+            
             Listener.Connection += Listener_Connection;
             Listener.Disconnection += Listener_Disconnection;
 

@@ -27,7 +27,7 @@ namespace MinecraftServerSharp.NBT
         /// <summary>
         /// Gets the index that the last processed element starts at (within the given input data).
         /// </summary>
-        public int TagStartIndex { get; private set; }
+        public int TagLocation { get; private set; }
 
         /// <summary>
         /// Gets the type of the last processed element.
@@ -199,6 +199,8 @@ namespace MinecraftServerSharp.NBT
                 _state._containerInfoStack.Push(containerInfo);
             }
 
+            TagFlags |= Options.IsBigEndian ? NbtFlags.BigEndian : NbtFlags.LittleEndian;
+
             if (!containerInfo.InList)
             {
                 TagFlags |= NbtFlags.Typed;
@@ -233,6 +235,8 @@ namespace MinecraftServerSharp.NBT
 
                     TagArrayLength = ReadListLength(
                         slice.Slice(sizeof(byte) + read), Options, out int listLengthBytes);
+
+                    // TODO: check if type is End and then accept negative length
 
                     _state._containerInfoStack.Push(new ContainerInfo
                     {
@@ -307,7 +311,7 @@ namespace MinecraftServerSharp.NBT
             }
             read += ValueSpan.Length;
 
-            TagStartIndex = _consumed;
+            TagLocation = _consumed;
             TagSpan = slice.Slice(0, read);
             _consumed += read;
             return true;

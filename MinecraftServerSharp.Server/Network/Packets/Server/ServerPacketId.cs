@@ -27,11 +27,16 @@ namespace MinecraftServerSharp.Network.Packets
 
         #region Play
 
+        [Mapping(State.Play, 0x03)] SpawnLivingEntity,
         [Mapping(State.Play, 0x0f)] ChatMessage,
         [Mapping(State.Play, 0x1b)] PlayDisconnect,
 
         [Mapping(State.Play, 0x22)] ChunkData,
         [Mapping(State.Play, 0x26)] JoinGame,
+
+        [Mapping(State.Play, 0x36)] PlayerPositionLook,
+        [Mapping(State.Play, 0x4E)] SpawnPosition,
+        [Mapping(State.Play, 0x57)] EntityTeleport,
 
         #endregion
     }

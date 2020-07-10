@@ -1,16 +1,24 @@
 ﻿
 namespace MinecraftServerSharp
 {
-    public struct Position64
+    public struct Position
     {
         private const int Mask26Bit = 0x3ffffff;
         private const int Mask12Bit = 0xfff;
 
         public ulong Value;
 
-        public Position64(ulong value)
+        public Position(ulong value)
         {
             Value = value;
+        }
+
+        public Position(int x, int y, int z)
+        {
+            Value = 
+                (((ulong)x & Mask26Bit) << 38) | 
+                (((ulong)z & Mask26Bit) << 12) | 
+                ((ulong)y & Mask12Bit);
         }
 
         public int X

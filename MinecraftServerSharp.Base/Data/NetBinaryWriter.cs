@@ -3,57 +3,92 @@ using System.Buffers.Binary;
 using System.IO;
 using System.Text;
 
-namespace MinecraftServerSharp.Network.Data
+namespace MinecraftServerSharp.Data
 {
     public readonly struct NetBinaryWriter
     {
         public Stream BaseStream { get; }
+        public NetBinaryOptions Options { get; }
 
         public long Position { get => BaseStream.Position; set => BaseStream.Position = value; }
         public long Length => BaseStream.Length;
 
-        public NetBinaryWriter(Stream stream)
+        public NetBinaryWriter(Stream stream, NetBinaryOptions? options = default)
         {
             BaseStream = stream ?? throw new ArgumentNullException(nameof(stream));
+            Options = options ?? NetBinaryOptions.JavaDefault;
         }
 
-        public long Seek(int offset, SeekOrigin origin) => BaseStream.Seek(offset, origin);
+        public long Seek(int offset, SeekOrigin origin)
+        {
+            return BaseStream.Seek(offset, origin);
+        }
 
-        public void Write(ReadOnlySpan<byte> buffer) => BaseStream.Write(buffer);
+        public void Write(ReadOnlySpan<byte> buffer)
+        {
+            BaseStream.Write(buffer);
+        }
 
-        public void Write(bool value) => Write((byte)(value ? 1 : 0));
+        public void Write(bool value)
+        {
+            Write((byte)(value ? 1 : 0));
+        }
 
-        public void Write(sbyte value) => Write((byte)value);
+        public void Write(sbyte value)
+        {
+            Write((byte)value);
+        }
 
-        public void Write(byte value) => BaseStream.WriteByte(value);
+        public void Write(byte value)
+        {
+            BaseStream.WriteByte(value);
+        }
 
         public void Write(short value)
         {
             Span<byte> tmp = stackalloc byte[sizeof(short)];
-            BinaryPrimitives.WriteInt16BigEndian(tmp, value);
+            if (Options.IsBigEndian)
+                BinaryPrimitives.WriteInt16BigEndian(tmp, value);
+            else
+                BinaryPrimitives.WriteInt16LittleEndian(tmp, value);
             Write(tmp);
         }
 
         public void Write(ushort value)
         {
             Span<byte> tmp = stackalloc byte[sizeof(ushort)];
-            BinaryPrimitives.WriteUInt16BigEndian(tmp, value);
+            if (Options.IsBigEndian)
+                BinaryPrimitives.WriteUInt16BigEndian(tmp, value);
+            else
+                BinaryPrimitives.WriteUInt16LittleEndian(tmp, value);
             Write(tmp);
         }
 
         public void Write(int value)
         {
             Span<byte> tmp = stackalloc byte[sizeof(int)];
-            BinaryPrimitives.WriteInt32BigEndian(tmp, value);
+            if (Options.IsBigEndian)
+                BinaryPrimitives.WriteInt32BigEndian(tmp, value);
+            else
+                BinaryPrimitives.WriteInt32LittleEndian(tmp, value);
             Write(tmp);
         }
 
         public void Write(long value)
         {
             Span<byte> tmp = stackalloc byte[sizeof(long)];
-            BinaryPrimitives.WriteInt64BigEndian(tmp, value);
+            if (Options.IsBigEndian)
+                BinaryPrimitives.WriteInt64BigEndian(tmp, value);
+            else
+                BinaryPrimitives.WriteInt64LittleEndian(tmp, value);
             Write(tmp);
         }
+
+
+
+
+
+        // TODO: make into extensions
 
         public void Write(VarInt value)
         {
@@ -69,9 +104,15 @@ namespace MinecraftServerSharp.Network.Data
             Write(tmp.Slice(0, count));
         }
 
-        public void Write(float value) => Write(BitConverter.SingleToInt32Bits(value));
+        public void Write(float value)
+        {
+            Write(BitConverter.SingleToInt32Bits(value));
+        }
 
-        public void Write(double value) => Write(BitConverter.DoubleToInt64Bits(value));
+        public void Write(double value)
+        {
+            Write(BitConverter.DoubleToInt64Bits(value));
+        }
 
         #region String Write
 
@@ -124,9 +165,31 @@ namespace MinecraftServerSharp.Network.Data
             Write(chat.Value);
         }
 
-        public void Write(EntityId entityId)
+        public void Write(Angle angle)
         {
-            Write(entityId.Value);
+            Write(angle.Value);
+        }
+
+        public void Write(Position position)
+        {
+            Write((long)position.Value);
+        }
+
+        public void Write(UUID uuid)
+        {
+            Span<byte> buffer = stackalloc byte[sizeof(ulong) * 2];
+            if (Options.IsBigEndian)
+            {
+                BinaryPrimitives.WriteUInt64BigEndian(buffer, uuid.X);
+                BinaryPrimitives.WriteUInt64BigEndian(buffer.Slice(sizeof(ulong)), uuid.Y);
+            }
+            else
+            {
+                throw new NotImplementedException();
+                BinaryPrimitives.WriteUInt64LittleEndian(buffer, uuid.X);
+                BinaryPrimitives.WriteUInt64LittleEndian(buffer.Slice(sizeof(ulong)), uuid.Y);
+            }
+            Write(buffer);
         }
     }
 }

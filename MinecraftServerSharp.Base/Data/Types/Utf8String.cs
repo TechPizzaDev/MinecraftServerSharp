@@ -59,7 +59,7 @@ namespace MinecraftServerSharp
             return str;
         }
 
-        public int CompareTo(Utf8String other)
+        public int CompareTo(Utf8String? other)
         {
             if (ReferenceEquals(this, other))
                 return 0;
@@ -70,7 +70,7 @@ namespace MinecraftServerSharp
             return Bytes.SequenceCompareTo(other.Bytes);
         }
 
-        public bool Equals(Utf8String other)
+        public bool Equals(Utf8String? other)
         {
             if (ReferenceEquals(this, other))
                 return true;

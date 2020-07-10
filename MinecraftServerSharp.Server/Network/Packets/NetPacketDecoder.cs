@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
-using MinecraftServerSharp.Network.Data;
+using MinecraftServerSharp.Data;
 
 namespace MinecraftServerSharp.Network.Packets
 {
@@ -15,6 +15,8 @@ namespace MinecraftServerSharp.Network.Packets
     {
         public delegate OperationStatus PacketReaderDelegate<TPacket>(NetBinaryReader reader, out TPacket packet);
 
+        private static Type[] _binaryReaderTypes = new[] { typeof(NetBinaryReader) };
+
         public NetPacketDecoder() : base()
         {
             RegisterDataTypes();
@@ -24,7 +26,7 @@ namespace MinecraftServerSharp.Network.Packets
 
         protected override void RegisterDataType(params Type[] arguments)
         {
-            RegisterDataTypeFromMethod(typeof(NetBinaryReader), "Read", arguments);
+            RegisterDataTypeFromMethod(_binaryReaderTypes, "Read", arguments);
         }
 
         protected virtual void RegisterDataTypes()
@@ -89,7 +91,7 @@ namespace MinecraftServerSharp.Network.Packets
 
             NewExpression newPacket;
             LabelTarget? returnTarget = null;
-            ConstructorInfo? constructor = constructorInfoList.Count > 0 
+            ConstructorInfo? constructor = constructorInfoList.Count > 0
                 ? constructorInfoList[0].Constructor : null;
 
             if (constructor != null)

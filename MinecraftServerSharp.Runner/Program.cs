@@ -2,51 +2,61 @@
 using System.IO;
 using System.IO.Compression;
 using System.Net;
+using System.Runtime;
 using System.Threading;
+using MinecraftServerSharp.Data;
 using MinecraftServerSharp.NBT;
 using MinecraftServerSharp.Network;
 using MinecraftServerSharp.Utility;
 
 namespace MinecraftServerSharp
 {
-    public class World
-    {
-
-    }
-
     internal class Program
     {
         private static void Main(string[] args)
         {
-            NbtDocument document;
+            var motionBlocking = new NbtLongArray(36, "MOTION_BLOCKING");
+            var mem = new MemoryStream();
+            var writer = new NetBinaryWriter(mem);
+            writer.Write(motionBlocking.AsCompound("Heightmaps"));
+            var document = NbtDocument.Parse(mem.GetBuffer().AsMemory(0, (int)mem.Length));
 
-            if (false)
-            {
-                document = NbtDocument.Parse(File.ReadAllBytes(@"C:\Users\Michal Piatkowski\Downloads\hello_world.nbt"));
-            }
-            else
-            {
-                using (var fs = File.OpenRead(@"C:\Users\Michal Piatkowski\Downloads\bigtest.nbt"))
-                using (var ds = new GZipStream(fs, CompressionMode.Decompress))
-                using (var ms = new MemoryStream())
-                {
-                    ds.SCopyTo(ms);
-                    var memory = ms.GetBuffer().AsMemory(0, (int)ms.Length);
-
-                    //var reader = new NbtReader(memory.Span);
-                    //while (reader.Read())
-                    //{
-                    //    //Console.WriteLine(reader.NameSpan.ToUtf8String() + ": " + reader.TagType);
-                    //}
-
-                    document = NbtDocument.Parse(memory);
-                }
-
-                Console.WriteLine();
-                Console.WriteLine(new string('-', 20));
-                Console.WriteLine();
-            }
-
+            //NbtDocument document = null;
+            //
+            //if (false)
+            //{
+            //    document = NbtDocument.Parse(File.ReadAllBytes(@"C:\Users\Michal Piatkowski\Downloads\hello_world.nbt"));
+            //}
+            //else
+            //{
+            //    using (var fs = File.OpenRead(@"C:\Users\Michal Piatkowski\Downloads\bigtest.nbt"))
+            //    using (var ds = new GZipStream(fs, CompressionMode.Decompress))
+            //    using (var ms = new MemoryStream())
+            //    {
+            //        ds.SCopyTo(ms);
+            //        var memory = ms.GetBuffer().AsMemory(0, (int)ms.Length);
+            //
+            //        //var reader = new NbtReader(memory.Span);
+            //        //while (reader.Read())
+            //        //{
+            //        //    //Console.WriteLine(reader.NameSpan.ToUtf8String() + ": " + reader.TagType);
+            //        //}
+            //
+            //        //for (int i = 0; i < 1_000_000; i++)
+            //        {
+            //            document = NbtDocument.Parse(memory);
+            //            //document.Dispose();
+            //            //Thread.Sleep(i % 100 == 0 ? 1 : 0);
+            //        }
+            //    }
+            //
+            //    //return;
+            //
+            //    Console.WriteLine();
+            //    Console.WriteLine(new string('-', 20));
+            //    Console.WriteLine();
+            //}
+            //
             var root = document.RootTag;
 
             Console.WriteLine(root);
@@ -54,19 +64,25 @@ namespace MinecraftServerSharp
             void Log(NbtElement element, int depth = 0)
             {
                 string depthPad = new string(' ', depth * 3);
+
                 foreach (var item in element.EnumerateContainer())
                 {
                     Console.WriteLine(depthPad + item);
 
-                    if (item.TagType.IsContainer())
+                    if (item.Type.IsContainer())
+                    {
+                        for (int i = 0; i < item.GetLength(); i++)
+                        {
+                            Console.WriteLine(depthPad + "INDEXER: " + item[i]);
+                        }
+
                         Log(item, depth + 1);
+                    }
                 }
             }
             Log(root);
 
-            return;
-
-            var gameTicker = new Ticker(targetTickTime: TimeSpan.FromMilliseconds(50));
+            var gameTicker = new GameTicker(targetTickTime: TimeSpan.FromMilliseconds(50));
 
             var manager = new NetManager();
             manager.Listener.Connection += Manager_Connection;

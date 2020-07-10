@@ -3,7 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
-using MinecraftServerSharp.Network.Data;
+using MinecraftServerSharp.Data;
+using MinecraftServerSharp.NBT;
 
 namespace MinecraftServerSharp.Network.Packets
 {
@@ -14,6 +15,13 @@ namespace MinecraftServerSharp.Network.Packets
     {
         public delegate void PacketWriterDelegate<TPacket>(NetBinaryWriter writer, in TPacket packet);
 
+        private static Type[] _binaryWriterExtensions = new[]
+        {
+            typeof(NetBinaryWriter),
+            typeof(NetBinaryWriterNbtExtensions),
+            typeof(NetBinaryWriterTypeExtensions),
+        };
+
         public NetPacketEncoder() : base()
         {
             RegisterDataTypes();
@@ -23,7 +31,7 @@ namespace MinecraftServerSharp.Network.Packets
 
         protected override void RegisterDataType(params Type[] arguments)
         {
-            RegisterDataTypeFromMethod(typeof(NetBinaryWriter), "Write", arguments);
+            RegisterDataTypeFromMethod(_binaryWriterExtensions, "Write", arguments);
         }
 
         protected virtual void RegisterDataTypes()
@@ -46,7 +54,9 @@ namespace MinecraftServerSharp.Network.Packets
             RegisterDataType(typeof(string));
 
             RegisterDataType(typeof(Chat));
-            RegisterDataType(typeof(EntityId));
+            RegisterDataType(typeof(Angle));
+            RegisterDataType(typeof(Position));
+            RegisterDataType(typeof(UUID));
         }
 
         #endregion
@@ -103,31 +113,69 @@ namespace MinecraftServerSharp.Network.Packets
             });
 
             List<PacketPropertyInfo> packetPropertyList = packetProperties.Where(x => x != null).ToList()!;
+            if (packetPropertyList.Count == 0)
+            {
+                Console.WriteLine($"Packet \"{packetParam.Type}\" has no properties.");
+                return;
+            }
+
             packetPropertyList.Sort((x, y) => x.SerializationOrder.CompareTo(y.SerializationOrder));
 
             for (int i = 0; i < packetPropertyList.Count; i++)
             {
                 var propertyInfo = packetPropertyList[i];
                 var property = Expression.Property(packetParam, propertyInfo.Property);
+                bool isEnumProperty = propertyInfo.Type.IsEnum;
 
-                var propertyTypeKey = DataTypeKey.FromVoid(propertyInfo.Type);
-                if (!DataTypeHandlers.TryGetValue(propertyTypeKey, out var propertyWriteMethod))
-                    throw new Exception("Missing write method \"" + propertyTypeKey + "\".");
-                
-                var lengthPrefixedAttrib = propertyWriteMethod.GetCustomAttribute<LengthPrefixedAttribute>();
-                if (lengthPrefixedAttrib != null)
+                MethodInfo? propertyWriteMethod;
+                Type? writtenType;
+                if (isEnumProperty)
                 {
-                    throw new NotImplementedException();
-
-                    var lengthProperty = Expression.Property(property, "Length");
-                    var lengthWriteMethod = DataTypeHandlers[DataTypeKey.FromVoid(lengthPrefixedAttrib.LengthType)];
-                    var lengthPropertyCast = Expression.Convert(lengthProperty, lengthPrefixedAttrib.LengthType);
-
-                    expressions.Add(Expression.Call(writerParam, lengthWriteMethod, new[] { lengthPropertyCast }));
+                    writtenType = propertyInfo.Type.GetEnumUnderlyingType();
+                    var enumPropertyTypeKey = DataTypeKey.FromVoid(writtenType);
+                    if (!DataTypeHandlers.TryGetValue(enumPropertyTypeKey, out propertyWriteMethod))
+                        throw new Exception("Missing enum write method for \"" + enumPropertyTypeKey + "\".");
+                }
+                else
+                {
+                    writtenType = propertyInfo.Type;
+                    var propertyTypeKey = DataTypeKey.FromVoid(writtenType);
+                    if (!DataTypeHandlers.TryGetValue(propertyTypeKey, out propertyWriteMethod))
+                        throw new Exception("Missing write method for \"" + propertyTypeKey + "\".");
                 }
 
-                expressions.Add(Expression.Call(writerParam, propertyWriteMethod, new[] { property }));
+                var lengthPrefixedAttrib = propertyInfo.Property.GetCustomAttribute<LengthPrefixedAttribute>();
+                if (lengthPrefixedAttrib != null)
+                {
+                    if (lengthPrefixedAttrib.LengthSource == LengthSource.CollectionLength)
+                    {
+                        var length = CollectionLength(property);
+                        var lengthWriteMethod = DataTypeHandlers[DataTypeKey.FromVoid(lengthPrefixedAttrib.LengthType)];
+                        var propertyLength = Expression.Convert(length, lengthPrefixedAttrib.LengthType);
+                        expressions.Add(Expression.Call(writerParam, lengthWriteMethod, new[] { propertyLength }));
+                    }
+                    else
+                    {
+                        throw new NotImplementedException();
+                    }
+                }
+
+                // TODO: write collections
+
+                var callArgument = isEnumProperty
+                    ? Expression.Convert(property, writtenType)
+                    : (Expression)property;
+
+                expressions.Add(Expression.Call(writerParam, propertyWriteMethod, new[] { callArgument }));
             }
+        }
+
+        private static Expression CollectionLength(Expression instance)
+        {
+            if (instance.Type.GetGenericTypeDefinition() == typeof(ICollection<>))
+                return Expression.Property(instance, typeof(ICollection<>).GetProperty("Count"));
+
+            throw new Exception($"The expression is not of type {typeof(ICollection<>).Name}.");
         }
     }
 }

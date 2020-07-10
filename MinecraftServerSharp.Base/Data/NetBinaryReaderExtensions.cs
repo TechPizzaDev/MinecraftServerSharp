@@ -1,8 +1,7 @@
 ﻿using System;
 using System.IO;
-using MinecraftServerSharp.Utility;
 
-namespace MinecraftServerSharp.Network.Data
+namespace MinecraftServerSharp.Data
 {
     public static class NetBinaryReaderExtensions
     {

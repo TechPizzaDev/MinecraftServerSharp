@@ -13,5 +13,4 @@
     <Compile Include="..\Thirdparty\Microsoft.IO.RecyclableMemoryStream\RecyclableMemoryManager.Events.cs" Link="Utility\RecyclableMemoryManager.Events.cs" />
     <Compile Include="..\Thirdparty\Microsoft.IO.RecyclableMemoryStream\RecyclableMemoryStream.cs" Link="Utility\RecyclableMemoryStream.cs" />
   </ItemGroup>
-
 </Project>

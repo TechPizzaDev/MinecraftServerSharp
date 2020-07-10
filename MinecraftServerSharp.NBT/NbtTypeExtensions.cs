@@ -3,7 +3,7 @@ namespace MinecraftServerSharp.NBT
 {
     public static class NbtTypeExtensions
     {
-        public static bool IsPrimitiveArray(this NbtType tagType)
+        public static bool IsArray(this NbtType tagType)
         {
             switch (tagType)
             {
@@ -33,7 +33,7 @@ namespace MinecraftServerSharp.NBT
 
         public static bool IsArrayLike(this NbtType tagType)
         {
-            return tagType.IsContainer() || tagType.IsPrimitiveArray();
+            return tagType.IsContainer() || tagType.IsArray();
         }
 
         public static bool IsPrimitive(this NbtType tagType)

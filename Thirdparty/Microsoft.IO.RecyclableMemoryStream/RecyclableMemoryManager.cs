@@ -706,51 +706,51 @@ namespace MinecraftServerSharp.Utility
         /// <summary>
         /// Triggered when a new block is created.
         /// </summary>
-        public event EventHandler BlockCreated;
+        public event EventHandler? BlockCreated;
 
         /// <summary>
         /// Triggered when a new block is created.
         /// </summary>
-        public event EventHandler BlockDiscarded;
+        public event EventHandler? BlockDiscarded;
 
         /// <summary>
         /// Triggered when a new large buffer is created.
         /// </summary>
-        public event EventHandler LargeBufferCreated;
+        public event EventHandler? LargeBufferCreated;
 
         /// <summary>
         /// Triggered when a new stream is created.
         /// </summary>
-        public event EventHandler StreamCreated;
+        public event EventHandler? StreamCreated;
 
         /// <summary>
         /// Triggered when a stream is disposed.
         /// </summary>
-        public event EventHandler StreamDisposed;
+        public event EventHandler? StreamDisposed;
 
         /// <summary>
         /// Triggered when a stream is finalized.
         /// </summary>
-        public event EventHandler StreamFinalized;
+        public event EventHandler? StreamFinalized;
 
         /// <summary>
         /// Triggered when a stream is finalized.
         /// </summary>
-        public event StreamLengthReportHandler StreamLength;
+        public event StreamLengthReportHandler? StreamLength;
 
         /// <summary>
         /// Triggered when a user converts a stream to array.
         /// </summary>
-        public event EventHandler StreamConvertedToArray;
+        public event EventHandler? StreamConvertedToArray;
 
         /// <summary>
         /// Triggered when a large buffer is discarded, along with the reason for the discard.
         /// </summary>
-        public event LargeBufferDiscardedEventHandler LargeBufferDiscarded;
+        public event LargeBufferDiscardedEventHandler? LargeBufferDiscarded;
 
         /// <summary>
         /// Periodically triggered to report usage statistics.
         /// </summary>
-        public event UsageReportEventHandler UsageReport;
+        public event UsageReportEventHandler? UsageReport;
     }
 }

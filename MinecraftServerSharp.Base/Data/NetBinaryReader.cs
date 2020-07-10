@@ -2,15 +2,15 @@
 using System.Buffers;
 using System.Buffers.Binary;
 using System.IO;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace MinecraftServerSharp.Network.Data
+namespace MinecraftServerSharp.Data
 {
     // TODO: add buffering
     public readonly struct NetBinaryReader
     {
         public Stream BaseStream { get; }
+        public NetBinaryOptions Options { get; }
 
         public long Length => BaseStream.Length;
         public long Remaining => Length - Position;
@@ -21,9 +21,10 @@ namespace MinecraftServerSharp.Network.Data
             set => BaseStream.Position = value;
         }
 
-        public NetBinaryReader(Stream stream)
+        public NetBinaryReader(Stream stream, NetBinaryOptions? options = default)
         {
             BaseStream = stream ?? throw new ArgumentNullException(nameof(stream));
+            Options = options ?? NetBinaryOptions.JavaDefault;
 
             if (!BaseStream.CanRead)
                 throw new IOException("The stream is not readable.");
@@ -119,7 +120,10 @@ namespace MinecraftServerSharp.Network.Data
                 value = default;
                 return status;
             }
-            value = BinaryPrimitives.ReadInt16BigEndian(buffer);
+            if (Options.IsBigEndian)
+                value = BinaryPrimitives.ReadInt16BigEndian(buffer);
+            else
+                value = BinaryPrimitives.ReadInt16LittleEndian(buffer);
             return OperationStatus.Done;
         }
 
@@ -132,7 +136,10 @@ namespace MinecraftServerSharp.Network.Data
                 value = default;
                 return status;
             }
-            value = BinaryPrimitives.ReadUInt16BigEndian(buffer);
+            if (Options.IsBigEndian)
+                value = BinaryPrimitives.ReadUInt16BigEndian(buffer);
+            else
+                value = BinaryPrimitives.ReadUInt16LittleEndian(buffer);
             return OperationStatus.Done;
         }
 
@@ -145,7 +152,10 @@ namespace MinecraftServerSharp.Network.Data
                 value = default;
                 return status;
             }
-            value = BinaryPrimitives.ReadInt32BigEndian(buffer);
+            if (Options.IsBigEndian)
+                value = BinaryPrimitives.ReadInt32BigEndian(buffer);
+            else
+                value = BinaryPrimitives.ReadInt32LittleEndian(buffer);
             return OperationStatus.Done;
         }
 
@@ -158,35 +168,42 @@ namespace MinecraftServerSharp.Network.Data
                 value = default;
                 return status;
             }
-            value = BinaryPrimitives.ReadInt64BigEndian(buffer);
+            if (Options.IsBigEndian)
+                value = BinaryPrimitives.ReadInt64BigEndian(buffer);
+            else
+                value = BinaryPrimitives.ReadInt64LittleEndian(buffer);
             return OperationStatus.Done;
         }
 
         public OperationStatus Read(out float value)
         {
-            Span<byte> buffer = stackalloc byte[sizeof(float)];
-            var status = Read(buffer);
+            var status = Read(out int intValue);
             if (status != OperationStatus.Done)
             {
                 value = default;
                 return status;
             }
-            value = Unsafe.ReadUnaligned<float>(ref MemoryMarshal.GetReference(buffer));
+            value = BitConverter.Int32BitsToSingle(intValue);
             return OperationStatus.Done;
         }
 
         public OperationStatus Read(out double value)
         {
-            Span<byte> buffer = stackalloc byte[sizeof(double)];
-            var status = Read(buffer);
+            var status = Read(out long intValue);
             if (status != OperationStatus.Done)
             {
                 value = default;
                 return status;
             }
-            value = Unsafe.ReadUnaligned<double>(ref MemoryMarshal.GetReference(buffer));
+            value = BitConverter.Int64BitsToDouble(intValue);
             return OperationStatus.Done;
         }
+
+
+
+
+
+        // TODO: make into extensions
 
         public OperationStatus Read(out VarInt value, out int bytes)
         {

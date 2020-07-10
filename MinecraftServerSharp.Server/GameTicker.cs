@@ -4,9 +4,9 @@ using System.Threading;
 
 namespace MinecraftServerSharp
 {
-    public class Ticker
+    public class GameTicker
     {
-        public delegate void TickEvent(Ticker ticker);
+        public delegate void TickEvent(GameTicker ticker);
 
         public event TickEvent? Tick;
 
@@ -15,7 +15,7 @@ namespace MinecraftServerSharp
         public TimeSpan ElapsedTime { get; private set; }
         public TimeSpan FreeTime => TargetTime - ElapsedTime;
 
-        public Ticker(TimeSpan targetTickTime)
+        public GameTicker(TimeSpan targetTickTime)
         {
             TargetTime = targetTickTime;
         }

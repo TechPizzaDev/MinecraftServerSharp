@@ -5,6 +5,9 @@ namespace MinecraftServerSharp
     {
         public byte Value { get; }
 
-        public Angle(byte value) => Value = value;
+        public Angle(byte value)
+        {
+            Value = value;
+        }
     }
 }

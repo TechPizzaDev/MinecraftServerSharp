@@ -1,5 +1,5 @@
 ﻿using System.Buffers;
-using MinecraftServerSharp.Network.Data;
+using MinecraftServerSharp.Data;
 
 namespace MinecraftServerSharp.Network.Packets
 {

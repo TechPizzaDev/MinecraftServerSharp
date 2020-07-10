@@ -9,12 +9,24 @@ namespace MinecraftServerSharp
     public readonly struct VarLong
     {
         public const int MaxEncodedSize = 10;
-        
+
         public long Value { get; }
 
         public VarLong(long value)
         {
             Value = value;
+        }
+
+        public static int GetEncodedSize(long value)
+        {
+            ulong v = (ulong)value;
+            int index = 0;
+            while (v >= 0x80)
+            {
+                v >>= 7;
+                index++;
+            }
+            return index + 1;
         }
 
         public int Encode(Span<byte> destination)

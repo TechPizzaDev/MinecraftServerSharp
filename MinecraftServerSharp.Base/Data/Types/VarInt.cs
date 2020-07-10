@@ -18,6 +18,18 @@ namespace MinecraftServerSharp
             Value = value;
         }
 
+        public static int GetEncodedSize(int value)
+        {
+            uint v = (uint)value;
+            int index = 0;
+            while (v >= 0x80)
+            {
+                v >>= 7;
+                index++;
+            }
+            return index + 1;
+        }
+
         public int Encode(Span<byte> destination)
         {
             uint value = (uint)Value;
@@ -100,6 +112,6 @@ namespace MinecraftServerSharp
         }
 
         public static implicit operator int(VarInt value) => value.Value;
-        public static explicit operator VarInt(int value) => new VarInt(value);
+        public static implicit operator VarInt(int value) => new VarInt(value);
     }
 }

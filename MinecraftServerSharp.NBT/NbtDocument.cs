@@ -10,7 +10,7 @@ namespace MinecraftServerSharp.NBT
 {
     /// <summary>
     /// Provides a mechanism for examining the structural content 
-    /// of an NBT value without automatically instantiating data values.
+    /// of NBT without automatically instantiating data values.
     /// </summary>
     public sealed partial class NbtDocument : IDisposable
     {
@@ -69,14 +69,12 @@ namespace MinecraftServerSharp.NBT
         internal NbtType GetTagType(int index)
         {
             CheckNotDisposed();
-
             return _metaDb.GetTagType(index);
         }
 
         internal int GetLength(int index)
         {
             CheckNotDisposed();
-
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
             if (!row.TagType.IsArrayLike())
@@ -88,8 +86,8 @@ namespace MinecraftServerSharp.NBT
         internal NbtType GetListType(int index)
         {
             CheckNotDisposed();
-
             ref readonly DbRow row = ref _metaDb.GetRow(index);
+
             if (row.TagType != NbtType.List)
                 throw new Exception("The tag is not a list.");
 
@@ -100,41 +98,35 @@ namespace MinecraftServerSharp.NBT
         internal NbtFlags GetFlags(int index)
         {
             CheckNotDisposed();
-
             return _metaDb.GetFlags(index);
         }
 
-        internal NbtElement GetContainerElement(int index, int containerIndex)
+        internal NbtElement GetContainerElement(int index, int arrayIndex)
         {
             CheckNotDisposed();
+            ref readonly DbRow containerRow = ref _metaDb.GetRow(index);
+            if (!containerRow.IsContainerType)
+                throw new InvalidOperationException("The tag is not a container.");
 
-            ref readonly DbRow row = ref _metaDb.GetRow(index);
-            if (!row.TagType.IsContainer())
-                throw new Exception("The tag is not a container.");
-
-            int length = row.ContainerLength;
-            if ((uint)containerIndex >= (uint)length)
+            int length = containerRow.ContainerLength;
+            if ((uint)arrayIndex >= (uint)length)
                 throw new IndexOutOfRangeException();
 
             int elementCount = 0;
             int objectOffset = index + DbRow.Size;
 
-            for (; objectOffset < _metaDb.ByteLength; objectOffset += DbRow.Size)
+            for (; objectOffset < _metaDb.ByteLength;)
             {
-                if (containerIndex == elementCount)
+                if (arrayIndex == elementCount)
                     return new NbtElement(this, objectOffset);
 
-                row = ref _metaDb.GetRow(objectOffset);
-
-                if (row.IsContainerType)
-                    objectOffset += DbRow.Size * row.ContainerLength;
-
+                objectOffset += _metaDb.GetNumberOfRows(objectOffset) * DbRow.Size;
                 elementCount++;
             }
 
             Debug.Fail(
                 $"Ran out of database searching for array index " +
-                $"{containerIndex} from {index} when length was {length}");
+                $"{arrayIndex} from {index} when length was {length}");
 
             throw new IndexOutOfRangeException();
         }
@@ -155,8 +147,8 @@ namespace MinecraftServerSharp.NBT
         internal int GetEndIndex(int index, bool includeEndTag)
         {
             CheckNotDisposed();
-
             ref readonly DbRow row = ref _metaDb.GetRow(index);
+
             int endIndex = GetEndIndex(index, row, includeEndTag);
             return endIndex;
         }
@@ -164,8 +156,8 @@ namespace MinecraftServerSharp.NBT
         private ReadOnlyMemory<byte> GetRawData(int index, bool includeEndTag)
         {
             CheckNotDisposed();
-
             ref readonly DbRow row = ref _metaDb.GetRow(index);
+
             if (row.IsPrimitiveType)
                 return _data.Slice(row.Location, row.ContainerLength);
 
@@ -193,8 +185,8 @@ namespace MinecraftServerSharp.NBT
         internal ReadOnlySpan<byte> GetTagName(int index)
         {
             CheckNotDisposed();
-
             ref readonly DbRow row = ref _metaDb.GetRow(index);
+
             return GetTagName(row);
         }
 
@@ -269,8 +261,8 @@ namespace MinecraftServerSharp.NBT
         internal ReadOnlyMemory<byte> GetArrayData(int index, out NbtType tagType)
         {
             CheckNotDisposed();
-
             ref readonly DbRow row = ref _metaDb.GetRow(index);
+
             tagType = row.TagType;
 
             ReadOnlySpan<byte> payload = GetTagPayload(row);
@@ -310,7 +302,6 @@ namespace MinecraftServerSharp.NBT
         internal sbyte GetByte(int index)
         {
             CheckNotDisposed();
-
             ref readonly DbRow row = ref _metaDb.GetRow(index);
             CheckExpectedType(NbtType.Byte, row.TagType);
 
@@ -321,11 +312,10 @@ namespace MinecraftServerSharp.NBT
         internal short GetShort(int index)
         {
             CheckNotDisposed();
-
             ref readonly DbRow row = ref _metaDb.GetRow(index);
-            var type = row.TagType;
 
             ReadOnlySpan<byte> payload = GetTagPayload(row);
+            var type = row.TagType;
             return type switch
             {
                 NbtType.Short => ReadShort(payload, Options.IsBigEndian),
@@ -337,11 +327,10 @@ namespace MinecraftServerSharp.NBT
         internal int GetInt(int index)
         {
             CheckNotDisposed();
-
             ref readonly DbRow row = ref _metaDb.GetRow(index);
-            var type = row.TagType;
 
             ReadOnlySpan<byte> payload = GetTagPayload(row);
+            var type = row.TagType;
             return type switch
             {
                 NbtType.Int => ReadInt(payload, Options.IsBigEndian),
@@ -354,11 +343,10 @@ namespace MinecraftServerSharp.NBT
         internal long GetLong(int index)
         {
             CheckNotDisposed();
-
             ref readonly DbRow row = ref _metaDb.GetRow(index);
-            var type = row.TagType;
 
             ReadOnlySpan<byte> payload = GetTagPayload(row);
+            var type = row.TagType;
             return type switch
             {
                 NbtType.Long => ReadLong(payload, Options.IsBigEndian),
@@ -372,11 +360,10 @@ namespace MinecraftServerSharp.NBT
         internal float GetFloat(int index)
         {
             CheckNotDisposed();
-
             ref readonly DbRow row = ref _metaDb.GetRow(index);
-            var type = row.TagType;
 
             ReadOnlySpan<byte> payload = GetTagPayload(row);
+            var type = row.TagType;
             return type switch
             {
                 NbtType.Float => ReadFloat(payload, Options.IsBigEndian),
@@ -392,11 +379,10 @@ namespace MinecraftServerSharp.NBT
         internal double GetDouble(int index)
         {
             CheckNotDisposed();
-
             ref readonly DbRow row = ref _metaDb.GetRow(index);
-            var type = row.TagType;
 
             ReadOnlySpan<byte> payload = GetTagPayload(row);
+            var type = row.TagType;
             return type switch
             {
                 NbtType.Double => ReadDouble(payload, Options.IsBigEndian),
@@ -427,7 +413,6 @@ namespace MinecraftServerSharp.NBT
         internal void WriteTagTo(int index, NbtWriter writer)
         {
             CheckNotDisposed();
-
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
             throw new NotImplementedException();

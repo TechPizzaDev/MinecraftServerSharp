@@ -12,7 +12,7 @@ namespace MinecraftServerSharp.NBT
         [DebuggerDisplay("{Current,nq}")]
         public struct ContainerEnumerator : IEnumerable<NbtElement>, IEnumerator<NbtElement>
         {
-            private readonly NbtElement _target;
+            private readonly NbtElement _container;
             private readonly int _targetEndIndex;
             private int _currentIndex;
 
@@ -22,7 +22,7 @@ namespace MinecraftServerSharp.NBT
                 {
                     if (_currentIndex < 0)
                         return default;
-                    return new NbtElement(_target._parent, _currentIndex);
+                    return new NbtElement(_container._parent, _currentIndex);
                 }
             }
 
@@ -30,17 +30,16 @@ namespace MinecraftServerSharp.NBT
 
             internal ContainerEnumerator(NbtElement target)
             {
-                _target = target;
-                _targetEndIndex = target._parent.GetEndIndex(_target._index, false);
+                _container = target;
+                _targetEndIndex = target._parent.GetEndIndex(_container._index, false);
                 _currentIndex = -1;
             }
 
             /// <summary>
-            ///   Returns an enumerator that iterates through a collection.
+            /// Returns an enumerator that iterates through a container.
             /// </summary>
             /// <returns>
-            ///   A <see cref="ContainerEnumerator"/> value that can be used to iterate
-            ///   through the array.
+            /// A <see cref="ContainerEnumerator"/> that can be used to iterate through the container.
             /// </returns>
             public ContainerEnumerator GetEnumerator()
             {
@@ -75,9 +74,9 @@ namespace MinecraftServerSharp.NBT
                     return false;
 
                 if (_currentIndex < 0)
-                    _currentIndex = _target._index + NbtDocument.DbRow.Size;
+                    _currentIndex = _container._index + NbtDocument.DbRow.Size;
                 else
-                    _currentIndex = _target._parent.GetEndIndex(_currentIndex, true);
+                    _currentIndex = _container._parent.GetEndIndex(_currentIndex, true);
 
                 return _currentIndex < _targetEndIndex;
             }

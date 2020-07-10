@@ -2,15 +2,11 @@
 
 namespace MinecraftServerSharp.Network.Packets
 {
-    [AttributeUsage(AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
-    public sealed class StringEnumAttribute : Attribute
-    {
-    }
 
     [PacketStruct(ServerPacketId.JoinGame)]
     public readonly struct ServerJoinGame
     {
-        [PacketProperty(0)] public EntityId EntityId { get; }
+        [PacketProperty(0)] public int EntityId { get; }
         [PacketProperty(1)] public byte Gamemode { get; }
         [PacketProperty(2)] public int Dimension { get; }
         [PacketProperty(3)] public long HashedSeed { get; }
@@ -21,7 +17,7 @@ namespace MinecraftServerSharp.Network.Packets
         [PacketProperty(8)] public bool EnableRespawnScreen { get; }
 
         public ServerJoinGame(
-            EntityId entityId,
+            int entityId,
             byte gamemode, 
             int dimension, 
             long hashedSeed,
@@ -31,6 +27,10 @@ namespace MinecraftServerSharp.Network.Packets
             bool reducedDebugInfo, 
             bool enableRespawnScreen)
         {
+            LevelType = levelType ?? throw new ArgumentNullException(nameof(levelType));
+            if (LevelType.Length > 16)
+                throw new ArgumentException("Invalid length.", nameof(levelType));;
+
             if (viewDistance < 2 || viewDistance > 32)
                 throw new ArgumentOutOfRangeException(nameof(viewDistance));
 
@@ -39,13 +39,10 @@ namespace MinecraftServerSharp.Network.Packets
             Dimension = dimension;
             HashedSeed = hashedSeed;
             MaxPlayers = maxPlayers;
-            LevelType = levelType ?? throw new ArgumentNullException(nameof(levelType));
+
             ViewDistance = viewDistance;
             ReducedDebugInfo = reducedDebugInfo;
             EnableRespawnScreen = enableRespawnScreen;
-
-            if (LevelType.Length > 16)
-                throw new ArgumentException(nameof(levelType));
         }
     }
 }

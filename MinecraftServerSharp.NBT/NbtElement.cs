@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Text;
+using System.Text.Json;
 
 namespace MinecraftServerSharp.NBT
 {
@@ -12,6 +13,12 @@ namespace MinecraftServerSharp.NBT
         private readonly NbtDocument _parent;
         private readonly int _index;
 
+        /// <summary>
+        /// Gets an element within this container.
+        /// </summary>
+        /// <param name="index"></param>
+        /// <returns></returns>
+        /// <exception cref="InvalidOperationException">This element is not a container.</exception>
         public NbtElement this[int index]
         {
             get
@@ -21,7 +28,7 @@ namespace MinecraftServerSharp.NBT
             }
         }
 
-        public NbtType TagType => _parent?.GetTagType(_index) ?? NbtType.Null;
+        public NbtType Type => _parent?.GetTagType(_index) ?? NbtType.Null;
 
         public NbtFlags Flags => _parent?.GetFlags(_index) ?? NbtFlags.None;
 
@@ -44,7 +51,7 @@ namespace MinecraftServerSharp.NBT
         {
             CheckValidInstance();
 
-            var type = TagType;
+            var type = Type;
             return type switch
             {
                 NbtType.List => _parent.GetListType(_index),
@@ -56,10 +63,10 @@ namespace MinecraftServerSharp.NBT
         }
 
         /// <summary>
-        /// Gets the number of values contained within the current array-like element.
+        /// Gets the number of elements contained within the current array-like element.
         /// </summary>
-        /// <returns>The number of values contained within the current element.</returns>
-        /// <exception cref="InvalidOperationException">This element is not an array-like element.</exception>
+        /// <returns>The number of elements contained within the current element.</returns>
+        /// <exception cref="InvalidOperationException">This element is not an array-like.</exception>
         /// <exception cref="ObjectDisposedException">The parent <see cref="NbtDocument"/> has been disposed.</exception>
         public int GetLength()
         {
@@ -113,10 +120,21 @@ namespace MinecraftServerSharp.NBT
         {
             CheckValidInstance();
 
-            if (!TagType.IsContainer())
-                throw new InvalidOperationException("The tag is not a container.");
+            if (!Type.IsContainer())
+                throw new InvalidOperationException("This element is not a container.");
 
             return new ContainerEnumerator(this);
+        }
+
+        public ArrayEnumerator<T> EnumerateArray<T>()
+            where T : unmanaged
+        {
+            CheckValidInstance();
+
+            if (!Type.IsArray())
+                throw new InvalidOperationException("This element is not an array.");
+
+            return new ArrayEnumerator<T>(this);
         }
 
         public void WriteTo(NbtWriter writer)
@@ -162,9 +180,7 @@ namespace MinecraftServerSharp.NBT
         ///   <see langword="true" /> if the string value of this element matches <paramref name="text"/>,
         ///   <see langword="false" /> otherwise.
         /// </returns>
-        /// <exception cref="InvalidOperationException">
-        ///   This value's <see cref="ValueKind"/> is not <see cref="JsonValueKind.String"/>.
-        /// </exception>
+        /// <exception cref="InvalidOperationException">This element is not a <see cref="NbtType.String"/>.</exception>
         /// <remarks>
         ///   This method is functionally equal to doing an ordinal comparison of <paramref name="text" /> and
         ///   the result of calling <see cref="GetString" />, but avoids creating the string instance.
@@ -183,7 +199,7 @@ namespace MinecraftServerSharp.NBT
         ///   <paramref name="data" />, <see langword="false" /> otherwise.
         /// </returns>
         /// <exception cref="InvalidOperationException">
-        ///   This value is not a <see cref="NbtType.String"/> or array.
+        /// This element is not a <see cref="NbtType.String"/> or array.
         /// </exception>
         /// <remarks>
         /// This method is endianness-sensitive for <see cref="NbtType.IntArray"/> and <see cref="NbtType.LongArray"/>,
@@ -204,9 +220,7 @@ namespace MinecraftServerSharp.NBT
         ///   <see langword="true" /> if the string value of this element matches <paramref name="text"/>,
         ///   <see langword="false" /> otherwise.
         /// </returns>
-        /// <exception cref="InvalidOperationException">
-        ///   This value's <see cref="TagType"/> is not <see cref="NbtType.String"/>.
-        /// </exception>
+        /// <exception cref="InvalidOperationException">This element is not a <see cref="NbtType.String"/>.</exception>
         /// <remarks>
         ///   This method is functionally equal to doing an ordinal comparison of <paramref name="text" /> and
         ///   the result of calling <see cref="GetString" />, but avoids creating the string instance.
@@ -232,7 +246,7 @@ namespace MinecraftServerSharp.NBT
             if (Flags.HasFlag(NbtFlags.Named))
                 builder.Append('"').Append(name).Append("\": ");
 
-            var tagType = TagType;
+            var tagType = Type;
             switch (tagType)
             {
                 case NbtType.String:

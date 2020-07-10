@@ -246,7 +246,7 @@ namespace MinecraftServerSharp.Utility
         {
             if (Interlocked.CompareExchange(ref _disposedState, 1, 0) != 0)
             {
-                string doubleDisposeStack = null;
+                string? doubleDisposeStack = null;
                 if (_memoryManager.GenerateCallStacks)
                     doubleDisposeStack = Environment.StackTrace;
 
@@ -908,6 +908,9 @@ namespace MinecraftServerSharp.Utility
         /// </summary>
         private void ReleaseLargeBuffer()
         {
+            if (_largeBuffer == null)
+                throw new InvalidOperationException();
+
             if (_memoryManager.AggressiveBufferReturn)
             {
                 _memoryManager.ReturnLargeBuffer(_largeBuffer, _tag);

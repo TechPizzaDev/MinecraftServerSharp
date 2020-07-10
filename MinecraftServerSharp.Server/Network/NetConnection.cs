@@ -3,7 +3,7 @@ using System.Buffers;
 using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
-using MinecraftServerSharp.Network.Data;
+using MinecraftServerSharp.Data;
 using MinecraftServerSharp.Network.Packets;
 using MinecraftServerSharp.Utility;
 

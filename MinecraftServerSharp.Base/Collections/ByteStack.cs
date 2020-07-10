@@ -7,7 +7,7 @@ using System.Runtime.InteropServices;
 namespace MinecraftServerSharp.Collections
 {
     public struct ByteStack<T> : IDisposable
-        where T : struct
+        where T : unmanaged
     {
         private byte[] _rentedBuffer;
         private bool _clearOnReturn;
@@ -37,6 +37,7 @@ namespace MinecraftServerSharp.Collections
             if (toReturn != null)
                 ArrayPool<byte>.Shared.Return(toReturn, _clearOnReturn);
         }
+
         public void Push(in T item)
         {
             if (TopOfStack < Unsafe.SizeOf<T>())

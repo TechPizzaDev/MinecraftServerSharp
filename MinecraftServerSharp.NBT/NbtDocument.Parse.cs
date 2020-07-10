@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using MinecraftServerSharp.Collections;
 
@@ -63,6 +64,26 @@ namespace MinecraftServerSharp.NBT
         //{
         //}
 
+        /// <summary>
+        /// Length on Compound frames decrementally counts children.
+        /// Length on List frames starts with the List's length end decrements towards zero.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void UpdateLength(
+            int numberOfRows, ref ByteStack<ContainerFrame> stack, ref MetadataDb database)
+        {
+            // TODO: optimize stack usage (maybe by using ref?)
+            if (stack.TryPop(out ContainerFrame frame))
+            {
+                frame.Length--;
+
+                if (frame.Length == 0 && database.GetTagType(frame.ContainerIndex) == NbtType.List)
+                    database.SetNumberOfRows(frame.ContainerIndex, numberOfRows - frame.NumberOfRows + 1);
+                else
+                    stack.Push(frame);
+            }
+        }
+
         private static void Parse(
             ref NbtReader reader,
             ref MetadataDb database,
@@ -70,44 +91,27 @@ namespace MinecraftServerSharp.NBT
         {
             int numberOfRows = 0;
 
-            // Length on Compound frames decrementally counts children.
-            // Length on List frames starts with the List's length end decrements towards zero.
-            void UpdateLength(ref ByteStack<ContainerFrame> s, ref MetadataDb db)
-            {
-
-                // TODO: optimize stack usage 
-                if (s.TryPop(out ContainerFrame frame))
-                {
-                    frame.Length--;
-
-                    if (frame.Length == 0 && db.GetTagType(frame.ContainerIndex) == NbtType.List)
-                        db.SetNumberOfRows(frame.ContainerIndex, numberOfRows - frame.NumberOfRows + 1);
-                    else
-                        s.Push(frame);
-                }
-            }
-
             while (reader.Read())
             {
                 numberOfRows++;
 
-                int tagStart = reader.TagStartIndex;
-                NbtFlags tagFlags = reader.TagFlags;
-                NbtType tagType = reader.TagType;
-                int tagArrayLength = reader.TagArrayLength;
+                int location = reader.TagLocation;
+                NbtFlags flags = reader.TagFlags;
+                NbtType type = reader.TagType;
+                int arrayLength = reader.TagArrayLength;
 
-                switch (tagType)
+                switch (type)
                 {
                     case NbtType.Compound:
                     {
-                        int index = database.Append(tagStart, containerLength: 0, numberOfRows: 0, tagType, tagFlags);
+                        int index = database.Append(location, containerLength: 0, numberOfRows: 0, type, flags);
                         stack.Push(new ContainerFrame(index, length: 0, numberOfRows));
                         break;
                     }
 
                     case NbtType.End:
                     {
-                        database.Append(tagStart, reader.TagSpan.Length, numberOfRows: 1, tagType, tagFlags);
+                        database.Append(location, reader.TagSpan.Length, numberOfRows: 1, type, flags);
 
                         var compoundFrame = stack.Pop();
 
@@ -120,10 +124,10 @@ namespace MinecraftServerSharp.NBT
 
                     case NbtType.List:
                     {
-                        UpdateLength(ref stack, ref database);
+                        UpdateLength(numberOfRows, ref stack, ref database);
 
-                        int index = database.Append(tagStart, tagArrayLength, numberOfRows: 0, tagType, tagFlags);
-                        stack.Push(new ContainerFrame(index, tagArrayLength, numberOfRows));
+                        int index = database.Append(location, arrayLength, numberOfRows: 0, type, flags);
+                        stack.Push(new ContainerFrame(index, arrayLength, numberOfRows));
                         continue;
                     }
 
@@ -131,15 +135,15 @@ namespace MinecraftServerSharp.NBT
                     case NbtType.ByteArray:
                     case NbtType.IntArray:
                     case NbtType.LongArray:
-                        database.Append(tagStart, tagArrayLength, numberOfRows: 1, tagType, tagFlags);
+                        database.Append(location, arrayLength, numberOfRows: 1, type, flags);
                         break;
 
                     default:
-                        database.Append(tagStart, 0, numberOfRows: 1, tagType, tagFlags);
+                        database.Append(location, 0, numberOfRows: 1, type, flags);
                         break;
                 }
 
-                UpdateLength(ref stack, ref database);
+                UpdateLength(numberOfRows, ref stack, ref database);
             }
 
             database.TrimExcess();

@@ -20,3 +20,9 @@ dotnet_diagnostic.CA1051.severity = suggestion
 
 # CA1028: Enum Storage should be Int32
 dotnet_diagnostic.CA1028.severity = none
+
+# CA1031: Do not catch general exception types
+dotnet_diagnostic.CA1031.severity = none
+
+# CA1815: Override equals and operator equals on value types
+dotnet_diagnostic.CA1815.severity = none
