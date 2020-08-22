@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Buffers;
+using System.Globalization;
 using System.IO;
 using System.Net.Sockets;
 using System.Security.Cryptography;
@@ -170,7 +171,12 @@ namespace MinecraftServerSharp.Network
                             if (connection.ReadPacket<ClientRequest>(
                                 out var requestPacket).Status == OperationStatus.Done)
                             {
-                                var jsonResponse = new Utf8String(File.ReadAllText("omegalul.json"));
+                                // TODO make these dynamic
+                                var jsonResponse = new Utf8String(File.ReadAllText(".\\..\\..\\..\\..\\omegalul.json")
+                                    .Replace("%version%", GameVersion.ToString(), StringComparison.OrdinalIgnoreCase)
+                                    .Replace("\"%versionID%\"", ProtocolVersion.ToString(NumberFormatInfo.InvariantInfo), StringComparison.OrdinalIgnoreCase)
+                                    .Replace("\"%max%\"", 20.ToString(NumberFormatInfo.InvariantInfo), StringComparison.OrdinalIgnoreCase)
+                                    .Replace("\"%online%\"", 0.ToString(NumberFormatInfo.InvariantInfo), StringComparison.OrdinalIgnoreCase));
                                 var answer = new ServerResponse(jsonResponse);
 
                                 connection.EnqueuePacket(answer);

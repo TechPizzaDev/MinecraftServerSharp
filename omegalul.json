@@ -1,0 +1,15 @@
+{
+    "version": {
+        "name": "%version%",
+        "protocol": "%versionID%"
+    },
+    "players": {
+        "max": "%max%",
+        "online": "%online%",
+        "sample": []
+    },
+    "description": {
+        "text": "Server is online!"
+    },
+    "favicon": "data:image/png;base64,<data>"
+}
