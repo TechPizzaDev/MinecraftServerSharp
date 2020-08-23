@@ -118,12 +118,9 @@ namespace MinecraftServerSharp
                     //    " | " +
                     //    (ticker.ElapsedTime.Ticks / (float)ticker.TargetTime.Ticks * 100f).ToString("00.0") + "%");
 
-                    lock (manager.ConnectionMutex)
-                    {
-                        int count = manager.Connections.Count;
-                        if (count > 0)
-                            Console.WriteLine(count + " connections");
-                    }
+                    int count = manager.getConnectionAmount();
+                    if (count > 0)
+                        Console.WriteLine(count + " connections");
                 }
 
                 //world.Tick();

@@ -71,5 +71,12 @@ namespace MinecraftServerSharp.Network
             }
 
         }
+
+        public int getConnectionAmount()
+        {
+            lock (ConnectionMutex)
+            {
+                return _connections.Count;
+            }
     }
 }
