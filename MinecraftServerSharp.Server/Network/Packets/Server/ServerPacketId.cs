@@ -29,6 +29,7 @@ namespace MinecraftServerSharp.Network.Packets
 
         [Mapping(State.Play, 0x03)] SpawnLivingEntity,
         [Mapping(State.Play, 0x0f)] ChatMessage,
+        [Mapping(State.Play, 0x19)] PluginMessage,
         [Mapping(State.Play, 0x1b)] PlayDisconnect,
 
         [Mapping(State.Play, 0x21)] KeepAlive,

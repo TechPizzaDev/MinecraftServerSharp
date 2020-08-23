@@ -210,6 +210,9 @@ namespace MinecraftServerSharp.Network
                                 connection.EnqueuePacket(new ServerJoinGame(
                                     playerId.Value, 3, 0, 0, 0, "default", 8, false, true));
 
+                                connection.EnqueuePacket(new ServerPluginMessage(
+                                    new Utf8String("minecraft:brand"), new Utf8String("MinecraftServerSharp")));
+
                                 connection.EnqueuePacket(new ServerSpawnPosition(
                                     new Position(0, 16, 0)));
 
