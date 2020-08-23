@@ -78,5 +78,6 @@ namespace MinecraftServerSharp.Network
             {
                 return _connections.Count;
             }
+        }
     }
 }
