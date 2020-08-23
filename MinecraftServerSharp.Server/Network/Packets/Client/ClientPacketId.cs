@@ -37,6 +37,8 @@ namespace MinecraftServerSharp.Network.Packets
         [Mapping(State.Play, 0x0A)] CloseWindow,
         [Mapping(State.Play, 0x0B)] PluginMessage,
         
+        [Mapping(State.Play, 0x0F)] KeepAlive,
+
         [Mapping(State.Play, 0x11)] PlayerPosition,
         [Mapping(State.Play, 0x12)] PlayerPositionRotation,
         [Mapping(State.Play, 0x13)] PlayerRotation,

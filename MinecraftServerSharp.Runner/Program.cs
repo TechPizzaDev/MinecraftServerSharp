@@ -108,7 +108,7 @@ namespace MinecraftServerSharp
             gameTicker.Tick += (ticker) =>
             {
                 tickCount++;
-                if (tickCount % 10 == 0)
+                if (tickCount % 10 == 0) // Every half second
                 {
                     //Console.WriteLine(
                     //    "Tick Time: " +
@@ -121,6 +121,11 @@ namespace MinecraftServerSharp
                     int count = manager.getConnectionAmount();
                     if (count > 0)
                         Console.WriteLine(count + " connections");
+
+                    if (tickCount % 20 == 0) // Every second
+                    {
+                        manager.TickAlive(tickCount);
+                    }
                 }
 
                 //world.Tick();

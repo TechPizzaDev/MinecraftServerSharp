@@ -31,6 +31,7 @@ namespace MinecraftServerSharp.Network.Packets
         [Mapping(State.Play, 0x0f)] ChatMessage,
         [Mapping(State.Play, 0x1b)] PlayDisconnect,
 
+        [Mapping(State.Play, 0x21)] KeepAlive,
         [Mapping(State.Play, 0x22)] ChunkData,
         [Mapping(State.Play, 0x26)] JoinGame,
 
