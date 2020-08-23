@@ -200,6 +200,7 @@ namespace MinecraftServerSharp.Network
 
                                 var name = loginStartPacket.Name;
                                 var answer = new ServerLoginSuccess(uuid.ToUtf8String(), name);
+                                connection.UserName = name;
 
                                 connection.EnqueuePacket(answer);
 
@@ -252,6 +253,15 @@ namespace MinecraftServerSharp.Network
                                   " X" + playerPositionPacket.X +
                                   " Y" + playerPositionPacket.FeetY +
                                   " Z" + playerPositionPacket.Z);
+                            }
+                        }
+                        else if (packetIdDefinition.Id == ClientPacketId.ChatMessage)
+                        {
+                            if (connection.ReadPacket<ClientChat>(
+                                     out var chatPacket).Status == OperationStatus.Done)
+                            {
+                                // TODO broadcast to everyone
+                                Console.WriteLine("<" + connection.UserName + ">: " + chatPacket.Message);
                             }
                         }
                         else

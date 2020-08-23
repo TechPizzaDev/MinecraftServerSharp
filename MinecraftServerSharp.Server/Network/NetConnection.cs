@@ -38,6 +38,8 @@ namespace MinecraftServerSharp.Network
         // TODO: add thread-safe protocol state propagation
         public ProtocolState State { get; set; }
 
+        public string UserName { get; internal set; }
+
         #region Constructors
 
         public NetConnection(
