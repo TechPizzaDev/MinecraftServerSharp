@@ -42,6 +42,7 @@ namespace MinecraftServerSharp.Network.Packets
         [Mapping(State.Play, 0x11)] PlayerPosition,
         [Mapping(State.Play, 0x12)] PlayerPositionRotation,
         [Mapping(State.Play, 0x13)] PlayerRotation,
+        [Mapping(State.Play, 0x14)] PlayerMovement,
 
         [Mapping(State.Play, 0x1B)] EntityAction,
         [Mapping(State.Play, 0x1D)] RecipeBookData,
