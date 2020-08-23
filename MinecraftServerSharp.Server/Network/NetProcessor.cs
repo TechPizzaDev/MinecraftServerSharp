@@ -200,6 +200,7 @@ namespace MinecraftServerSharp.Network
 
                                 var name = loginStartPacket.Name;
                                 var answer = new ServerLoginSuccess(uuid.ToUtf8String(), name);
+                                connection.UserName = name;
 
                                 connection.EnqueuePacket(answer);
 
@@ -209,6 +210,9 @@ namespace MinecraftServerSharp.Network
 
                                 connection.EnqueuePacket(new ServerJoinGame(
                                     playerId.Value, 3, 0, 0, 0, "default", 8, false, true));
+
+                                connection.EnqueuePacket(new ServerPluginMessage(
+                                    new Utf8String("minecraft:brand"), new Utf8String("MinecraftServerSharp")));
 
                                 connection.EnqueuePacket(new ServerSpawnPosition(
                                     new Position(0, 16, 0)));
@@ -249,6 +253,15 @@ namespace MinecraftServerSharp.Network
                                   " X" + playerPositionPacket.X +
                                   " Y" + playerPositionPacket.FeetY +
                                   " Z" + playerPositionPacket.Z);
+                            }
+                        }
+                        else if (packetIdDefinition.Id == ClientPacketId.ChatMessage)
+                        {
+                            if (connection.ReadPacket<ClientChat>(
+                                     out var chatPacket).Status == OperationStatus.Done)
+                            {
+                                // TODO broadcast to everyone
+                                Console.WriteLine("<" + connection.UserName + ">: " + chatPacket.Message);
                             }
                         }
                         else

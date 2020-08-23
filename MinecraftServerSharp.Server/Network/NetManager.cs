@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Net;
 using MinecraftServerSharp.Collections;
+using MinecraftServerSharp.Network.Packets;
 
 namespace MinecraftServerSharp.Network
 {
@@ -70,6 +71,25 @@ namespace MinecraftServerSharp.Network
                     throw new InvalidOperationException();
             }
 
+        }
+
+        public int getConnectionAmount()
+        {
+            lock (ConnectionMutex)
+            {
+                return _connections.Count;
+            }
+        }
+
+        public void TickAlive(long keepAliveId)
+        {
+            lock (ConnectionMutex)
+            {
+                foreach (NetConnection connection in Connections)
+                {
+                    connection.EnqueuePacket(new ServerKeepAlive(keepAliveId));
+                }
+            }
         }
     }
 }
