@@ -3,7 +3,7 @@ using System.Buffers.Binary;
 using System.IO;
 using System.Text;
 
-namespace MinecraftServerSharp.Data
+namespace MinecraftServerSharp.Data.IO
 {
     public readonly struct NetBinaryWriter
     {
@@ -11,7 +11,7 @@ namespace MinecraftServerSharp.Data
         public NetBinaryOptions Options { get; }
 
         public long Position { get => BaseStream.Position; set => BaseStream.Position = value; }
-        public long Length => BaseStream.Length;
+        public long Length { get => BaseStream.Length; set => BaseStream.SetLength(value); }
 
         public NetBinaryWriter(Stream stream, NetBinaryOptions? options = default)
         {
@@ -97,11 +97,21 @@ namespace MinecraftServerSharp.Data
             Write(tmp.Slice(0, count));
         }
 
+        public void WriteVar(int value)
+        {
+            Write((VarInt)value);
+        }
+
         public void Write(VarLong value)
         {
             Span<byte> tmp = stackalloc byte[VarLong.MaxEncodedSize];
             int count = value.Encode(tmp);
             Write(tmp.Slice(0, count));
+        }
+
+        public void WriteVar(long value)
+        {
+            Write((VarLong)value);
         }
 
         public void Write(float value)

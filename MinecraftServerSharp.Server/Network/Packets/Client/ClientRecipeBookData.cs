@@ -23,32 +23,34 @@ namespace MinecraftServerSharp.Network.Packets
         public bool SmokingRecipeBookOpen { get; }
         public bool SmokingRecipeFilterActive { get; }
 
+        // TODO:
+
         //[PacketConstructor]
-        //public ClientRecipeBookData(
-        //    [PacketTypeSwitch(DataType.DisplayedRecipe)] DataType type, 
-        //    Identifier recipeId) : this()
-        //{
-        //    Type = type;
-        //    RecipeId = recipeId;
-        //}
-        //
+        public ClientRecipeBookData(
+            [PacketSwitchCase(DataType.DisplayedRecipe)] DataType type, 
+            Identifier recipeId) : this()
+        {
+            Type = type;
+            RecipeId = recipeId;
+        }
+        
         //[PacketConstructor]
-        //public ClientRecipeBookData(
-        //    [PacketTypeSwitch(DataType.RecipeBookStates)] DataType type,
-        //    bool craftingRecipeBookOpen, bool craftingRecipeFilterActive,
-        //    bool smeltingRecipeBookOpen, bool smeltingRecipeFilterActive,
-        //    bool blastingRecipeBookOpen, bool blastingRecipeFilterActive,
-        //    bool smokingRecipeBookOpen, bool smokingRecipeFilterActive) : this()
-        //{
-        //    Type = type;
-        //    CraftingRecipeBookOpen = craftingRecipeBookOpen;
-        //    CraftingRecipeFilterActive = craftingRecipeFilterActive;
-        //    SmeltingRecipeBookOpen = smeltingRecipeBookOpen;
-        //    SmeltingRecipeFilterActive = smeltingRecipeFilterActive;
-        //    BlastingRecipeBookOpen = blastingRecipeBookOpen;
-        //    BlastingRecipeFilterActive = blastingRecipeFilterActive;
-        //    SmokingRecipeBookOpen = smokingRecipeBookOpen;
-        //    SmokingRecipeFilterActive = smokingRecipeFilterActive;
-        //}
+        public ClientRecipeBookData(
+            [PacketSwitchCase(DataType.RecipeBookStates)] DataType type,
+            bool craftingRecipeBookOpen, bool craftingRecipeFilterActive,
+            bool smeltingRecipeBookOpen, bool smeltingRecipeFilterActive,
+            bool blastingRecipeBookOpen, bool blastingRecipeFilterActive,
+            bool smokingRecipeBookOpen, bool smokingRecipeFilterActive) : this()
+        {
+            Type = type;
+            CraftingRecipeBookOpen = craftingRecipeBookOpen;
+            CraftingRecipeFilterActive = craftingRecipeFilterActive;
+            SmeltingRecipeBookOpen = smeltingRecipeBookOpen;
+            SmeltingRecipeFilterActive = smeltingRecipeFilterActive;
+            BlastingRecipeBookOpen = blastingRecipeBookOpen;
+            BlastingRecipeFilterActive = blastingRecipeFilterActive;
+            SmokingRecipeBookOpen = smokingRecipeBookOpen;
+            SmokingRecipeFilterActive = smokingRecipeFilterActive;
+        }
     }
 }

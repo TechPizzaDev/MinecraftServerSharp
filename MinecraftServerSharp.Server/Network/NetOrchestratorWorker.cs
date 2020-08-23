@@ -1,11 +1,11 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Threading;
-using MinecraftServerSharp.Data;
-using MinecraftServerSharp.Network.Data;
+using MinecraftServerSharp.Data.IO;
 using MinecraftServerSharp.Network.Packets;
 using MinecraftServerSharp.Utility;
 
@@ -61,43 +61,53 @@ namespace MinecraftServerSharp.Network
 
         private void ThreadRunner()
         {
-            if (WritePacketMethod == null)
-                throw new Exception($"{nameof(WritePacketMethod)} is null.");
-
-            var processedConnections = new HashSet<NetConnection>();
-
-            while (IsRunning)
+            try
             {
-                // Wait to not waste time on repeating loop.
-                _flushRequestEvent.WaitOne(TimeSpan.FromMilliseconds(100));
+                if (WritePacketMethod == null)
+                    throw new Exception($"{nameof(WritePacketMethod)} is null.");
 
-                while (Orchestrator.PacketSendQueue.TryDequeue(out var packetHolder))
+                var processedConnections = new HashSet<NetConnection>();
+                int timeoutMillis = 50;
+
+                while (IsRunning)
                 {
-                    if (packetHolder.TargetConnection == null)
-                        throw new Exception("Packet holder has no attached connection.");
+                    // Wait to not waste time on repeating loop.
+                    _flushRequestEvent.WaitOne(timeoutMillis);
 
-                    if (packetHolder.TargetConnection.State != ProtocolState.Disconnected)
+                    while (Orchestrator.PacketSendQueue.TryDequeue(out var packetHolder))
                     {
-                        var writePacketDelegate = GetWritePacketDelegate(packetHolder.PacketType);
-
-                        // TODO: compression
-                        var result = writePacketDelegate.Invoke(
-                            packetHolder, PacketSerializationMode.Uncompressed, _packetBuffer);
+                        Debug.Assert(packetHolder.TargetConnection != null, "Packet holder has no attached connection.");
 
                         if (packetHolder.TargetConnection.State != ProtocolState.Disconnected)
-                            processedConnections.Add(packetHolder.TargetConnection);
+                        {
+                            var writePacketDelegate = GetWritePacketDelegate(packetHolder.PacketType);
+
+                            // TODO: compression
+                            var result = writePacketDelegate.Invoke(
+                                packetHolder, PacketSerializationMode.Uncompressed, _packetBuffer);
+
+                            if (packetHolder.TargetConnection.State != ProtocolState.Disconnected)
+                                processedConnections.Add(packetHolder.TargetConnection);
+                        }
+                        // TODO: return packet holder to the yet-to-exist pool
                     }
-                    // TODO: return packet holder to the yet-to-exist pool
-                }
 
-                foreach (var connection in processedConnections)
-                {
-                    Orchestrator.Processor.FlushSendBuffer(connection);
+                    foreach (var connection in processedConnections)
+                    {
+                        lock (connection.WriteMutex)
+                        {
+                            Orchestrator.Processor.TryFlushSendBuffer(connection);
+                        }
 
-                    if (connection.State == ProtocolState.Closing)
-                        connection.Close(immediate: true);
+                        if (connection.State == ProtocolState.Closing)
+                            connection.Close(immediate: true);
+                    }
+                    processedConnections.Clear();
                 }
-                processedConnections.Clear();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Exception on thread \"{Thread.CurrentThread.Name}\": {ex}");
             }
         }
 
@@ -119,13 +129,16 @@ namespace MinecraftServerSharp.Network
 
             var connection = packetHolder.TargetConnection;
             if (connection == null)
-                throw new Exception("No attached connection.");
+                throw new Exception("Packet holder has no target connection.");
 
             var holder = (PacketHolder<TPacket>)packetHolder;
-            var writer = new NetBinaryWriter(destination);
+            var writer = new NetBinaryWriter(destination)
+            {
+                Position = 0,
+                Length = 0
+            };
 
-            if (mode == PacketSerializationMode.Uncompressed ||
-                mode == PacketSerializationMode.Compressed)
+            if (mode != PacketSerializationMode.NoHeader)
             {
                 if (!connection.Orchestrator.Processor.PacketEncoder.TryGetPacketIdDefinition(
                     holder.State, holder.PacketType, out var idDefinition))
@@ -133,29 +146,28 @@ namespace MinecraftServerSharp.Network
                     // We don't really want to continue if we don't even know what we're sending.
                     throw new Exception("Unknown packet ID.");
                 }
-                writer.Write((VarInt)idDefinition.RawId);
+                writer.WriteVar(idDefinition.RawId);
             }
 
             holder.WriterDelegate.Invoke(writer, holder.Packet);
 
-            int dataLength = (int)destination.Length;
+            int dataLength = (int)writer.Length;
             int length = dataLength;
             bool compressed = false;
 
-            destination.Position = 0;
+            if (mode == PacketSerializationMode.Compressed)
+            {
+                throw new NotImplementedException();
+                // TODO: compress packet buffer and reassign "length" variable
+                compressed = true;
+            }
+
+            writer.Position = 0;
             lock (connection.WriteMutex)
             {
-                if (mode == PacketSerializationMode.Compressed)
-                {
-                    throw new NotImplementedException();
-                    // TODO: compress packet buffer and reassign "length" variable
-                    compressed = true;
-                }
-
-                connection.Writer.Write((VarInt)dataLength);
-                destination.SCopyTo(connection.SendBuffer);
+                connection.BufferWriter.WriteVar(dataLength);
+                writer.BaseStream.SCopyTo(connection.SendBuffer);
             }
-            destination.SetLength(0);
 
             return new PacketWriteResult(compressed, dataLength, length);
         }

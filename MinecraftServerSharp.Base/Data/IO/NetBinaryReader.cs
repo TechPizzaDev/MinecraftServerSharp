@@ -4,7 +4,7 @@ using System.Buffers.Binary;
 using System.IO;
 using System.Runtime.InteropServices;
 
-namespace MinecraftServerSharp.Data
+namespace MinecraftServerSharp.Data.IO
 {
     // TODO: add buffering
     public readonly struct NetBinaryReader

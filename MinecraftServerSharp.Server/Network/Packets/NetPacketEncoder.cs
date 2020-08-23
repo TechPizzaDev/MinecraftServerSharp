@@ -4,6 +4,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using MinecraftServerSharp.Data;
+using MinecraftServerSharp.Data.IO;
 using MinecraftServerSharp.NBT;
 
 namespace MinecraftServerSharp.Network.Packets
@@ -15,7 +16,7 @@ namespace MinecraftServerSharp.Network.Packets
     {
         public delegate void PacketWriterDelegate<TPacket>(NetBinaryWriter writer, in TPacket packet);
 
-        private static Type[] _binaryWriterExtensions = new[]
+        private static Type[] _binaryWriterWriteMethodSources = new[]
         {
             typeof(NetBinaryWriter),
             typeof(NetBinaryWriterNbtExtensions),
@@ -31,7 +32,7 @@ namespace MinecraftServerSharp.Network.Packets
 
         protected override void RegisterDataType(params Type[] arguments)
         {
-            RegisterDataTypeFromMethod(_binaryWriterExtensions, "Write", arguments);
+            RegisterDataTypeFromMethod(_binaryWriterWriteMethodSources, "Write", arguments);
         }
 
         protected virtual void RegisterDataTypes()
@@ -101,6 +102,8 @@ namespace MinecraftServerSharp.Network.Packets
             ParameterExpression packetParam,
             ParameterExpression writerParam)
         {
+            // TODO: respect LengthConstraint
+
             var publicProperties = packetParam.Type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
             var packetProperties = publicProperties.Select(property =>
             {

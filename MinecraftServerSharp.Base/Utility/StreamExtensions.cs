@@ -10,6 +10,9 @@ namespace MinecraftServerSharp.Utility
         /// </summary>
         public static void TrimStart(this RecyclableMemoryStream stream, int length)
         {
+            // TODO: change RecyclableMemoryStream to allow every block to have
+            // an offset, so we don't need to shift data
+
             if (stream == null)
                 throw new ArgumentNullException(nameof(stream));
 

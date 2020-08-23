@@ -1,25 +1,23 @@
 ﻿using System;
-using System.IO;
-using System.IO.Compression;
 using System.Net;
-using System.Runtime;
-using System.Threading;
+using System.Reflection;
 using MinecraftServerSharp.Data;
-using MinecraftServerSharp.NBT;
 using MinecraftServerSharp.Network;
-using MinecraftServerSharp.Utility;
 
-namespace MinecraftServerSharp
+namespace MinecraftServerSharp.Runner
 {
     internal class Program
     {
         private static void Main(string[] args)
         {
-            var motionBlocking = new NbtLongArray(36, "MOTION_BLOCKING");
-            var mem = new MemoryStream();
-            var writer = new NetBinaryWriter(mem);
-            writer.Write(motionBlocking.AsCompound("Heightmaps"));
-            var document = NbtDocument.Parse(mem.GetBuffer().AsMemory(0, (int)mem.Length));
+            #region NBT Testing
+            // TODO: move to sandbox
+
+            //var motionBlocking = new NbtLongArray(36, "MOTION_BLOCKING");
+            //var mem = new MemoryStream();
+            //var writer = new NetBinaryWriter(mem);
+            //writer.Write(motionBlocking.AsCompound("Heightmaps"));
+            //var document = NbtDocument.Parse(mem.GetBuffer().AsMemory(0, (int)mem.Length));
 
             //NbtDocument document = null;
             //
@@ -57,36 +55,43 @@ namespace MinecraftServerSharp
             //    Console.WriteLine();
             //}
             //
-            var root = document.RootTag;
+            //var root = document.RootTag;
+            //
+            //Console.WriteLine(root);
+            //
+            //void Log(NbtElement element, int depth = 0)
+            //{
+            //    string depthPad = new string(' ', depth * 3);
+            //
+            //    foreach (var item in element.EnumerateContainer())
+            //    {
+            //        Console.WriteLine(depthPad + item);
+            //
+            //        if (item.Type.IsContainer())
+            //        {
+            //            for (int i = 0; i < item.GetLength(); i++)
+            //            {
+            //                Console.WriteLine(depthPad + "INDEXER: " + item[i]);
+            //            }
+            //
+            //            Log(item, depth + 1);
+            //        }
+            //    }
+            //}
+            //Log(root);
+            #endregion
 
-            Console.WriteLine(root);
+            var configProvider = new FallbackResourceProvider(
+                new FileResourceProvider("Config", includeDirectoryName: false), 
+                new AssemblyResourceProvider(
+                    Assembly.GetExecutingAssembly(), "MinecraftServerSharp.Runner.Templates.Config"));
 
-            void Log(NbtElement element, int depth = 0)
-            {
-                string depthPad = new string(' ', depth * 3);
-
-                foreach (var item in element.EnumerateContainer())
-                {
-                    Console.WriteLine(depthPad + item);
-
-                    if (item.Type.IsContainer())
-                    {
-                        for (int i = 0; i < item.GetLength(); i++)
-                        {
-                            Console.WriteLine(depthPad + "INDEXER: " + item[i]);
-                        }
-
-                        Log(item, depth + 1);
-                    }
-                }
-            }
-            Log(root);
-
-            var gameTicker = new GameTicker(targetTickTime: TimeSpan.FromMilliseconds(50));
+            var ticker = new Ticker(targetTickTime: TimeSpan.FromMilliseconds(50));
 
             var manager = new NetManager();
             manager.Listener.Connection += Manager_Connection;
             manager.Listener.Disconnection += Manager_Disconnection;
+            manager.SetConfig(configProvider);
 
             ushort port = 25565;
             var localEndPoint = new IPEndPoint(IPAddress.Any, port);
@@ -105,18 +110,18 @@ namespace MinecraftServerSharp
             int tickCount = 0;
             var rng = new Random();
 
-            gameTicker.Tick += (ticker) =>
+            ticker.Tick += (sender) =>
             {
                 tickCount++;
                 if (tickCount % 10 == 0)
                 {
                     //Console.WriteLine(
                     //    "Tick Time: " +
-                    //    ticker.ElapsedTime.TotalMilliseconds.ToString("00.00") +
+                    //    sender.ElapsedTime.TotalMilliseconds.ToString("00.00") +
                     //    "/" +
-                    //    ticker.TargetTime.TotalMilliseconds.ToString("00") + " ms" +
+                    //    sender.TargetTime.TotalMilliseconds.ToString("00") + " ms" +
                     //    " | " +
-                    //    (ticker.ElapsedTime.Ticks / (float)ticker.TargetTime.Ticks * 100f).ToString("00.0") + "%");
+                    //    (sender.ElapsedTime.Ticks / (float)sender.TargetTime.Ticks * 100f).ToString("00.0") + "%");
 
                     lock (manager.ConnectionMutex)
                     {
@@ -129,7 +134,7 @@ namespace MinecraftServerSharp
                 //world.Tick();
                 manager.Flush();
             };
-            gameTicker.Run();
+            ticker.Run();
 
             Console.ReadKey();
             return;

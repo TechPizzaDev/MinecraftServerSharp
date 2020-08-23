@@ -1,6 +1,6 @@
 ﻿using System;
 using System.IO;
-using MinecraftServerSharp.Data;
+using MinecraftServerSharp.Data.IO;
 
 namespace MinecraftServerSharp.Network.Packets
 {

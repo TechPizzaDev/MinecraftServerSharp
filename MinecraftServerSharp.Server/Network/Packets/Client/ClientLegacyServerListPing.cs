@@ -1,24 +1,29 @@
 ﻿using System.Buffers;
-using MinecraftServerSharp.Data;
+using MinecraftServerSharp.Data.IO;
 
 namespace MinecraftServerSharp.Network.Packets
 {
     [PacketStruct(ClientPacketId.LegacyServerListPing)]
     public readonly struct ClientLegacyServerListPing
     {
-#pragma warning disable CA1051 // Do not declare visible instance fields
-        public readonly byte PluginIdentifier;
-        public readonly string MagicString;
-        public readonly short DataLength;
-        public readonly byte ProtocolVersion;
-        public readonly string Hostname;
-        public readonly int Port;
-#pragma warning restore CA1051
+        private readonly byte _pluginIdentifier;
+        private readonly string _magicString;
+        private readonly short _dataLength;
+        private readonly byte _protocolVersion;
+        private readonly string _hostname;
+        private readonly int _port;
+
+        public byte PluginIdentifier => _pluginIdentifier;
+        public string MagicString => _magicString;
+        public short DataLength => _dataLength;
+        public byte ProtocolVersion => _protocolVersion;
+        public string Hostname => _hostname;
+        public int Port => _port;
 
         [PacketConstructor]
         public ClientLegacyServerListPing(NetBinaryReader reader, out OperationStatus status) : this()
         {
-            status = reader.Read(out PluginIdentifier);
+            status = reader.Read(out _pluginIdentifier);
             if (status != OperationStatus.Done) 
                 return;
 
@@ -32,15 +37,15 @@ namespace MinecraftServerSharp.Network.Packets
                 return;
             }
 
-            status = reader.Read(magicStringLength, out MagicString);
+            status = reader.Read(magicStringLength, out _magicString);
             if (status != OperationStatus.Done) 
                 return;
 
-            status = reader.Read(out DataLength);
+            status = reader.Read(out _dataLength);
             if (status != OperationStatus.Done) 
                 return;
 
-            status = reader.Read(out ProtocolVersion);
+            status = reader.Read(out _protocolVersion);
             if (status != OperationStatus.Done) 
                 return;
 
@@ -54,11 +59,11 @@ namespace MinecraftServerSharp.Network.Packets
                 return;
             }
 
-            status = reader.Read(hostnameLength, out Hostname);
+            status = reader.Read(hostnameLength, out _hostname);
             if (status != OperationStatus.Done)
                 return;
 
-            status = reader.Read(out Port);
+            status = reader.Read(out _port);
         }
     }
 }

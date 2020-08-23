@@ -1,18 +1,20 @@
 ﻿using System;
 using System.Buffers;
-using System.Globalization;
+using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
-using System.Security.Cryptography;
-using MinecraftServerSharp.NBT;
-using MinecraftServerSharp.Network.Data;
+using System.Threading;
 using MinecraftServerSharp.Network.Packets;
-using MinecraftServerSharp.Network.Packets.Client;
 using MinecraftServerSharp.Utility;
-using MinecraftServerSharp.World;
 
 namespace MinecraftServerSharp.Network
 {
+    public delegate void PacketHandlerDelegate(
+        NetConnection connection, int rawPacketId, NetPacketDecoder.PacketIdDefinition packetIdDefinition);
+
+    public delegate void LegacyServerListPingHandlerDelegate(
+        NetConnection connection, ClientLegacyServerListPing? ping);
+
     public partial class NetProcessor
     {
         public const int BlockSize = 1024 * 16;
@@ -23,15 +25,16 @@ namespace MinecraftServerSharp.Network
         public const int MaxServerPacketSize = 2097152;
         public const int MaxClientPacketSize = 32768;
 
+        private Dictionary<ClientPacketId, PacketHandlerDelegate> PacketHandlers { get; } =
+            new Dictionary<ClientPacketId, PacketHandlerDelegate>();
+
+        private NetPacketDecoder.PacketIdDefinition LegacyServerListPingPacketDefinition { get; set; }
+
         public RecyclableMemoryManager MemoryManager { get; }
         public NetPacketDecoder PacketDecoder { get; }
         public NetPacketEncoder PacketEncoder { get; }
-        private NetPacketDecoder.PacketIdDefinition LegacyServerListPingPacketDefinition { get; set; }
 
-        // TODO: move these somewhere
-        public static int ProtocolVersion { get; } = 578;
-        public static MinecraftVersion GameVersion { get; } = new MinecraftVersion(1, 15, 2);
-        public static bool Config_AppendGameVersionToBetaStatus { get; } = true;
+        public LegacyServerListPingHandlerDelegate? LegacyServerListPingHandler { get; set; }
 
         #region Constructors
 
@@ -67,7 +70,6 @@ namespace MinecraftServerSharp.Network
             PacketDecoder.InitializePacketIdMaps();
 
             PacketDecoder.CreateCodecDelegates();
-
             if (!PacketDecoder.TryGetPacketIdDefinition(ClientPacketId.LegacyServerListPing, out var definition))
                 throw new InvalidOperationException(
                     $"Missing packet definition for \"{nameof(ClientPacketId.LegacyServerListPing)}\".");
@@ -85,6 +87,17 @@ namespace MinecraftServerSharp.Network
         }
 
         #endregion
+
+        public void SetPacketHandler(ClientPacketId id, PacketHandlerDelegate packetHandler)
+        {
+            if (packetHandler == null)
+                throw new ArgumentNullException(nameof(packetHandler));
+
+            if (PacketHandlers.ContainsKey(id))
+                throw new ArgumentException($"A packet handler is already registered for \"{id}\".", nameof(id));
+
+            PacketHandlers.Add(id, packetHandler);
+        }
 
         public void AddConnection(NetConnection connection)
         {
@@ -107,7 +120,7 @@ namespace MinecraftServerSharp.Network
             try
             {
                 var re = connection.ReceiveEvent;
-                var reader = connection.Reader;
+                var reader = connection.BufferReader;
 
                 AfterReceive:
                 if (re.SocketError != SocketError.Success ||
@@ -154,110 +167,12 @@ namespace MinecraftServerSharp.Network
                         // TODO: add packet handlers that use typed delegates and are routed
                         // by ClientPacketId and the ID on the PacketStruct attribute
 
-                        if (packetIdDefinition.Id == ClientPacketId.Handshake)
-                        {
-                            if (connection.ReadPacket<ClientHandshake>(
-                                out var handshakePacket).Status == OperationStatus.Done)
-                            {
-                                if (handshakePacket.NextState != ProtocolState.Status &&
-                                    handshakePacket.NextState != ProtocolState.Login)
-                                    return;
+                        if (!PacketHandlers.TryGetValue(packetIdDefinition.Id, out var packetHandler))
+                            throw new Exception($"Missing packet handler for \"{packetIdDefinition.Id}\".");
 
-                                connection.State = handshakePacket.NextState;
-                            }
-                        }
-                        else if (packetIdDefinition.Id == ClientPacketId.Request)
-                        {
-                            if (connection.ReadPacket<ClientRequest>(
-                                out var requestPacket).Status == OperationStatus.Done)
-                            {
-                                // TODO make these dynamic
-                                var jsonResponse = new Utf8String(File.ReadAllText(".\\..\\..\\..\\..\\omegalul.json")
-                                    .Replace("%version%", GameVersion.ToString(), StringComparison.OrdinalIgnoreCase)
-                                    .Replace("\"%versionID%\"", ProtocolVersion.ToString(NumberFormatInfo.InvariantInfo), StringComparison.OrdinalIgnoreCase)
-                                    .Replace("\"%max%\"", 20.ToString(NumberFormatInfo.InvariantInfo), StringComparison.OrdinalIgnoreCase)
-                                    .Replace("\"%online%\"", 0.ToString(NumberFormatInfo.InvariantInfo), StringComparison.OrdinalIgnoreCase));
-                                var answer = new ServerResponse(jsonResponse);
+                        packetHandler.Invoke(connection, rawPacketId, packetIdDefinition);
 
-                                connection.EnqueuePacket(answer);
-                            }
-                        }
-                        else if (packetIdDefinition.Id == ClientPacketId.Ping)
-                        {
-                            if (connection.ReadPacket<ClientPing>(
-                                out var pingPacket).Status == OperationStatus.Done)
-                            {
-                                var answer = new ServerPong(pingPacket.Payload);
-                                connection.EnqueuePacket(answer);
-                            }
-                        }
-                        else if (packetIdDefinition.Id == ClientPacketId.LoginStart)
-                        {
-                            if (connection.ReadPacket<ClientLoginStart>(
-                                out var loginStartPacket).Status == OperationStatus.Done)
-                            {
-                                var uuid = new UUID(0, 1);
-
-                                var name = loginStartPacket.Name;
-                                var answer = new ServerLoginSuccess(uuid.ToUtf8String(), name);
-
-                                connection.EnqueuePacket(answer);
-
-                                connection.State = ProtocolState.Play;
-
-                                var playerId = new EntityId(69);
-
-                                connection.EnqueuePacket(new ServerJoinGame(
-                                    playerId.Value, 3, 0, 0, 0, "default", 8, false, true));
-
-                                connection.EnqueuePacket(new ServerSpawnPosition(
-                                    new Position(0, 16, 0)));
-
-                                connection.EnqueuePacket(new ServerPlayerPositionLook(
-                                    0, 16, 0, 0, 0, ServerPlayerPositionLook.PositionRelatives.None, 1337));
-
-                                var dimension = new Dimension();
-                                var chunk1 = new Chunk(0, 0, dimension);
-                                var chunk2 = new Chunk(0, 1, dimension);
-                                var chunk3 = new Chunk(1, 0, dimension);
-                                var chunk4 = new Chunk(1, 1, dimension);
-                                var chunkData1 = new ServerChunkData(chunk1, true);
-                                var chunkData2 = new ServerChunkData(chunk2, true);
-                                var chunkData3 = new ServerChunkData(chunk3, true);
-                                var chunkData4 = new ServerChunkData(chunk4, true);
-                                connection.EnqueuePacket(chunkData1);
-                                connection.EnqueuePacket(chunkData2);
-                                connection.EnqueuePacket(chunkData3);
-                                connection.EnqueuePacket(chunkData4);
-                            }
-                        }
-                        else if(packetIdDefinition.Id == ClientPacketId.TeleportConfirm)
-                        {
-                            if(connection.ReadPacket<ClientTeleportConfirm>(
-                                out var teleportConfirmPacket).Status == OperationStatus.Done)
-                            {
-                                Console.WriteLine("Teleport Confirm: Id " + teleportConfirmPacket.TeleportId);
-                            }
-                        }
-                        else if (packetIdDefinition.Id == ClientPacketId.PlayerPosition)
-                        {
-                            if (connection.ReadPacket<ClientPlayerPosition>(
-                                  out var playerPositionPacket).Status == OperationStatus.Done)
-                            {
-                                Console.WriteLine(
-                                  "Player Position:" +
-                                  " X" + playerPositionPacket.X +
-                                  " Y" + playerPositionPacket.FeetY +
-                                  " Z" + playerPositionPacket.Z);
-                            }
-                        }
-                        else
-                        {
-                            Console.WriteLine(
-                                "(" + connection.ReceivedLengthBytes + ") " +
-                                connection.ReceivedLength + ": " +
-                                packetIdDefinition.Id);
-                        }
+                        throw new Exception("handme");
 
                         connection.TrimFirstReceivedMessage();
                     }
@@ -273,7 +188,7 @@ namespace MinecraftServerSharp.Network
             catch (Exception ex)
             {
                 Console.WriteLine(ex);
-                connection.Kick("Server Error: \n" + ex);
+                connection.Kick("Server Error: \n" + ex.ToString().Replace("\r", ""));
             }
         }
 
@@ -292,7 +207,7 @@ namespace MinecraftServerSharp.Network
                 connection.BytesSent += se.BytesTransferred;
                 connection.TrimSendBufferStart(se.BytesTransferred);
 
-                FlushSendBuffer(connection);
+                TryFlushSendBuffer(connection);
             }
             catch (Exception ex)
             {
@@ -301,26 +216,35 @@ namespace MinecraftServerSharp.Network
             }
         }
 
-        public void FlushSendBuffer(NetConnection connection)
+        public bool TryFlushSendBuffer(NetConnection connection)
         {
             if (connection == null)
                 throw new ArgumentNullException(nameof(connection));
 
-            lock (connection.SendMutex)
+            if (Monitor.TryEnter(connection.SendMutex))
             {
-                int length = (int)connection.SendBuffer.Length;
-                if (length <= 0 ||
-                    connection.State == ProtocolState.Disconnected)
-                    return;
+                try
+                {
+                    var length = connection.SendBuffer.Length;
+                    if (length > 0 && connection.State != ProtocolState.Disconnected)
+                    {
+                        var buffer = connection.SendBuffer.GetBlock(0);
+                        int blockLength = Math.Min(connection.SendBuffer.BlockSize, (int)length);
+                        connection.SendEvent.SetBuffer(buffer.Slice(0, blockLength));
 
-                var buffer = connection.SendBuffer.GetBlock(0);
-                int blockLength = Math.Min(connection.SendBuffer.BlockSize, length);
-                connection.SendEvent.SetBuffer(buffer.Slice(0, blockLength));
-                Console.WriteLine("sent " + blockLength);
+                        Console.WriteLine("sent " + blockLength);
 
-                if (!connection.Socket.SendAsync(connection.SendEvent))
-                    ProcessSend(connection);
+                        if (!connection.Socket.SendAsync(connection.SendEvent))
+                            ProcessSend(connection);
+                    }
+                    return true;
+                }
+                finally
+                {
+                    Monitor.Exit(connection.SendMutex);
+                }
             }
+            return false;
         }
 
         private bool ValidatePacketAndGetId(
@@ -328,7 +252,7 @@ namespace MinecraftServerSharp.Network
             out VarInt rawPacketId,
             out NetPacketDecoder.PacketIdDefinition definition)
         {
-            if (connection.Reader.Read(
+            if (connection.BufferReader.Read(
                 out rawPacketId, out int packetIdBytes) != OperationStatus.Done)
             {
                 connection.Kick("Packet ID is incorrectly encoded.");
@@ -355,17 +279,16 @@ namespace MinecraftServerSharp.Network
             return true;
         }
 
-        private static OperationStatus ReadLegacyServerListPing(NetConnection connection)
+        private OperationStatus ReadLegacyServerListPing(NetConnection connection)
         {
             try
             {
-                bool isBeta = false;
-                string motd = "A minecraft server";
+                ClientLegacyServerListPing? nPacket = default;
 
-                var reader = connection.Reader;
+                var reader = connection.BufferReader;
                 if (reader.Length == 1)
                 {
-                    isBeta = true;
+                    // beta ping
                 }
                 else if (reader.Length >= 2)
                 {
@@ -382,21 +305,13 @@ namespace MinecraftServerSharp.Network
                         if (packetStatus != OperationStatus.Done)
                             return packetStatus;
 
-                        // TODO: do stuff with packet
+                        nPacket = packet;
                     }
                 }
                 else if (reader.Length == 0)
                     throw new InvalidOperationException();
 
-                if (isBeta && Config_AppendGameVersionToBetaStatus)
-                    motd = motd + " - " + GameVersion;
-
-                var answer = new ServerLegacyServerListPong(
-                    isBeta, ProtocolVersion, GameVersion, motd, 0, 100);
-
-                connection.EnqueuePacket(answer);
-
-                connection.State = ProtocolState.Closing;
+                LegacyServerListPingHandler?.Invoke(connection, nPacket);
 
                 return OperationStatus.Done;
             }

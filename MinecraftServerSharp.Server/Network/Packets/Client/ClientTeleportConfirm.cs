@@ -1,5 +1,5 @@
 ﻿
-namespace MinecraftServerSharp.Network.Packets.Client
+namespace MinecraftServerSharp.Network.Packets
 {
     [PacketStruct(ClientPacketId.TeleportConfirm)]
     public readonly struct ClientTeleportConfirm

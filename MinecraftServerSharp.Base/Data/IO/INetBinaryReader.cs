@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace MinecraftServerSharp.Data
+namespace MinecraftServerSharp.Data.IO
 {
 	public interface INetBinaryReader : ISeekable
 	{

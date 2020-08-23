@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
-using MinecraftServerSharp.Data;
+using MinecraftServerSharp.Data.IO;
 
 namespace MinecraftServerSharp.Network.Packets
 {

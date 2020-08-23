@@ -1,5 +1,5 @@
 ﻿using System;
-using MinecraftServerSharp.Data;
+using MinecraftServerSharp.Data.IO;
 using MinecraftServerSharp.NBT;
 using MinecraftServerSharp.World;
 
@@ -26,7 +26,7 @@ namespace MinecraftServerSharp.Network.Packets
             writer.Write(FullChunk);
 
             int mask = GetSectionMask(Chunk);
-            writer.Write((VarInt)mask);
+            writer.WriteVar(mask);
 
             var motionBlocking = new NbtLongArray(36, "MOTION_BLOCKING");
             writer.Write(motionBlocking.AsCompound("Heightmaps"));
@@ -39,13 +39,13 @@ namespace MinecraftServerSharp.Network.Packets
             }
 
             int sectionDataLength = GetChunkSectionDataLength(Chunk);
-            writer.Write((VarInt)sectionDataLength);
+            writer.WriteVar(sectionDataLength);
             WriteChunk(writer, Chunk);
 
             // If you don't support block entities yet, use 0
             // If you need to implement it by sending block entities later with the update block entity packet,
             // do it that way and send 0 as well.  (Note that 1.10.1 (not 1.10 or 1.10.2) will not accept that)
-            writer.Write((VarInt)0);
+            writer.WriteVar(0);
 
             //WriteVarInt(data, chunk.BlockEntities.Length);
             //foreach (CompoundTag tag in chunk.BlockEntities)
@@ -167,7 +167,7 @@ namespace MinecraftServerSharp.Network.Packets
                 }
             }
 
-            writer.Write((VarInt)dataLength);
+            writer.WriteVar(dataLength);
             writer.Write(data);
         }
     }

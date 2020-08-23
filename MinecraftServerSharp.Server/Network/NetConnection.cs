@@ -3,7 +3,7 @@ using System.Buffers;
 using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
-using MinecraftServerSharp.Data;
+using MinecraftServerSharp.Data.IO;
 using MinecraftServerSharp.Network.Packets;
 using MinecraftServerSharp.Utility;
 
@@ -22,8 +22,8 @@ namespace MinecraftServerSharp.Network
         // TODO: make better use of the streams (recycle them better or something)
         public RecyclableMemoryStream ReceiveBuffer { get; }
         public RecyclableMemoryStream SendBuffer { get; }
-        public NetBinaryReader Reader { get; }
-        public NetBinaryWriter Writer { get; }
+        public NetBinaryReader BufferReader { get; }
+        public NetBinaryWriter BufferWriter { get; }
 
         public object WriteMutex { get; } = new object();
         public object SendMutex { get; } = new object();
@@ -58,8 +58,8 @@ namespace MinecraftServerSharp.Network
 
             ReceiveBuffer = Orchestrator.Processor.MemoryManager.GetStream();
             SendBuffer = Orchestrator.Processor.MemoryManager.GetStream();
-            Reader = new NetBinaryReader(ReceiveBuffer);
-            Writer = new NetBinaryWriter(SendBuffer);
+            BufferReader = new NetBinaryReader(ReceiveBuffer);
+            BufferWriter = new NetBinaryWriter(SendBuffer);
 
             State = ProtocolState.Handshaking;
         }
@@ -69,9 +69,9 @@ namespace MinecraftServerSharp.Network
         public (OperationStatus Status, int Length) ReadPacket<TPacket>(out TPacket packet)
         {
             var reader = Orchestrator.Processor.PacketDecoder.GetPacketReader<TPacket>();
-            long oldPosition = Reader.Position;
-            var status = reader.Invoke(Reader, out packet);
-            int length = (int)(Reader.Position - oldPosition);
+            long oldPosition = BufferReader.Position;
+            var status = reader.Invoke(BufferReader, out packet);
+            int length = (int)(BufferReader.Position - oldPosition);
             return (status, length);
         }
 

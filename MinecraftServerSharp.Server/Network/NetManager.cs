@@ -1,19 +1,33 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Net;
+using System.Reflection;
 using MinecraftServerSharp.Collections;
+using MinecraftServerSharp.Network.Packets;
+using MinecraftServerSharp.Utility;
+using MinecraftServerSharp.World;
 
 namespace MinecraftServerSharp.Network
 {
     public class NetManager
     {
-        public object ConnectionMutex { get; } = new object();
+        public const string PongResource = "Minecraft/Net/Pong.json";
+
+        // TODO: move these somewhere
+        public int ProtocolVersion { get; } = 578;
+        public MinecraftVersion GameVersion { get; } = new MinecraftVersion(1, 15, 2);
+        public bool Config_AppendGameVersionToBetaStatus { get; } = true;
+
         private HashSet<NetConnection> _connections;
+        private string? _requestPongBase;
 
         public NetProcessor Processor { get; }
         public NetOrchestrator Orchestrator { get; }
         public NetListener Listener { get; }
 
+        public object ConnectionMutex { get; } = new object();
         public ReadOnlySet<NetConnection> Connections { get; }
 
         public NetManager()
@@ -34,12 +48,54 @@ namespace MinecraftServerSharp.Network
         public void Setup()
         {
             Processor.SetupCodecs();
+
+            SetupPacketHandlers();
+        }
+
+        public void SetConfig(IResourceProvider provider)
+        {
+            if (provider == null)
+                throw new ArgumentNullException(nameof(provider));
+
+            using var pong = provider.OpenResourceReader(PongResource);
+            if (pong == null)
+                throw new KeyNotFoundException(PongResource);
+
+            _requestPongBase = pong.ReadToEnd();
+        }
+
+        private void SetPacketHandler<TPacket>(ClientPacketId id, Action<NetConnection, TPacket> handler)
+        {
+            if (handler == null)
+                throw new ArgumentNullException(nameof(handler));
+
+            Processor.SetPacketHandler(id, (connection, rawId, definition) =>
+            {
+                var (status, length) = connection.ReadPacket<TPacket>(out var packet);
+                if (status == OperationStatus.Done)
+                {
+                    handler.Invoke(connection, packet);
+                }
+            });
+        }
+
+        private void SetPacketHandler<TPacket>(Action<NetConnection, TPacket> handler)
+        {
+            var packetStruct = typeof(TPacket).GetCustomAttribute<PacketStructAttribute>();
+            if (packetStruct == null)
+                throw new ArgumentException($"The type is missing a \"{nameof(PacketStructAttribute)}\".");
+
+            if (!packetStruct.IsClientPacket)
+                throw new ArgumentException("The packet is not a client packet.");
+
+            SetPacketHandler((ClientPacketId)packetStruct.PacketId, handler);
         }
 
         public void Listen(int backlog)
         {
-            Orchestrator.Start(workerCount: 1); // TODO: fix concurrency
-            
+            // TODO: fix some kind of concurrency that corrupts sent data
+            Orchestrator.Start(workerCount: 1);
+
             Listener.Connection += Listener_Connection;
             Listener.Disconnection += Listener_Disconnection;
 
@@ -69,7 +125,124 @@ namespace MinecraftServerSharp.Network
                 if (!_connections.Remove(connection))
                     throw new InvalidOperationException();
             }
+        }
 
+        private void SetupPacketHandlers()
+        {
+            Processor.LegacyServerListPingHandler = delegate(NetConnection connection, ClientLegacyServerListPing? ping)
+            {
+                bool isBeta = !ping.HasValue;
+
+                string motd = "A minecraft server";
+                if (isBeta && Config_AppendGameVersionToBetaStatus)
+                    motd = motd + " - " + GameVersion;
+
+                var answer = new ServerLegacyServerListPong(
+                    isBeta, ProtocolVersion, GameVersion, motd, 0, 100);
+
+                connection.EnqueuePacket(answer);
+
+                connection.State = ProtocolState.Closing;
+            };
+
+
+            SetPacketHandler(delegate (NetConnection connection, ClientRequest request)
+            {
+                if (_requestPongBase == null)
+                    return;
+
+                // TODO: make these dynamic
+                var strComparison = StringComparison.OrdinalIgnoreCase;
+                var numFormat = NumberFormatInfo.InvariantInfo;
+
+                // TODO: better config
+                string jsonResponse = _requestPongBase
+                    .Replace("%version%", GameVersion.ToString(), strComparison)
+                    .Replace("\"%versionID%\"", ProtocolVersion.ToString(numFormat), strComparison)
+                    .Replace("\"%max%\"", 20.ToString(numFormat), strComparison)
+                    .Replace("\"%online%\"", 0.ToString(numFormat), strComparison);
+
+
+                var answer = new ServerResponse(new Utf8String(jsonResponse));
+                connection.EnqueuePacket(answer);
+            });
+
+
+            SetPacketHandler(delegate (NetConnection connection, ClientHandshake handshake)
+            {
+                if (handshake.NextState != ProtocolState.Status &&
+                    handshake.NextState != ProtocolState.Login)
+                    return;
+
+                connection.State = handshake.NextState;
+            });
+
+
+            SetPacketHandler(delegate (NetConnection connection, ClientPing ping)
+            {
+                var answer = new ServerPong(ping.Payload);
+                connection.EnqueuePacket(answer);
+            });
+
+
+            SetPacketHandler(delegate (NetConnection connection, ClientLoginStart loginStart)
+            {
+                var uuid = new UUID(0, 1);
+
+                var name = loginStart.Name;
+                var answer = new ServerLoginSuccess(uuid.ToUtf8String(), name);
+
+                connection.EnqueuePacket(answer);
+
+                connection.State = ProtocolState.Play;
+
+                var playerId = new EntityId(69);
+
+                connection.EnqueuePacket(new ServerJoinGame(
+                    playerId.Value, 3, 0, 0, 0, "default", 8, false, true));
+
+                connection.EnqueuePacket(new ServerSpawnPosition(
+                    new Position(0, 16, 0)));
+
+                connection.EnqueuePacket(new ServerPlayerPositionLook(
+                    0, 16, 0, 0, 0, ServerPlayerPositionLook.PositionRelatives.None, 1337));
+
+                var dimension = new Dimension();
+                var chunk1 = new Chunk(0, 0, dimension);
+                var chunk2 = new Chunk(0, 1, dimension);
+                var chunk3 = new Chunk(1, 0, dimension);
+                var chunk4 = new Chunk(1, 1, dimension);
+                var chunkData1 = new ServerChunkData(chunk1, true);
+                var chunkData2 = new ServerChunkData(chunk2, true);
+                var chunkData3 = new ServerChunkData(chunk3, true);
+                var chunkData4 = new ServerChunkData(chunk4, true);
+                connection.EnqueuePacket(chunkData1);
+                connection.EnqueuePacket(chunkData2);
+                connection.EnqueuePacket(chunkData3);
+                connection.EnqueuePacket(chunkData4);
+            });
+
+
+            SetPacketHandler(delegate (NetConnection connection, ClientTeleportConfirm teleportConfirm)
+            {
+                Console.WriteLine("Teleport Confirm: Id " + teleportConfirm.TeleportId);
+            });
+
+
+            SetPacketHandler(delegate (NetConnection connection, ClientPlayerPosition playerPosition)
+            {
+                Console.WriteLine(
+                    "Player Position:" +
+                    " X" + playerPosition.X +
+                    " Y" + playerPosition.FeetY +
+                    " Z" + playerPosition.Z);
+            });
+
+
+            SetPacketHandler(delegate (NetConnection connection, ClientClientSettings clientSettings)
+            {
+                
+            });
         }
     }
 }

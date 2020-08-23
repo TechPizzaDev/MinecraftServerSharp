@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using MinecraftServerSharp.Data;
+using MinecraftServerSharp.Data.IO;
 
 namespace MinecraftServerSharp.NBT
 {
@@ -22,7 +22,7 @@ namespace MinecraftServerSharp.NBT
                 throw new ArgumentNullException(nameof(tag));
 
             if (tag.Name == null)
-                throw new ArgumentException("The tag is nameless.");
+                throw new ArgumentException("The tag is not named.");
 
             _children.Add(tag.Name, tag);
             return this;

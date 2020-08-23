@@ -1,5 +1,5 @@
 ﻿using System;
-using MinecraftServerSharp.Data;
+using MinecraftServerSharp.Data.IO;
 
 namespace MinecraftServerSharp.NBT
 {
