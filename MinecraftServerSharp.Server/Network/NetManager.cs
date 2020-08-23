@@ -127,9 +127,17 @@ namespace MinecraftServerSharp.Network
             }
         }
 
+        public int GetConnectionCount()
+        {
+            lock (ConnectionMutex)
+            {
+                return _connections.Count;
+            }
+        }
+
         private void SetupPacketHandlers()
         {
-            Processor.LegacyServerListPingHandler = delegate(NetConnection connection, ClientLegacyServerListPing? ping)
+            Processor.LegacyServerListPingHandler = delegate (NetConnection connection, ClientLegacyServerListPing? ping)
             {
                 bool isBeta = !ping.HasValue;
 
@@ -161,7 +169,6 @@ namespace MinecraftServerSharp.Network
                     .Replace("\"%versionID%\"", ProtocolVersion.ToString(numFormat), strComparison)
                     .Replace("\"%max%\"", 20.ToString(numFormat), strComparison)
                     .Replace("\"%online%\"", 0.ToString(numFormat), strComparison);
-
 
                 var answer = new ServerResponse(new Utf8String(jsonResponse));
                 connection.EnqueuePacket(answer);
@@ -199,7 +206,10 @@ namespace MinecraftServerSharp.Network
                 var playerId = new EntityId(69);
 
                 connection.EnqueuePacket(new ServerJoinGame(
-                    playerId.Value, 3, 0, 0, 0, "default", 8, false, true));
+                    playerId.Value, 3, 0, 0, 0, new Utf8String("default"), 8, false, true));
+
+                connection.EnqueuePacket(new ServerPluginMessage(
+                    new Utf8String("minecraft:brand"), new Utf8String("MinecraftServerSharp")));
 
                 connection.EnqueuePacket(new ServerSpawnPosition(
                     new Position(0, 16, 0)));
@@ -239,10 +249,90 @@ namespace MinecraftServerSharp.Network
             });
 
 
+            SetPacketHandler(delegate (NetConnection connection, ClientPlayerPositionRotation playerPositionRotation)
+            {
+                Console.WriteLine(
+                    "Player Position Rotation:" // +
+                                                //" X" + playerPosition.X +
+                                                //" Y" + playerPosition.FeetY +
+                                                //" Z" + playerPosition.Z
+                    );
+            });
+
+
+            SetPacketHandler(delegate (NetConnection connection, ClientPlayerRotation playerRotation)
+            {
+                Console.WriteLine(
+                    "Player Rotation:" +
+                    " Yaw" + playerRotation.Yaw +
+                    " Pitch" + playerRotation.Pitch);
+            });
+
+
             SetPacketHandler(delegate (NetConnection connection, ClientClientSettings clientSettings)
             {
-                
+                Console.WriteLine("Got client settings");
             });
+
+
+            SetPacketHandler(delegate (NetConnection connection, ClientCloseWindow closeWindow)
+            {
+
+            });
+
+
+            SetPacketHandler(delegate (NetConnection connection, ClientEntityAction entityAction)
+            {
+
+            });
+
+
+            SetPacketHandler(delegate (NetConnection connection, ClientAnimation animation)
+            {
+
+            });
+
+
+            SetPacketHandler(delegate (NetConnection connection, ClientHeldItemChange heldItemChange)
+            {
+
+            });
+
+
+            SetPacketHandler(delegate (NetConnection connection, ClientRecipeBookData recipeBookData)
+            {
+                 
+            });
+
+
+            SetPacketHandler(delegate (NetConnection connection, ClientChat chat)
+            {
+                // TODO broadcast to everyone
+                Console.WriteLine("<" + connection.UserName + ">: " + chat.Message);
+            });
+
+
+            SetPacketHandler(delegate (NetConnection connection, ClientPluginMessage pluginMessage)
+            {
+
+            });
+
+
+            SetPacketHandler(delegate (NetConnection connection, ClientKeepAlive pluginMessage)
+            {
+
+            });
+        }
+
+        public void TickAlive(long keepAliveId)
+        {
+            lock (ConnectionMutex)
+            {
+                foreach (NetConnection connection in Connections)
+                {
+                    connection.EnqueuePacket(new ServerKeepAlive(keepAliveId));
+                }
+            }
         }
     }
 }

@@ -61,15 +61,15 @@ namespace MinecraftServerSharp.Network
 
         private void ThreadRunner()
         {
-            try
+            if (WritePacketMethod == null)
+                throw new Exception($"{nameof(WritePacketMethod)} is null.");
+
+            var processedConnections = new HashSet<NetConnection>();
+            int timeoutMillis = 50;
+
+            while (IsRunning)
             {
-                if (WritePacketMethod == null)
-                    throw new Exception($"{nameof(WritePacketMethod)} is null.");
-
-                var processedConnections = new HashSet<NetConnection>();
-                int timeoutMillis = 50;
-
-                while (IsRunning)
+                try
                 {
                     // Wait to not waste time on repeating loop.
                     _flushRequestEvent.WaitOne(timeoutMillis);
@@ -104,10 +104,10 @@ namespace MinecraftServerSharp.Network
                     }
                     processedConnections.Clear();
                 }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Exception on thread \"{Thread.CurrentThread.Name}\": {ex}");
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Exception on thread \"{Thread.CurrentThread.Name}\": {ex}");
+                }
             }
         }
 

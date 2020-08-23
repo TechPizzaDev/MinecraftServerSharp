@@ -38,6 +38,8 @@ namespace MinecraftServerSharp.Network
         // TODO: add thread-safe protocol state propagation
         public ProtocolState State { get; set; }
 
+        public string UserName { get; internal set; }
+
         #region Constructors
 
         public NetConnection(
@@ -113,7 +115,7 @@ namespace MinecraftServerSharp.Network
                     new { text = "Server Exception\n", bold = true },
                     new { text = exception.ToString(), bold = false }
                 };
-                chat = new Chat(JsonSerializer.Serialize(dyn));
+                chat = new Chat(new Utf8String(JsonSerializer.Serialize(dyn)));
             }
             Kick(chat);
         }
@@ -128,7 +130,7 @@ namespace MinecraftServerSharp.Network
                     new { text = "Kicked by server\n", bold = true },
                     new { text = reason, bold = false }
                 };
-                chat = new Chat(JsonSerializer.Serialize(dyn));
+                chat = new Chat(new Utf8String(JsonSerializer.Serialize(dyn)));
             }
             Kick(chat);
         }

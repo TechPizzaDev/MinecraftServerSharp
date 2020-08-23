@@ -172,8 +172,6 @@ namespace MinecraftServerSharp.Network
 
                         packetHandler.Invoke(connection, rawPacketId, packetIdDefinition);
 
-                        throw new Exception("handme");
-
                         connection.TrimFirstReceivedMessage();
                     }
                     else

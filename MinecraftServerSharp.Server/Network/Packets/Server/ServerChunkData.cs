@@ -28,8 +28,8 @@ namespace MinecraftServerSharp.Network.Packets
             int mask = GetSectionMask(Chunk);
             writer.WriteVar(mask);
 
-            var motionBlocking = new NbtLongArray(36, "MOTION_BLOCKING");
-            writer.Write(motionBlocking.AsCompound("Heightmaps"));
+            var motionBlocking = new NbtLongArray(36, (Utf8String)"MOTION_BLOCKING");
+            writer.Write(motionBlocking.AsCompound((Utf8String)"Heightmaps"));
 
             if (FullChunk)
             {

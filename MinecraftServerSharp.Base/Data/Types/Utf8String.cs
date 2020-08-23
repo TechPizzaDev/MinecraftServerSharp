@@ -92,7 +92,7 @@ namespace MinecraftServerSharp
 
         // TODO: possibly optimize implicit casting with interning
 
-        public static implicit operator string(Utf8String value)
+        public static explicit operator string(Utf8String value)
         {
             if (value == null)
                 return null!;
@@ -100,7 +100,7 @@ namespace MinecraftServerSharp
             return value.ToString();
         }
 
-        public static implicit operator Utf8String(string value)
+        public static explicit operator Utf8String(string value)
         {
             if (value == null)
                 return null!;

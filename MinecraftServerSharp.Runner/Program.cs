@@ -113,7 +113,7 @@ namespace MinecraftServerSharp.Runner
             ticker.Tick += (sender) =>
             {
                 tickCount++;
-                if (tickCount % 10 == 0)
+                if (tickCount % 10 == 0) // Every half second
                 {
                     //Console.WriteLine(
                     //    "Tick Time: " +
@@ -123,11 +123,13 @@ namespace MinecraftServerSharp.Runner
                     //    " | " +
                     //    (sender.ElapsedTime.Ticks / (float)sender.TargetTime.Ticks * 100f).ToString("00.0") + "%");
 
-                    lock (manager.ConnectionMutex)
+                    int count = manager.GetConnectionCount();
+                    if (count > 0)
+                        Console.WriteLine(count + " connections");
+
+                    if (tickCount % 20 == 0) // Every second
                     {
-                        int count = manager.Connections.Count;
-                        if (count > 0)
-                            Console.WriteLine(count + " connections");
+                        manager.TickAlive(tickCount);
                     }
                 }
 
