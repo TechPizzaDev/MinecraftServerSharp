@@ -115,7 +115,7 @@ namespace MinecraftServerSharp.Net
                     new { text = "Server Exception\n", bold = true },
                     new { text = exception.ToString(), bold = false }
                 };
-                chat = new Chat(new Utf8String(JsonSerializer.Serialize(dyn)));
+                chat = new Chat((Utf8String)JsonSerializer.Serialize(dyn));
             }
             Kick(chat);
         }
@@ -130,7 +130,7 @@ namespace MinecraftServerSharp.Net
                     new { text = "Kicked by server\n", bold = true },
                     new { text = reason, bold = false }
                 };
-                chat = new Chat(new Utf8String(JsonSerializer.Serialize(dyn)));
+                chat = new Chat((Utf8String)JsonSerializer.Serialize(dyn));
             }
             Kick(chat);
         }

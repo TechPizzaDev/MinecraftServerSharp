@@ -20,6 +20,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MinecraftServerSharp.Base",
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MinecraftServerSharp.Runner", "MinecraftServerSharp.Runner\MinecraftServerSharp.Runner.csproj", "{F882822D-F2D4-4DC2-91C0-FE0439D41BDB}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MinecraftServerSharp.Net", "MinecraftServerSharp.Net\MinecraftServerSharp.Net.csproj", "{9A147149-BD48-43EB-9AEB-CB80FEA24D30}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -50,6 +52,10 @@ Global
 		{F882822D-F2D4-4DC2-91C0-FE0439D41BDB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F882822D-F2D4-4DC2-91C0-FE0439D41BDB}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F882822D-F2D4-4DC2-91C0-FE0439D41BDB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9A147149-BD48-43EB-9AEB-CB80FEA24D30}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9A147149-BD48-43EB-9AEB-CB80FEA24D30}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9A147149-BD48-43EB-9AEB-CB80FEA24D30}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9A147149-BD48-43EB-9AEB-CB80FEA24D30}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

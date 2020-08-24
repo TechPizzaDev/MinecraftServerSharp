@@ -170,7 +170,7 @@ namespace MinecraftServerSharp.Net
                     .Replace("\"%max%\"", 20.ToString(numFormat), strComparison)
                     .Replace("\"%online%\"", 0.ToString(numFormat), strComparison);
 
-                var answer = new ServerResponse(new Utf8String(jsonResponse));
+                var answer = new ServerResponse((Utf8String)jsonResponse);
                 connection.EnqueuePacket(answer);
             });
 
@@ -206,10 +206,11 @@ namespace MinecraftServerSharp.Net
                 var playerId = new EntityId(69);
 
                 connection.EnqueuePacket(new ServerJoinGame(
-                    playerId.Value, 3, 0, 0, 0, new Utf8String("default"), 8, false, true));
+                    playerId.Value, 3, 0, 0, 0, (Utf8String)"default", 8, false, true));
 
                 connection.EnqueuePacket(new ServerPluginMessage(
-                    new Utf8String("minecraft:brand"), new Utf8String("MinecraftServerSharp")));
+                    (Utf8String)"minecraft:brand", 
+                    (Utf8String)"MinecraftServerSharp"));
 
                 connection.EnqueuePacket(new ServerSpawnPosition(
                     new Position(0, 16, 0)));

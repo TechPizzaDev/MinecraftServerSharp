@@ -90,7 +90,7 @@ namespace MinecraftServerSharp
             return StringHelper.Utf8.GetString(Bytes);
         }
 
-        // TODO: possibly optimize implicit casting with interning
+        // TODO: possibly optimize with interning
 
         public static explicit operator string(Utf8String value)
         {
@@ -105,7 +105,15 @@ namespace MinecraftServerSharp
             if (value == null)
                 return null!;
 
+            if (value.Length == 0)
+                return Empty;
+
             return new Utf8String(value);
+        }
+
+        public static Utf8String ToUtf8String(string value)
+        {
+            return (Utf8String)value;
         }
     }
 }

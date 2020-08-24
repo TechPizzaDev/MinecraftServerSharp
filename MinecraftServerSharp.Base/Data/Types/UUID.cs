@@ -69,7 +69,7 @@ namespace MinecraftServerSharp
 
         public Utf8String ToUtf8String()
         {
-            return new Utf8String(ToString(UUIDRepresentation.HyphenHex, false));
+            return (Utf8String)ToString(UUIDRepresentation.HyphenHex, false);
         }
 
         public string ToString(UUIDRepresentation representation, bool compact)

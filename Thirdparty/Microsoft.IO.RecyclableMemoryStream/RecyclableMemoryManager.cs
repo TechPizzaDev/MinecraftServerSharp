@@ -374,7 +374,7 @@ namespace MinecraftServerSharp.Utility
             }
             else
             {
-                return ((requiredSize + LargeBufferMultiple - 1) / LargeBufferMultiple) * LargeBufferMultiple;
+                return (requiredSize + LargeBufferMultiple - 1) / LargeBufferMultiple * LargeBufferMultiple;
             }
         }
 
