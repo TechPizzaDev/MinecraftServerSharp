@@ -1,6 +1,6 @@
 ﻿using MinecraftServerSharp.Data;
 
-namespace MinecraftServerSharp.Network.Packets
+namespace MinecraftServerSharp.Net.Packets
 {
     [PacketStruct(ClientPacketId.EntityAction)]
     public readonly struct ClientEntityAction

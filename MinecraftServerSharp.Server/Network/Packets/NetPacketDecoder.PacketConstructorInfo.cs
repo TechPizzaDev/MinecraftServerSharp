@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Reflection;
 
-namespace MinecraftServerSharp.Network.Packets
+namespace MinecraftServerSharp.Net.Packets
 {
     public partial class NetPacketDecoder
     {

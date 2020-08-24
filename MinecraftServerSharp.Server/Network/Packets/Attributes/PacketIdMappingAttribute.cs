@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace MinecraftServerSharp.Network.Packets
+namespace MinecraftServerSharp.Net.Packets
 {
     // TODO: add dynamic ID mapping by file
 

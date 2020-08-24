@@ -5,11 +5,11 @@ using System.Globalization;
 using System.Net;
 using System.Reflection;
 using MinecraftServerSharp.Collections;
-using MinecraftServerSharp.Network.Packets;
+using MinecraftServerSharp.Net.Packets;
 using MinecraftServerSharp.Utility;
 using MinecraftServerSharp.World;
 
-namespace MinecraftServerSharp.Network
+namespace MinecraftServerSharp.Net
 {
     public class NetManager
     {

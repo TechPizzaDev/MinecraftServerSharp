@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace MinecraftServerSharp.Network.Packets
+namespace MinecraftServerSharp.Net.Packets
 {
     /// <summary>
     /// Specifies a packet constructor.

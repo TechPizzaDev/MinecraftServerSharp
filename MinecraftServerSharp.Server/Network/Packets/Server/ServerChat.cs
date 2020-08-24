@@ -1,5 +1,5 @@
 ﻿
-namespace MinecraftServerSharp.Network.Packets
+namespace MinecraftServerSharp.Net.Packets
 {
     [PacketStruct(ServerPacketId.ChatMessage)]
     public readonly struct ServerChat

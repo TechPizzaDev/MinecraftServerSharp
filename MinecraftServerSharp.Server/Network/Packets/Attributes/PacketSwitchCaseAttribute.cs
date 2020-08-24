@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace MinecraftServerSharp.Network.Packets
+namespace MinecraftServerSharp.Net.Packets
 {
     /// <summary>
     /// Marks a parameter to be treated as a switch case for union packets.

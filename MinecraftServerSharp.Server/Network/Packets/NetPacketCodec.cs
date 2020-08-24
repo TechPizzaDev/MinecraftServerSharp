@@ -4,7 +4,7 @@ using System.Linq;
 using System.Reflection;
 using MinecraftServerSharp.Utility;
 
-namespace MinecraftServerSharp.Network.Packets
+namespace MinecraftServerSharp.Net.Packets
 {
     public abstract partial class NetPacketCodec<TPacketId>
         where TPacketId : Enum

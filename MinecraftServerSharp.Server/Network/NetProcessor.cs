@@ -4,10 +4,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
 using System.Threading;
-using MinecraftServerSharp.Network.Packets;
+using MinecraftServerSharp.Net.Packets;
 using MinecraftServerSharp.Utility;
 
-namespace MinecraftServerSharp.Network
+namespace MinecraftServerSharp.Net
 {
     public delegate void PacketHandlerDelegate(
         NetConnection connection, int rawPacketId, NetPacketDecoder.PacketIdDefinition packetIdDefinition);

@@ -7,7 +7,7 @@ using MinecraftServerSharp.Data;
 using MinecraftServerSharp.Data.IO;
 using MinecraftServerSharp.NBT;
 
-namespace MinecraftServerSharp.Network.Packets
+namespace MinecraftServerSharp.Net.Packets
 {
     /// <summary>
     /// Gives access to delegates that turn packets into network messages.

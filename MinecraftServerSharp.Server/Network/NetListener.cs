@@ -3,7 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Net.Sockets;
 
-namespace MinecraftServerSharp.Network
+namespace MinecraftServerSharp.Net
 {
     /// <summary>
     /// Entry point for network connections.

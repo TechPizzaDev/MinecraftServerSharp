@@ -3,7 +3,7 @@ using MinecraftServerSharp.Data.IO;
 using MinecraftServerSharp.NBT;
 using MinecraftServerSharp.World;
 
-namespace MinecraftServerSharp.Network.Packets
+namespace MinecraftServerSharp.Net.Packets
 {
     [PacketStruct(ServerPacketId.ChunkData)]
     public struct ServerChunkData : IWritablePacket

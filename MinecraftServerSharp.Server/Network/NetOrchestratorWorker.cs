@@ -6,10 +6,10 @@ using System.IO;
 using System.Reflection;
 using System.Threading;
 using MinecraftServerSharp.Data.IO;
-using MinecraftServerSharp.Network.Packets;
+using MinecraftServerSharp.Net.Packets;
 using MinecraftServerSharp.Utility;
 
-namespace MinecraftServerSharp.Network
+namespace MinecraftServerSharp.Net
 {
     public partial class NetOrchestratorWorker : IDisposable
     {

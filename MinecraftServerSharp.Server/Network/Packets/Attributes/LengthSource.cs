@@ -1,4 +1,4 @@
-﻿namespace MinecraftServerSharp.Network.Packets
+﻿namespace MinecraftServerSharp.Net.Packets
 {
     public enum LengthSource
     {

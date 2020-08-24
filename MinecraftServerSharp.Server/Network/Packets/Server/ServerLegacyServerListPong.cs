@@ -2,7 +2,7 @@
 using System.IO;
 using MinecraftServerSharp.Data.IO;
 
-namespace MinecraftServerSharp.Network.Packets
+namespace MinecraftServerSharp.Net.Packets
 {
     [PacketStruct(ServerPacketId.LegacyServerListPong)]
     public readonly struct ServerLegacyServerListPong : IWritablePacket

@@ -2,7 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 
-namespace MinecraftServerSharp.Network
+namespace MinecraftServerSharp.Net
 {
     public class NetOrchestrator
     {

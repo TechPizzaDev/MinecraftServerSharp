@@ -1,5 +1,5 @@
 ﻿
-namespace MinecraftServerSharp.Network.Packets
+namespace MinecraftServerSharp.Net.Packets
 {
     [PacketStruct(ServerPacketId.EntityTeleport)]
     public readonly struct ServerEntityTeleport

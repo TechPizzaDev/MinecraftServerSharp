@@ -1,6 +1,6 @@
 ﻿using MinecraftServerSharp.Data;
 
-namespace MinecraftServerSharp.Network.Packets
+namespace MinecraftServerSharp.Net.Packets
 {
     [PacketStruct(ClientPacketId.Animation)]
     public readonly struct ClientAnimation

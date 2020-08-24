@@ -4,10 +4,10 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
 using MinecraftServerSharp.Data.IO;
-using MinecraftServerSharp.Network.Packets;
+using MinecraftServerSharp.Net.Packets;
 using MinecraftServerSharp.Utility;
 
-namespace MinecraftServerSharp.Network
+namespace MinecraftServerSharp.Net
 {
     public partial class NetConnection
     {

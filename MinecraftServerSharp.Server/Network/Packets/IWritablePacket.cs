@@ -1,6 +1,6 @@
 ﻿using MinecraftServerSharp.Data.IO;
 
-namespace MinecraftServerSharp.Network.Packets
+namespace MinecraftServerSharp.Net.Packets
 {
     public interface IWritablePacket
     {

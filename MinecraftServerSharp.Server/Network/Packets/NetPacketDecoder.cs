@@ -6,7 +6,7 @@ using System.Linq.Expressions;
 using System.Reflection;
 using MinecraftServerSharp.Data.IO;
 
-namespace MinecraftServerSharp.Network.Packets
+namespace MinecraftServerSharp.Net.Packets
 {
     /// <summary>
     /// Gives access to delegates that turn network messages into packets.

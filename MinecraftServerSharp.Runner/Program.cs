@@ -2,7 +2,7 @@
 using System.Net;
 using System.Reflection;
 using MinecraftServerSharp.Data;
-using MinecraftServerSharp.Network;
+using MinecraftServerSharp.Net;
 
 namespace MinecraftServerSharp.Runner
 {
