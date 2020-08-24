@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Buffers;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
-using MinecraftServerSharp.Net.Data;
 
 namespace MinecraftServerSharp
 {
@@ -106,9 +106,14 @@ namespace MinecraftServerSharp
             return OperationStatus.Done;
         }
 
+        public string ToString(IFormatProvider? provider)
+        {
+            return Value.ToString(provider);
+        }
+
         public override string ToString()
         {
-            return Value.ToString();
+            return ToString(CultureInfo.CurrentCulture);
         }
 
         public static implicit operator int(VarInt value) => value.Value;

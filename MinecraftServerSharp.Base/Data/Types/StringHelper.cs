@@ -24,7 +24,7 @@ namespace MinecraftServerSharp
         public static void AssertValidStringLength(int length)
         {
             if (!IsValidStringLength(length))
-                throw new ArgumentException(nameof(length));
+                throw new ArgumentOutOfRangeException(nameof(length));
         }
 
         public static void AssertValidStringByteLength(int byteLength)

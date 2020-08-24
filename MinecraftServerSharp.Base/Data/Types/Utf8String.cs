@@ -82,6 +82,11 @@ namespace MinecraftServerSharp
                 && Bytes.SequenceEqual(other.Bytes);
         }
 
+        public override bool Equals(object? obj)
+        {
+            return Equals(obj as Utf8String);
+        }
+
         /// <summary>
         /// Constructs a new <see cref="string"/> from this <see cref="Utf8String"/>.
         /// </summary>

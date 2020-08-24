@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 
 namespace MinecraftServerSharp
@@ -74,9 +75,14 @@ namespace MinecraftServerSharp
             return OperationStatus.Done;
         }
 
+        public string ToString(IFormatProvider? provider)
+        {
+            return Value.ToString(provider);
+        }
+
         public override string ToString()
         {
-            return Value.ToString();
+            return ToString(CultureInfo.CurrentCulture);
         }
 
         public static implicit operator long(VarLong value) => value.Value;

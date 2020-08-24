@@ -9,7 +9,7 @@ namespace MinecraftServerSharp.Utility
         [EventSource(Name = "Microsoft-IO-RecyclableMemoryStream", Guid = "{B80CD4E4-890E-468D-9CBA-90EB7C82DFC7}")]
         public sealed class Events : EventSource
         {
-            public static Events Writer = new Events();
+            public static Events Writer { get; set; } = new Events();
 
             public enum MemoryStreamBufferType
             {

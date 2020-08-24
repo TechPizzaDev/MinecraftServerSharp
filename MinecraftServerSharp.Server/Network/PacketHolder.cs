@@ -25,6 +25,7 @@ namespace MinecraftServerSharp.Net
         public PacketHolder(NetPacketEncoder.PacketWriterDelegate<TPacket> writerDelegate)
         {
             WriterDelegate = writerDelegate ?? throw new ArgumentNullException(nameof(writerDelegate));
+            Packet = default;
         }
     }
 }
