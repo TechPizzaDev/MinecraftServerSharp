@@ -18,13 +18,17 @@ namespace MinecraftServerSharp.World
 
         public ReadOnlyMemory<ChunkSection> Sections => _sections;
 
-        public Chunk(int x, int y, Dimension dimension)
+        public Chunk(int x, int z, Dimension dimension, IBlockPalette blockPalette)
         {
+            X = x;
+            Z = z;
             Dimension = dimension ?? throw new ArgumentNullException(nameof(dimension));
 
             _sections = new ChunkSection[SectionCount];
-            for (int i = 0; i < _sections.Length; i++)
-                _sections[i] = new ChunkSection(this);
+            for (int y = 0; y < _sections.Length; y++)
+            {
+                _sections[y] = new ChunkSection(this, y, blockPalette);
+            }
         }
 
         public int GetBiome(int x, int y, int z)

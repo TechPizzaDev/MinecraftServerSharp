@@ -37,7 +37,11 @@ namespace MinecraftServerSharp.Net.Packets
         [Mapping(State.Play, 0x26)] JoinGame,
 
         [Mapping(State.Play, 0x36)] PlayerPositionLook,
+
+        [Mapping(State.Play, 0x41)] UpdateViewPosition,
+        [Mapping(State.Play, 0x42)] UpdateViewDistance,
         [Mapping(State.Play, 0x4E)] SpawnPosition,
+
         [Mapping(State.Play, 0x57)] EntityTeleport,
 
         #endregion

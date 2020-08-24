@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Net;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using MinecraftServerSharp.Collections;
 using MinecraftServerSharp.Net.Packets;
 using MinecraftServerSharp.Utility;
@@ -206,32 +207,60 @@ namespace MinecraftServerSharp.Net
                 var playerId = new EntityId(69);
 
                 connection.EnqueuePacket(new ServerJoinGame(
-                    playerId.Value, 3, 0, 0, 0, (Utf8String)"default", 8, false, true));
+                    playerId.Value, 3, 0, 0, 0, (Utf8String)"default", 16, false, true));
 
                 connection.EnqueuePacket(new ServerPluginMessage(
-                    (Utf8String)"minecraft:brand", 
+                    (Utf8String)"minecraft:brand",
                     (Utf8String)"MinecraftServerSharp"));
 
                 connection.EnqueuePacket(new ServerSpawnPosition(
-                    new Position(0, 16, 0)));
+                    new Position(0, 128, 0)));
 
                 connection.EnqueuePacket(new ServerPlayerPositionLook(
-                    0, 16, 0, 0, 0, ServerPlayerPositionLook.PositionRelatives.None, 1337));
+                    0, 128, 0, 0, 0, ServerPlayerPositionLook.PositionRelatives.None, 1337));
 
+                var palette = new DirectBlockPalette();
+                uint num = 100;
+                for (uint j = 0; j < num; j++)
+                {
+                    //if (j == 6)
+                    //    continue;
+
+                    var state = new BlockState();
+                    palette._stateToId.Add(state, j);
+                    palette._idToState.Add(j, state);
+                }
+
+                uint i = 0;
                 var dimension = new Dimension();
-                var chunk1 = new Chunk(0, 0, dimension);
-                var chunk2 = new Chunk(0, 1, dimension);
-                var chunk3 = new Chunk(1, 0, dimension);
-                var chunk4 = new Chunk(1, 1, dimension);
-                var chunkData1 = new ServerChunkData(chunk1, true);
-                var chunkData2 = new ServerChunkData(chunk2, true);
-                var chunkData3 = new ServerChunkData(chunk3, true);
-                var chunkData4 = new ServerChunkData(chunk4, true);
-                connection.EnqueuePacket(chunkData1);
-                connection.EnqueuePacket(chunkData2);
-                connection.EnqueuePacket(chunkData3);
-                connection.EnqueuePacket(chunkData4);
+                for (int z = 0; z < 8; z++)
+                {
+                    for (int x = 0; x < 8; x++)
+                    {
+                        var chunk = new Chunk(x, z, dimension, palette);
+
+                        foreach (var section in chunk.Sections.Span)
+                        {
+                            if (palette._idToState.ContainsKey(i))
+                            {
+                                section.Fill(palette._idToState[i]);
+
+                                i = (i + 1) % num;
+                            }
+                        }
+
+                        var chunkData = new ServerChunkData(chunk, fullChunk: true);
+                        connection.EnqueuePacket(chunkData);
+                    }
+                }
             });
+
+
+            void PlayerPositionChange(NetConnection connection, double x, double y, double z)
+            {
+                connection.EnqueuePacket(
+                    new ServerUpdateViewPosition((VarInt)(x / 16), (VarInt)(z / 16)));
+            }
 
 
             SetPacketHandler(delegate (NetConnection connection, ClientTeleportConfirm teleportConfirm)
@@ -247,6 +276,8 @@ namespace MinecraftServerSharp.Net
                     " X" + playerPosition.X +
                     " Y" + playerPosition.FeetY +
                     " Z" + playerPosition.Z);
+
+                PlayerPositionChange(connection, playerPosition.X, playerPosition.FeetY, playerPosition.Z);
             });
 
 
@@ -258,6 +289,9 @@ namespace MinecraftServerSharp.Net
                                                 //" Y" + playerPosition.FeetY +
                                                 //" Z" + playerPosition.Z
                     );
+
+                PlayerPositionChange(
+                    connection, playerPositionRotation.X, playerPositionRotation.FeetY, playerPositionRotation.Z);
             });
 
 
@@ -302,7 +336,7 @@ namespace MinecraftServerSharp.Net
 
             SetPacketHandler(delegate (NetConnection connection, ClientRecipeBookData recipeBookData)
             {
-                 
+
             });
 
 

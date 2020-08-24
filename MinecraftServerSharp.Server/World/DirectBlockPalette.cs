@@ -1,21 +1,28 @@
-﻿using MinecraftServerSharp.Data.IO;
+﻿using System.Collections.Generic;
+using MinecraftServerSharp.Data.IO;
 
 namespace MinecraftServerSharp.World
 {
     public class DirectBlockPalette : IBlockPalette
     {
-        public static DirectBlockPalette Instance { get; } = new DirectBlockPalette();
+        public Dictionary<BlockState, uint> _stateToId = new Dictionary<BlockState, uint>();
+        public Dictionary<uint, BlockState> _idToState = new Dictionary<uint, BlockState>();
 
-        public int BitsPerBlock { get; } = 8;
+        public int BitsPerBlock { get; } = 14;
 
         private uint GetGlobalPaletteIdFromState(BlockState state)
         {
-            return 1;
+            _stateToId.TryGetValue(state, out uint id);
+            return id;
+
             // Implementation left to the user; see Data Generators for more info on the values
         }
 
-        private BlockState GetStateFromGlobalPaletteId(uint value)
+        private BlockState GetStateFromGlobalPaletteId(uint id)
         {
+            _idToState.TryGetValue(id, out var state);
+            return state;
+
             // Implementation left to the user; see Data Generators for more info on the values
             return BlockState.Empty;
         }

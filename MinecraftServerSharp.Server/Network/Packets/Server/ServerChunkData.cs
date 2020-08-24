@@ -132,7 +132,7 @@ namespace MinecraftServerSharp.Net.Packets
             IBlockPalette palette = section.BlockPalette;
             int bitsPerBlock = palette.BitsPerBlock;
 
-            writer.Write((short)0);
+            writer.Write((short)ChunkSection.BlockCount);
 
             writer.Write((byte)bitsPerBlock);
             palette.Write(writer);
@@ -145,18 +145,18 @@ namespace MinecraftServerSharp.Net.Packets
             // TODO: better allocation management, 8k on stack is not great
             Span<ulong> data = dataLength <= 1024 ? stackalloc ulong[dataLength] : new ulong[dataLength];
 
+            int blockIndex = 0;
             for (int y = 0; y < ChunkSection.Height; y++)
             {
                 for (int z = 0; z < ChunkSection.Width; z++)
                 {
-                    for (int x = 0; x < ChunkSection.Width; x++)
+                    for (int x = 0; x < ChunkSection.Width; x++, blockIndex++)
                     {
-                        int blockIndex = (((y * ChunkSection.Height) + z) * ChunkSection.Width) + x;
                         int startLong = blockIndex * bitsPerBlock / 64;
                         int startOffset = blockIndex * bitsPerBlock % 64;
                         int endLong = ((blockIndex + 1) * bitsPerBlock - 1) / 64;
 
-                        BlockState state = section.GetState(x, y, z);
+                        BlockState state = section.GetBlockState(blockIndex);
                         ulong value = palette.IdForState(state);
                         value &= individualValueMask;
 

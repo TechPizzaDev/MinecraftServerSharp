@@ -18,17 +18,18 @@ namespace MinecraftServerSharp.Data.IO
                 Span<int> buffer = stackalloc int[Math.Min(source.Length, 2048 / sizeof(int))];
 
                 int offset = 0;
-                while (offset < source.Length)
+                do
                 {
                     // TODO: vectorize
 
-                    var slice = source.Slice(offset, Math.Min(buffer.Length, source.Length));
+                    var slice = source.Slice(offset, Math.Min(buffer.Length, source.Length - offset));
                     for (int i = 0; i < slice.Length; i++)
                         buffer[i] = BinaryPrimitives.ReverseEndianness(slice[i]);
 
                     WriteBytes(writer, buffer.Slice(0, slice.Length));
                     offset += slice.Length;
                 }
+                while (offset < source.Length);
             }
 
             if (BitConverter.IsLittleEndian)
@@ -56,20 +57,23 @@ namespace MinecraftServerSharp.Data.IO
 
             static void WriteReverse(NetBinaryWriter writer, ReadOnlySpan<ulong> source)
             {
-                Span<ulong> buffer = stackalloc ulong[Math.Min(source.Length, 2048 / sizeof(long))];
+                Span<ulong> buffer = stackalloc ulong[Math.Min(source.Length, 2048 / sizeof(ulong))];
 
                 int offset = 0;
-                while (offset < source.Length)
+                do
                 {
                     // TODO: vectorize
 
-                    var slice = source.Slice(offset, Math.Min(buffer.Length, source.Length));
+                    int count = Math.Min(buffer.Length, source.Length - offset);
+                    var slice = source.Slice(offset, count);
                     for (int i = 0; i < slice.Length; i++)
                         buffer[i] = BinaryPrimitives.ReverseEndianness(slice[i]);
 
                     WriteBytes(writer, buffer.Slice(0, slice.Length));
                     offset += slice.Length;
+
                 }
+                while (offset < source.Length);
             }
 
             if (BitConverter.IsLittleEndian)
