@@ -1,9 +1,8 @@
-﻿
+﻿using System;
+using System.Diagnostics.Tracing;
+
 namespace MinecraftServerSharp.Utility
 {
-    using System;
-    using System.Diagnostics.Tracing;
-
     public sealed partial class RecyclableMemoryManager
     {
         [EventSource(Name = "Microsoft-IO-RecyclableMemoryStream", Guid = "{B80CD4E4-890E-468D-9CBA-90EB7C82DFC7}")]
