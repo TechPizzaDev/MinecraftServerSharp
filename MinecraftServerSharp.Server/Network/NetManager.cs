@@ -199,6 +199,7 @@ namespace MinecraftServerSharp.Net
 
                 var name = loginStart.Name;
                 var answer = new ServerLoginSuccess(uuid.ToUtf8String(), name);
+                connection.UserName = loginStart.Name.ToString();
 
                 connection.EnqueuePacket(answer);
 
