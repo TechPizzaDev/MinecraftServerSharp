@@ -269,6 +269,14 @@ namespace MinecraftServerSharp.Net
             });
 
 
+            SetPacketHandler(delegate (NetConnection connection, ClientPlayerMovement playerMovement)
+            {
+                // This will always be false right now as the player is always flying
+                Console.WriteLine("player is " + (playerMovement.OnGround ? " " : "not") + "on ground"); 
+                // We safely ignore this packet right now as it isn't used for much
+            });
+
+
             SetPacketHandler(delegate (NetConnection connection, ClientPlayerPosition playerPosition)
             {
                 Console.WriteLine(
