@@ -138,6 +138,9 @@ namespace MinecraftServerSharp.Net
 
         private void SetupPacketHandlers()
         {
+            // FIXME: most of these empty handlers are registered so the NetProcessor doesn't 
+            //        complain about missing handlers when testing the server by connecting to it
+            
             Processor.LegacyServerListPingHandler = delegate (NetConnection connection, ClientLegacyServerListPing? ping)
             {
                 bool isBeta = !ping.HasValue;
@@ -196,15 +199,14 @@ namespace MinecraftServerSharp.Net
             SetPacketHandler(delegate (NetConnection connection, ClientLoginStart loginStart)
             {
                 var uuid = new UUID(0, 1);
-
-                var name = loginStart.Name;
-                var answer = new ServerLoginSuccess(uuid.ToUtf8String(), name);
-
+                var playerId = new EntityId(69);
+                var requestedName = loginStart.Name;
+                
+                var answer = new ServerLoginSuccess(uuid.ToUtf8String(), requestedName);
                 connection.EnqueuePacket(answer);
 
+                connection.UserName = requestedName.ToString();
                 connection.State = ProtocolState.Play;
-
-                var playerId = new EntityId(69);
 
                 connection.EnqueuePacket(new ServerJoinGame(
                     playerId.Value, 3, 0, 0, 0, (Utf8String)"default", 16, false, true));
@@ -266,6 +268,14 @@ namespace MinecraftServerSharp.Net
             SetPacketHandler(delegate (NetConnection connection, ClientTeleportConfirm teleportConfirm)
             {
                 Console.WriteLine("Teleport Confirm: Id " + teleportConfirm.TeleportId);
+            });
+
+
+            SetPacketHandler(delegate (NetConnection connection, ClientPlayerMovement playerMovement)
+            {
+                // This will always be false right now as the player is always flying
+                Console.WriteLine("player is " + (playerMovement.OnGround ? " " : "not") + "on ground"); 
+                // We safely ignore this packet right now as it isn't used for much
             });
 
 
