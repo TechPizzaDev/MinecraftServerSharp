@@ -148,7 +148,8 @@ namespace MinecraftServerSharp.Net
             {
                 foreach (NetConnection connection in Connections)
                 {
-                    connection.EnqueuePacket(new ServerKeepAlive(keepAliveId));
+                    if (connection.State == ProtocolState.Play)
+                        connection.EnqueuePacket(new ServerKeepAlive(keepAliveId));
                 }
             }
         }

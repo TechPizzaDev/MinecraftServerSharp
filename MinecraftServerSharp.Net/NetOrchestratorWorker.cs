@@ -19,9 +19,6 @@ namespace MinecraftServerSharp.Net
     /// </summary>
     public partial class NetOrchestratorWorker : IDisposable
     {
-        public const int PacketPoolItemLimit = 64;
-        public const int PacketPoolCommonItemLimit = 256;
-
         private delegate PacketWriteResult WritePacketDelegate(
             PacketHolder packetHolder,
             PacketSerializationMode mode,
@@ -34,19 +31,8 @@ namespace MinecraftServerSharp.Net
         private static ConcurrentDictionary<Type, WritePacketDelegate> WritePacketDelegateCache { get; } =
             new ConcurrentDictionary<Type, WritePacketDelegate>();
 
-        private static HashSet<Type> _commonPacketTypes = new HashSet<Type>
-        {
-            typeof(ServerKeepAlive),
-            typeof(ClientKeepAlive),
-            typeof(ClientPlayerPosition),
-            typeof(ClientPlayerRotation),
-            typeof(ClientPlayerPositionRotation)
-        };
-
         private ChunkedMemoryStream _packetWriteBuffer;
-        private PacketHolderPool _packetHolderPool;
         private AutoResetEvent _flushRequestEvent;
-        private Queue<PacketHolder> _packetSendQueue;
 
         public NetOrchestrator Orchestrator { get; }
         public Thread Thread { get; }
@@ -54,29 +40,14 @@ namespace MinecraftServerSharp.Net
         public bool IsDisposed { get; private set; }
         public bool IsRunning { get; private set; }
 
-        public int PacketSendQueueCount => _packetSendQueue.Count;
-
         public NetOrchestratorWorker(NetOrchestrator orchestrator)
         {
             Orchestrator = orchestrator ?? throw new ArgumentNullException(nameof(orchestrator));
 
             _packetWriteBuffer = Orchestrator.Codec.MemoryManager.GetStream();
-            _packetHolderPool = new PacketHolderPool(StorePacketPredicate);
             _flushRequestEvent = new AutoResetEvent(false);
-            _packetSendQueue = new Queue<PacketHolder>();
 
             Thread = new Thread(ThreadRunner);
-        }
-
-        private static bool StorePacketPredicate(
-            PacketHolderPool sender, Type packetType, int currentCount)
-        {
-            int limit = PacketPoolItemLimit;
-
-            if (_commonPacketTypes.Contains(packetType))
-                limit = PacketPoolCommonItemLimit;
-
-            return currentCount < limit;
         }
 
         public void Start()
@@ -93,20 +64,6 @@ namespace MinecraftServerSharp.Net
         public void RequestFlush()
         {
             _flushRequestEvent.Set();
-        }
-
-        public PacketHolder<TPacket> GetPacketHolder<TPacket>(TPacket packet, NetConnection connection)
-        {
-            var encoder = Orchestrator.Codec.Encoder;
-            var writer = encoder.GetPacketWriter<TPacket>();
-
-            lock (_packetHolderPool)
-            {
-                return _packetHolderPool.Rent(
-                    writer,
-                    connection,
-                    packet);
-            }
         }
 
         private static WritePacketDelegate GetWritePacketDelegate(Type packetType)
@@ -141,6 +98,8 @@ namespace MinecraftServerSharp.Net
                 if (!connection.Orchestrator.Codec.Encoder.TryGetPacketIdDefinition(
                     holder.State, holder.PacketType, out var idDefinition))
                 {
+                    Console.WriteLine("whydo: " + holder.State + ": " + idDefinition.Id);
+
                     // We don't really want to continue if we don't even know what we're sending.
                     throw new Exception("Undefined server packet ID.");
                 }
@@ -170,25 +129,12 @@ namespace MinecraftServerSharp.Net
             return new PacketWriteResult(compressed, rawLength, length);
         }
 
-        public void EnqueuePacket(PacketHolder packetHolder)
-        {
-            lock (_packetSendQueue)
-                _packetSendQueue.Enqueue(packetHolder);
-        }
-
-        private bool TryDequeuePacket([MaybeNullWhen(false)] out PacketHolder packetHolder)
-        {
-            lock (_packetSendQueue)
-                return _packetSendQueue.TryDequeue(out packetHolder);
-        }
-
         private void ThreadRunner()
         {
             if (WritePacketMethod == null)
                 throw new Exception($"{nameof(WritePacketMethod)} is null.");
 
-            var processedConnections = new HashSet<NetConnection>();
-            int timeoutMillis = 50;
+            int timeoutMillis = 100;
 
             while (IsRunning)
             {
@@ -197,35 +143,34 @@ namespace MinecraftServerSharp.Net
                     // Wait to not waste time on repeating loop.
                     _flushRequestEvent.WaitOne(timeoutMillis);
 
-                    while (TryDequeuePacket(out var packetHolder))
+                    if (!Orchestrator.QueuesToFlush.TryDequeue(out var orchestratorQueue))
+                        continue;
+
+                    try
                     {
-                        Debug.Assert(
-                            packetHolder.Connection != null, "Packet holder has no attached connection.");
+                        var connection = orchestratorQueue.Connection;
 
-                        if (packetHolder.Connection.State != ProtocolState.Disconnected)
+                        while (orchestratorQueue.SendQueue.TryDequeue(out var packetHolder))
                         {
-                            var writePacketDelegate = GetWritePacketDelegate(packetHolder.PacketType);
-
-                            // TODO: compression
-                            var result = writePacketDelegate.Invoke(
-                                packetHolder, PacketSerializationMode.Uncompressed, _packetWriteBuffer);
+                            Debug.Assert(
+                                packetHolder.Connection != null, "Packet holder has no attached connection.");
 
                             if (packetHolder.Connection.State != ProtocolState.Disconnected)
-                                processedConnections.Add(packetHolder.Connection);
+                            {
+                                var writePacketDelegate = GetWritePacketDelegate(packetHolder.PacketType);
+
+                                // TODO: compression
+                                var result = writePacketDelegate.Invoke(
+                                    packetHolder, PacketSerializationMode.Uncompressed, _packetWriteBuffer);
+                            }
+
+                            // TODO: batch return of holders for less locking
+                            Orchestrator.ReturnPacketHolder(packetHolder);
                         }
 
-                        lock (_packetHolderPool)
-                            _packetHolderPool.Return(packetHolder);
-                    }
-
-                    foreach (var connection in processedConnections)
-                    {
                         try
                         {
-                            lock (connection.WriteMutex)
-                            {
-                                Orchestrator.Codec.TryFlushSendBuffer(connection);
-                            }
+                            Orchestrator.Codec.TryFlushSendBuffer(connection);
                         }
                         catch (Exception ex)
                         {
@@ -237,7 +182,11 @@ namespace MinecraftServerSharp.Net
                                 connection.Close(immediate: true);
                         }
                     }
-                    processedConnections.Clear();
+                    finally
+                    {
+                        lock (Orchestrator.OccupiedQueues)
+                            Orchestrator.OccupiedQueues.Remove(orchestratorQueue);
+                    }
                 }
                 catch (Exception ex)
                 {

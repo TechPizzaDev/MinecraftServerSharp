@@ -92,6 +92,21 @@ namespace MinecraftServerSharp.Net
             connection.ReceiveEvent.Completed += (s, e) => ProcessReceive((NetConnection)e.UserToken);
             connection.SendEvent.Completed += (s, e) => ProcessSend((NetConnection)e.UserToken);
 
+            new Thread(() =>
+            {
+                // TODO: fix this issue please
+                //       possible have to drop SocketAsyncEventArgs in favor of non-blocking Sockets
+
+                Thread.Sleep(10000);
+                if (connection.State == ProtocolState.Status)
+                {
+                    if (connection.Socket.ReceiveAsync(connection.ReceiveEvent))
+                    {
+                        Console.WriteLine(connection.ReceiveEvent.BytesTransferred);
+                    }
+                }
+            }).Start();
+
             // As soon as the client connects, start receiving
             if (!connection.Socket.ReceiveAsync(connection.ReceiveEvent))
                 ProcessReceive(connection);
@@ -199,35 +214,24 @@ namespace MinecraftServerSharp.Net
             }
         }
 
-        public bool TryFlushSendBuffer(NetConnection connection)
+        public void TryFlushSendBuffer(NetConnection connection)
         {
             if (connection == null)
                 throw new ArgumentNullException(nameof(connection));
 
-            if (Monitor.TryEnter(connection.WriteMutex))
+            lock (connection.WriteMutex)
             {
-                try
+                long length = connection.SendBuffer.Length;
+                if (length > 0 && connection.State != ProtocolState.Disconnected)
                 {
-                    var length = connection.SendBuffer.Length;
-                    if (length > 0 && connection.State != ProtocolState.Disconnected)
-                    {
-                        var buffer = connection.SendBuffer.GetBlock(0);
-                        int blockLength = Math.Min(connection.SendBuffer.BlockSize, (int)length);
-                        connection.SendEvent.SetBuffer(buffer.Slice(0, blockLength));
+                    var buffer = connection.SendBuffer.GetBlock(0);
+                    int blockLength = Math.Min(connection.SendBuffer.BlockSize, (int)length);
+                    connection.SendEvent.SetBuffer(buffer.Slice(0, blockLength));
 
-                        Console.WriteLine("sent " + blockLength);
-
-                        if (!connection.Socket.SendAsync(connection.SendEvent))
-                            ProcessSend(connection);
-                    }
-                    return true;
-                }
-                finally
-                {
-                    Monitor.Exit(connection.WriteMutex);
+                    if (!connection.Socket.SendAsync(connection.SendEvent))
+                        ProcessSend(connection);
                 }
             }
-            return false;
         }
 
         private bool ValidatePacketAndGetId(

@@ -301,11 +301,11 @@ namespace MinecraftServerSharp.Runner
             manager.SetPacketHandler(delegate
                 (NetConnection connection, ClientPlayerPosition playerPosition)
             {
-                Console.WriteLine(
-                    "Player Position:" +
-                    " X" + playerPosition.X +
-                    " Y" + playerPosition.FeetY +
-                    " Z" + playerPosition.Z);
+                //Console.WriteLine(
+                //    "Player Position:" +
+                //    " X" + playerPosition.X +
+                //    " Y" + playerPosition.FeetY +
+                //    " Z" + playerPosition.Z);
 
                 PlayerPositionChange(connection, playerPosition.X, playerPosition.FeetY, playerPosition.Z);
             });
@@ -314,12 +314,12 @@ namespace MinecraftServerSharp.Runner
             manager.SetPacketHandler(delegate
                 (NetConnection connection, ClientPlayerPositionRotation playerPositionRotation)
             {
-                Console.WriteLine(
-                    "Player Position Rotation:" // +
-                                                //" X" + playerPosition.X +
-                                                //" Y" + playerPosition.FeetY +
-                                                //" Z" + playerPosition.Z
-                    );
+                //Console.WriteLine(
+                //    "Player Position Rotation:" // +
+                //                                //" X" + playerPosition.X +
+                //                                //" Y" + playerPosition.FeetY +
+                //                                //" Z" + playerPosition.Z
+                //    );
 
                 PlayerPositionChange(
                     connection, playerPositionRotation.X, playerPositionRotation.FeetY, playerPositionRotation.Z);
@@ -329,10 +329,10 @@ namespace MinecraftServerSharp.Runner
             manager.SetPacketHandler(delegate
                 (NetConnection connection, ClientPlayerRotation playerRotation)
             {
-                Console.WriteLine(
-                    "Player Rotation:" +
-                    " Yaw" + playerRotation.Yaw +
-                    " Pitch" + playerRotation.Pitch);
+                //Console.WriteLine(
+                //    "Player Rotation:" +
+                //    " Yaw" + playerRotation.Yaw +
+                //    " Pitch" + playerRotation.Pitch);
             });
 
 
