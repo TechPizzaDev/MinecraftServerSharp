@@ -25,7 +25,8 @@
   <ItemGroup>
     <ProjectReference Include="..\MinecraftServerSharp.Base\MinecraftServerSharp.Base.csproj" />
     <ProjectReference Include="..\MinecraftServerSharp.NBT\MinecraftServerSharp.NBT.csproj" />
-    <ProjectReference Include="..\MinecraftServerSharp.Server\MinecraftServerSharp.Server.csproj" />
+    <ProjectReference Include="..\MinecraftServerSharp.Net\MinecraftServerSharp.Net.csproj" />
+    <ProjectReference Include="..\MinecraftServerSharp.Server\MinecraftServerSharp.World.csproj" />
   </ItemGroup>
 
 </Project>

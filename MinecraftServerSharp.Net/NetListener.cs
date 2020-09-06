@@ -35,15 +35,18 @@ namespace MinecraftServerSharp.Net
             Socket.Bind(localEndPoint);
         }
 
-        [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "Async Sockets")]
+        [SuppressMessage(
+            "Reliability",
+            "CA2000:Dispose objects before losing scope", 
+            Justification = "Async Sockets")]
         public void Start(int backlog)
         {
+            var acceptEvent = new SocketAsyncEventArgs();
+            acceptEvent.Completed += (s, e) => ProcessAccept(e);
+
             Socket.Listen(backlog);
             Started?.Invoke(this);
 
-            var acceptEvent = new SocketAsyncEventArgs();
-            acceptEvent.Completed += (s, e) => ProcessAccept(e);
-            
             StartAccept(acceptEvent);
         }
 
@@ -70,8 +73,8 @@ namespace MinecraftServerSharp.Net
                 receiveEvent,
                 sendEvent,
                 closeAction: CloseClientSocket);
-            
-            var receiveBuffer = new byte[4096];
+          
+            var receiveBuffer = new byte[1024 * 16];
             receiveEvent.SetBuffer(receiveBuffer, 0, receiveBuffer.Length);
 
             receiveEvent.UserToken = connection;

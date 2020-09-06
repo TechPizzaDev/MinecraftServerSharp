@@ -15,48 +15,33 @@ namespace MinecraftServerSharp.Net
     public delegate void LegacyServerListPingHandlerDelegate(
         NetConnection connection, ClientLegacyServerListPing? ping);
 
-    public partial class NetProcessor
+    public partial class NetPacketCodec
     {
-        public const int BlockSize = 1024 * 16;
-        public const int BlockMultiple = BlockSize * 16;
-        public const int MaxBufferSize = BlockMultiple * 16;
-
-        // These fit pretty well with the memory block sizes.
-        public const int MaxServerPacketSize = 2097152;
-        public const int MaxClientPacketSize = 32768;
-
         private Dictionary<ClientPacketId, PacketHandlerDelegate> PacketHandlers { get; } =
             new Dictionary<ClientPacketId, PacketHandlerDelegate>();
 
         private NetPacketDecoder.PacketIdDefinition LegacyServerListPingPacketDefinition { get; set; }
 
         public RecyclableMemoryManager MemoryManager { get; }
-        public NetPacketDecoder PacketDecoder { get; }
-        public NetPacketEncoder PacketEncoder { get; }
+        public NetPacketDecoder Decoder { get; }
+        public NetPacketEncoder Encoder { get; }
 
         public LegacyServerListPingHandlerDelegate? LegacyServerListPingHandler { get; set; }
 
         #region Constructors
 
-        public NetProcessor(int blockSize, int blockMultiple, int maxBufferSize)
+        public NetPacketCodec(RecyclableMemoryManager memoryManager)
         {
-            if (maxBufferSize < Math.Max(MaxClientPacketSize, MaxServerPacketSize))
-                throw new ArgumentOutOfRangeException(nameof(maxBufferSize));
-
-            MemoryManager = new RecyclableMemoryManager(blockSize, blockMultiple, maxBufferSize);
-            PacketDecoder = new NetPacketDecoder();
-            PacketEncoder = new NetPacketEncoder();
-        }
-
-        public NetProcessor() : this(BlockSize, BlockMultiple, MaxBufferSize)
-        {
+            MemoryManager = memoryManager ?? throw new ArgumentNullException(nameof(memoryManager));
+            Decoder = new NetPacketDecoder();
+            Encoder = new NetPacketEncoder();
         }
 
         #endregion
 
-        #region SetupCodecs
+        #region SetupCoders
 
-        public void SetupCodecs()
+        public void SetupCoders()
         {
             SetupDecoder();
             SetupEncoder();
@@ -64,13 +49,13 @@ namespace MinecraftServerSharp.Net
 
         private void SetupDecoder()
         {
-            PacketDecoder.RegisterClientPacketTypesFromCallingAssembly();
-            Console.WriteLine("Registered " + PacketDecoder.RegisteredTypeCount + " client packet types");
+            Decoder.RegisterClientPacketTypesFromCallingAssembly();
+            Console.WriteLine("Registered " + Decoder.RegisteredTypeCount + " client packet types");
 
-            PacketDecoder.InitializePacketIdMaps();
+            Decoder.InitializePacketIdMaps();
 
-            PacketDecoder.CreateCodecDelegates();
-            if (!PacketDecoder.TryGetPacketIdDefinition(ClientPacketId.LegacyServerListPing, out var definition))
+            Decoder.CreateCoderDelegates();
+            if (!Decoder.TryGetPacketIdDefinition(ClientPacketId.LegacyServerListPing, out var definition))
                 throw new InvalidOperationException(
                     $"Missing packet definition for \"{nameof(ClientPacketId.LegacyServerListPing)}\".");
             LegacyServerListPingPacketDefinition = definition;
@@ -78,12 +63,12 @@ namespace MinecraftServerSharp.Net
 
         private void SetupEncoder()
         {
-            PacketEncoder.RegisterServerPacketTypesFromCallingAssembly();
-            Console.WriteLine("Registered " + PacketDecoder.RegisteredTypeCount + " server packet types");
+            Encoder.RegisterServerPacketTypesFromCallingAssembly();
+            Console.WriteLine("Registered " + Decoder.RegisteredTypeCount + " server packet types");
 
-            PacketEncoder.InitializePacketIdMaps();
+            Encoder.InitializePacketIdMaps();
 
-            PacketEncoder.CreateCodecDelegates();
+            Encoder.CreateCoderDelegates();
         }
 
         #endregion
@@ -219,7 +204,7 @@ namespace MinecraftServerSharp.Net
             if (connection == null)
                 throw new ArgumentNullException(nameof(connection));
 
-            if (Monitor.TryEnter(connection.SendMutex))
+            if (Monitor.TryEnter(connection.WriteMutex))
             {
                 try
                 {
@@ -239,7 +224,7 @@ namespace MinecraftServerSharp.Net
                 }
                 finally
                 {
-                    Monitor.Exit(connection.SendMutex);
+                    Monitor.Exit(connection.WriteMutex);
                 }
             }
             return false;
@@ -259,15 +244,15 @@ namespace MinecraftServerSharp.Net
             }
 
             int packetLength = connection.ReceivedLength - packetIdBytes;
-            if (packetLength > MaxClientPacketSize)
+            if (packetLength > NetManager.MaxClientPacketSize)
             {
                 connection.Kick(
-                    $"Packet length {packetLength} exceeds {MaxClientPacketSize}.");
+                    $"Packet length {packetLength} exceeds {NetManager.MaxClientPacketSize}.");
                 definition = default;
                 return false;
             }
 
-            if (!PacketDecoder.TryGetPacketIdDefinition(
+            if (!Decoder.TryGetPacketIdDefinition(
                 connection.State, rawPacketId, out definition))
             {
                 connection.Kick($"Unknown packet ID \"{rawPacketId}\".");

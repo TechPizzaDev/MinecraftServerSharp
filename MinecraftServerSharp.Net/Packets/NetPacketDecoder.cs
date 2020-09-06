@@ -9,9 +9,9 @@ using MinecraftServerSharp.Data.IO;
 namespace MinecraftServerSharp.Net.Packets
 {
     /// <summary>
-    /// Gives access to delegates that turn network messages into packets.
+    /// Gives access to delegates that turn message data into packets.
     /// </summary>
-    public partial class NetPacketDecoder : NetPacketCodec<ClientPacketId>
+    public partial class NetPacketDecoder : NetPacketCoder<ClientPacketId>
     {
         public delegate OperationStatus PacketReaderDelegate<TPacket>(NetBinaryReader reader, out TPacket packet);
 
@@ -63,10 +63,10 @@ namespace MinecraftServerSharp.Net.Packets
 
         public PacketReaderDelegate<TPacket> GetPacketReader<TPacket>()
         {
-            return (PacketReaderDelegate<TPacket>)GetPacketCodec(typeof(TPacket));
+            return (PacketReaderDelegate<TPacket>)GetPacketCoder(typeof(TPacket));
         }
 
-        protected override Delegate CreateCodecDelegate(PacketStructInfo structInfo)
+        protected override Delegate CreateCoderDelegate(PacketStructInfo structInfo)
         {
             var constructors = structInfo.Type.GetConstructors();
             var constructorInfoList = constructors

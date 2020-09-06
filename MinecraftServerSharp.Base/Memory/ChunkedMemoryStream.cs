@@ -7,37 +7,49 @@ using System.Threading;
 
 namespace MinecraftServerSharp.Utility
 {
-
     /// <summary>
-    /// MemoryStream implementation that deals with pooling and managing memory streams which use potentially large
-    /// buffers.
+    /// <see cref="MemoryStream"/> implementation that deals with pooling and managing memory streams 
+    /// which use potentially large buffers.
     /// </summary>
     /// <remarks>
-    /// This class works in tandem with the RecyclableMemoryStreamManager to supply MemoryStream
-    /// objects to callers, while avoiding these specific problems:
-    /// 1. LOH allocations - since all large buffers are pooled, they will never incur a Gen2 GC
-    /// 2. Memory waste - A standard memory stream doubles its size when it runs out of room. This
-    /// leads to continual memory growth as each stream approaches the maximum allowed size.
-    /// 3. Memory copying - Each time a MemoryStream grows, all the bytes are copied into new buffers.
-    /// This implementation only copies the bytes when GetBuffer is called.
-    /// 4. Memory fragmentation - By using homogeneous buffer sizes, it ensures that blocks of memory
+    /// This class works in tandem with the <see cref="RecyclableMemoryManager"/> to supply 
+    /// <see cref="ChunkedMemoryStream"/> objects to callers, while avoiding these specific problems:
+    /// <list type="bullet">
+    /// <item>
+    /// LOH allocations - since all large buffers are pooled, they will never incur a Gen2 GC.
+    /// </item>
+    /// <item>
+    /// Memory waste - A standard memory stream doubles its size when it runs out of room. 
+    /// This leads to exponential memory growth as each stream approaches the maximum allowed size.
+    /// </item>
+    /// <item>
+    /// Memory copying - Each time a <see cref="MemoryStream"/> grows, 
+    /// all the bytes are copied into new buffers. This implementation only copies the 
+    /// bytes when <see cref="MemoryStream.GetBuffer"/> is called.
+    /// </item>
+    /// <item>
+    /// Memory fragmentation - By using homogeneous buffer sizes, it ensures that blocks of memory
     /// can be easily reused.
+    /// </item>
+    /// </list>
     /// 
-    /// The stream is implemented on top of a series of uniformly-sized blocks. As the stream's length grows,
-    /// additional blocks are retrieved from the memory manager. It is these blocks that are pooled, not the stream
-    /// object itself.
+    /// The stream is implemented on top of a series of uniformly-sized blocks. 
+    /// As the stream's length grows, additional blocks are retrieved from the memory manager. 
+    /// It is these blocks that are pooled, not the stream object itself.
     /// 
-    /// The biggest wrinkle in this implementation is when GetBuffer() is called. This requires a single 
-    /// contiguous buffer. If only a single block is in use, then that block is returned. If multiple blocks 
-    /// are in use, we retrieve a larger buffer from the memory manager. These large buffers are also pooled, 
-    /// split by size--they are multiples/exponentials of a chunk size (1 MB by default).
+    /// The biggest wrinkle in this implementation is when <see cref="MemoryStream.GetBuffer"/> is called.
+    /// This requires a single contiguous buffer. 
+    /// If only a single block is in use, then that block is returned. 
+    /// If multiple blocks are in use, we retrieve a larger buffer from the memory manager. 
+    /// These large buffers are also pooled,  split by size--they are multiples/exponentials 
+    /// of a chunk size (1 MB by default).
     /// 
-    /// Once a large buffer is assigned to the stream the blocks are NEVER again used for this stream. All operations take place on the 
-    /// large buffer. The large buffer can be replaced by a larger buffer from the pool as needed. All blocks and large buffers 
-    /// are maintained in the stream until the stream is disposed (unless AggressiveBufferReturn is enabled in the stream manager).
-    /// 
+    /// Once a large buffer is assigned to the stream the blocks are NEVER again used for this stream. 
+    /// All operations take place on the large buffer. The large buffer can be replaced by a larger 
+    /// buffer from the pool as needed. All blocks and large buffers are maintained in the stream 
+    /// until the stream is disposed (unless AggressiveBufferReturn is enabled in the stream manager).
     /// </remarks>
-    public sealed class RecyclableMemoryStream : MemoryStream
+    public sealed class ChunkedMemoryStream : MemoryStream
     {
         private const long MaxStreamLength = int.MaxValue;
 
@@ -133,7 +145,7 @@ namespace MinecraftServerSharp.Utility
         /// Allocate a new RecyclableMemoryStream object.
         /// </summary>
         /// <param name="memoryManager">The memory manager</param>
-        public RecyclableMemoryStream(RecyclableMemoryManager memoryManager)
+        public ChunkedMemoryStream(RecyclableMemoryManager memoryManager)
             : this(memoryManager, Guid.NewGuid(), null, 0, null)
         {
         }
@@ -143,7 +155,7 @@ namespace MinecraftServerSharp.Utility
         /// </summary>
         /// <param name="memoryManager">The memory manager</param>
         /// <param name="id">A unique identifier which can be used to trace usages of the stream.</param>
-        public RecyclableMemoryStream(RecyclableMemoryManager memoryManager, Guid id)
+        public ChunkedMemoryStream(RecyclableMemoryManager memoryManager, Guid id)
             : this(memoryManager, id, null, 0, null)
         {
         }
@@ -153,7 +165,7 @@ namespace MinecraftServerSharp.Utility
         /// </summary>
         /// <param name="memoryManager">The memory manager</param>
         /// <param name="tag">A string identifying this stream for logging and debugging purposes</param>
-        public RecyclableMemoryStream(RecyclableMemoryManager memoryManager, string? tag)
+        public ChunkedMemoryStream(RecyclableMemoryManager memoryManager, string? tag)
             : this(memoryManager, Guid.NewGuid(), tag, 0, null)
         {
         }
@@ -164,7 +176,7 @@ namespace MinecraftServerSharp.Utility
         /// <param name="memoryManager">The memory manager</param>
         /// <param name="id">A unique identifier which can be used to trace usages of the stream.</param>
         /// <param name="tag">A string identifying this stream for logging and debugging purposes</param>
-        public RecyclableMemoryStream(RecyclableMemoryManager memoryManager, Guid id, string? tag)
+        public ChunkedMemoryStream(RecyclableMemoryManager memoryManager, Guid id, string? tag)
             : this(memoryManager, id, tag, 0, null)
         {
         }
@@ -175,7 +187,7 @@ namespace MinecraftServerSharp.Utility
         /// <param name="memoryManager">The memory manager</param>
         /// <param name="tag">A string identifying this stream for logging and debugging purposes</param>
         /// <param name="requestedSize">The initial requested size to prevent future allocations</param>
-        public RecyclableMemoryStream(RecyclableMemoryManager memoryManager, string? tag, int requestedSize)
+        public ChunkedMemoryStream(RecyclableMemoryManager memoryManager, string? tag, int requestedSize)
             : this(memoryManager, Guid.NewGuid(), tag, requestedSize, null)
         {
         }
@@ -187,7 +199,7 @@ namespace MinecraftServerSharp.Utility
         /// <param name="id">A unique identifier which can be used to trace usages of the stream.</param>
         /// <param name="tag">A string identifying this stream for logging and debugging purposes</param>
         /// <param name="requestedSize">The initial requested size to prevent future allocations</param>
-        public RecyclableMemoryStream(
+        public ChunkedMemoryStream(
             RecyclableMemoryManager memoryManager, Guid id, string? tag, int requestedSize)
             : this(memoryManager, id, tag, requestedSize, null)
         {
@@ -204,7 +216,7 @@ namespace MinecraftServerSharp.Utility
         /// An initial buffer to use. 
         /// This buffer will be owned by the stream and returned to the memory manager upon Dispose.
         /// </param>
-        internal RecyclableMemoryStream(
+        internal ChunkedMemoryStream(
             RecyclableMemoryManager memoryManager, Guid id, string? tag, int requestedSize, byte[]? initialLargeBuffer)
             : base(Array.Empty<byte>())
         {
@@ -231,7 +243,7 @@ namespace MinecraftServerSharp.Utility
 
         #region Dispose and Finalize
 
-        ~RecyclableMemoryStream()
+        ~ChunkedMemoryStream()
         {
             Dispose(false);
         }
@@ -794,7 +806,7 @@ namespace MinecraftServerSharp.Utility
             return _blocks[index];
         }
 
-        public void RemoveBlockRange(int index, int count)
+        public void RemoveBlockRange(int startIndex, int count)
         {
             AssertNotDisposed();
 
@@ -804,9 +816,9 @@ namespace MinecraftServerSharp.Utility
                 return;
 
             for (int i = 0; i < count; i++)
-                _memoryManager.ReturnBlock(_blocks[i + index], _tag);
+                _memoryManager.ReturnBlock(_blocks[i + startIndex], _tag);
 
-            _blocks.RemoveRange(index, count);
+            _blocks.RemoveRange(startIndex, count);
 
             _length -= count * BlockSize;
         }

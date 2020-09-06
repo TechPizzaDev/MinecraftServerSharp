@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace MinecraftServerSharp.Net.Packets
 {
-    public abstract partial class NetPacketCodec<TPacketId>
+    public abstract partial class NetPacketCoder<TPacketId>
         where TPacketId : Enum
     {
         public readonly struct PacketIdDefinition : IEquatable<PacketIdDefinition>

@@ -8,7 +8,7 @@ namespace MinecraftServerSharp.Utility
         /// <summary>
         /// Removes a front portion of the memory stream.
         /// </summary>
-        public static void TrimStart(this RecyclableMemoryStream stream, int length)
+        public static void TrimStart(this ChunkedMemoryStream stream, int length)
         {
             // TODO: change RecyclableMemoryStream to allow every block to have
             // an offset, so we don't need to shift data

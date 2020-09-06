@@ -3,7 +3,7 @@ using System.Linq;
 
 namespace MinecraftServerSharp.Net.Packets
 {
-    public abstract partial class NetPacketCodec<TPacketId>
+    public abstract partial class NetPacketCoder<TPacketId>
         where TPacketId : Enum
     {
         public readonly struct DataTypeKey : IEquatable<DataTypeKey>
@@ -52,14 +52,14 @@ namespace MinecraftServerSharp.Net.Packets
             }
 
             public static bool operator ==(
-                NetPacketCodec<TPacketId>.DataTypeKey left, NetPacketCodec<TPacketId>.DataTypeKey right)
+                NetPacketCoder<TPacketId>.DataTypeKey left, NetPacketCoder<TPacketId>.DataTypeKey right)
             {
                 return left.ReturnType == right.ReturnType
                     && left._parameters.SequenceEqual(right._parameters);
             }
 
             public static bool operator !=(
-                NetPacketCodec<TPacketId>.DataTypeKey left, NetPacketCodec<TPacketId>.DataTypeKey right)
+                NetPacketCoder<TPacketId>.DataTypeKey left, NetPacketCoder<TPacketId>.DataTypeKey right)
             {
                 return !(left == right);
             }

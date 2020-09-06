@@ -20,13 +20,13 @@ namespace MinecraftServerSharp.Net
         public IPEndPoint RemoteEndPoint { get; }
 
         // TODO: make better use of the streams (recycle them better or something)
-        public RecyclableMemoryStream ReceiveBuffer { get; }
-        public RecyclableMemoryStream SendBuffer { get; }
+        public ChunkedMemoryStream ReceiveBuffer { get; }
+        public ChunkedMemoryStream SendBuffer { get; }
         public NetBinaryReader BufferReader { get; }
         public NetBinaryWriter BufferWriter { get; }
 
         public object WriteMutex { get; } = new object();
-        public object SendMutex { get; } = new object();
+        public object CloseMutex { get; } = new object();
 
         public int ReceivedLength { get; set; } = -1;
         public int ReceivedLengthBytes { get; set; } = -1;
@@ -38,7 +38,7 @@ namespace MinecraftServerSharp.Net
         // TODO: add thread-safe protocol state propagation
         public ProtocolState State { get; set; }
 
-        public string UserName { get; internal set; }
+        public string? UserName { get; internal set; }
 
         #region Constructors
 
@@ -58,8 +58,8 @@ namespace MinecraftServerSharp.Net
             // get it here as we can't get it later if the socket gets disposed
             RemoteEndPoint = (IPEndPoint)socket.RemoteEndPoint;
 
-            ReceiveBuffer = Orchestrator.Processor.MemoryManager.GetStream();
-            SendBuffer = Orchestrator.Processor.MemoryManager.GetStream();
+            ReceiveBuffer = Orchestrator.MemoryManager.GetStream();
+            SendBuffer = Orchestrator.MemoryManager.GetStream();
             BufferReader = new NetBinaryReader(ReceiveBuffer);
             BufferWriter = new NetBinaryWriter(SendBuffer);
 
@@ -70,7 +70,7 @@ namespace MinecraftServerSharp.Net
 
         public (OperationStatus Status, int Length) ReadPacket<TPacket>(out TPacket packet)
         {
-            var reader = Orchestrator.Processor.PacketDecoder.GetPacketReader<TPacket>();
+            var reader = Orchestrator.Codec.Decoder.GetPacketReader<TPacket>();
             long oldPosition = BufferReader.Position;
             var status = reader.Invoke(BufferReader, out packet);
             int length = (int)(BufferReader.Position - oldPosition);
@@ -149,7 +149,7 @@ namespace MinecraftServerSharp.Net
                     var packet = new ServerLoginDisconnect(reason.Value);
                     EnqueuePacket(packet);
                 }
-                Orchestrator.Flush();
+                Orchestrator.RequestFlush();
             }
 
             Close(immediate: false);
@@ -163,7 +163,7 @@ namespace MinecraftServerSharp.Net
                 return;
             }
 
-            lock (SendMutex)
+            lock (CloseMutex)
             {
                 if (_closeAction == null)
                     return;

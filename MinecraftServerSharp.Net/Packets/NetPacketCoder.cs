@@ -6,12 +6,12 @@ using MinecraftServerSharp.Utility;
 
 namespace MinecraftServerSharp.Net.Packets
 {
-    public abstract partial class NetPacketCodec<TPacketId>
+    public abstract partial class NetPacketCoder<TPacketId>
         where TPacketId : Enum
     {
         protected Dictionary<DataTypeKey, MethodInfo> DataTypeHandlers { get; }
         protected Dictionary<Type, PacketStructInfo> RegisteredPacketTypes { get; }
-        protected Dictionary<Type, Delegate> PacketCodecDelegates { get; }
+        protected Dictionary<Type, Delegate> PacketCoderDelegates { get; }
 
         /// <summary>
         /// Array of ID-to-packet mappings,
@@ -26,13 +26,13 @@ namespace MinecraftServerSharp.Net.Packets
         protected Dictionary<Type, PacketIdDefinition>[] TypeToPacketIdMaps { get; }
 
         public int RegisteredTypeCount => RegisteredPacketTypes.Count;
-        public int PreparedTypeCount => PacketCodecDelegates.Count;
+        public int PreparedTypeCount => PacketCoderDelegates.Count;
 
-        public NetPacketCodec()
+        public NetPacketCoder()
         {
             DataTypeHandlers = new Dictionary<DataTypeKey, MethodInfo>();
             RegisteredPacketTypes = new Dictionary<Type, PacketStructInfo>();
-            PacketCodecDelegates = new Dictionary<Type, Delegate>();
+            PacketCoderDelegates = new Dictionary<Type, Delegate>();
 
             int stateCount = Enum.GetValues(typeof(ProtocolState)).Length;
             PacketIdMaps = new Dictionary<int, PacketIdDefinition>[stateCount];
@@ -188,29 +188,29 @@ namespace MinecraftServerSharp.Net.Packets
 
         #region CoderDelegate-related methods
 
-        protected abstract Delegate CreateCodecDelegate(PacketStructInfo structInfo);
+        protected abstract Delegate CreateCoderDelegate(PacketStructInfo structInfo);
 
-        public void CreateCodecDelegates()
+        public void CreateCoderDelegates()
         {
             foreach (var pair in RegisteredPacketTypes)
             {
-                var codecDelegate = CreateCodecDelegate(pair.Value);
-                PacketCodecDelegates.Add(pair.Value.Type, codecDelegate);
+                var coderDelegate = CreateCoderDelegate(pair.Value);
+                PacketCoderDelegates.Add(pair.Value.Type, coderDelegate);
             }
         }
 
-        public Delegate GetPacketCodec(Type packetType)
+        public Delegate GetPacketCoder(Type packetType)
         {
-            if (!PacketCodecDelegates.TryGetValue(packetType, out var reader))
+            if (!PacketCoderDelegates.TryGetValue(packetType, out var reader))
             {
-                CreateCodecDelegate(new PacketStructInfo(packetType));
+                CreateCoderDelegate(new PacketStructInfo(packetType));
                 try
                 {
-                    reader = PacketCodecDelegates[packetType];
+                    reader = PacketCoderDelegates[packetType];
                 }
                 catch (KeyNotFoundException)
                 {
-                    throw new Exception($"Missing packet codec for \"{packetType}\".");
+                    throw new Exception($"Missing packet coder for \"{packetType}\".");
                 }
             }
             return reader;

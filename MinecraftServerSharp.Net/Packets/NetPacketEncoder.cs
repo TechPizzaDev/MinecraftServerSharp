@@ -9,13 +9,14 @@ using MinecraftServerSharp.NBT;
 
 namespace MinecraftServerSharp.Net.Packets
 {
+    public delegate void NetPacketWriterDelegate<TPacket>(
+        NetBinaryWriter writer, in TPacket packet);
+
     /// <summary>
     /// Gives access to delegates that turn packets into network messages.
     /// </summary>
-    public partial class NetPacketEncoder : NetPacketCodec<ServerPacketId>
+    public partial class NetPacketEncoder : NetPacketCoder<ServerPacketId>
     {
-        public delegate void PacketWriterDelegate<TPacket>(NetBinaryWriter writer, in TPacket packet);
-
         private static Type[] _binaryWriterWriteMethodSources = new[]
         {
             typeof(NetBinaryWriter),
@@ -67,12 +68,12 @@ namespace MinecraftServerSharp.Net.Packets
             RegisterPacketTypesFromCallingAssembly(x => x.Attribute.IsServerPacket);
         }
 
-        public PacketWriterDelegate<TPacket> GetPacketWriter<TPacket>()
+        public NetPacketWriterDelegate<TPacket> GetPacketWriter<TPacket>()
         {
-            return (PacketWriterDelegate<TPacket>)GetPacketCodec(typeof(TPacket));
+            return (NetPacketWriterDelegate<TPacket>)GetPacketCoder(typeof(TPacket));
         }
 
-        protected override Delegate CreateCodecDelegate(PacketStructInfo structInfo)
+        protected override Delegate CreateCoderDelegate(PacketStructInfo structInfo)
         {
             var expressions = new List<Expression>();
             var writerParam = Expression.Parameter(typeof(NetBinaryWriter), "Writer");
@@ -90,7 +91,7 @@ namespace MinecraftServerSharp.Net.Packets
                 CreateComplexPacketWriter(expressions, packetParam, writerParam);
             }
 
-            var writerDelegate = typeof(PacketWriterDelegate<>).MakeGenericType(structInfo.Type);
+            var writerDelegate = typeof(NetPacketWriterDelegate<>).MakeGenericType(structInfo.Type);
             var lambdaBody = Expression.Block(expressions);
             var lambdaArgs = new[] { writerParam, packetParam };
             var resultLambda = Expression.Lambda(writerDelegate, lambdaBody, lambdaArgs);

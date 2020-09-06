@@ -7,14 +7,14 @@ namespace MinecraftServerSharp.Net
     public abstract class PacketHolder
     {
         public long TransactionId { get; set; }
-        public NetConnection? TargetConnection { get; set; }
+        public NetConnection? Connection { get; set; }
 
         public abstract Type PacketType { get; }
     }
 
     public class PacketHolder<TPacket> : PacketHolder
     {
-        public NetPacketEncoder.PacketWriterDelegate<TPacket> WriterDelegate { get; }
+        public NetPacketWriterDelegate<TPacket> Writer { get; set; }
         public ProtocolState State { get; set; }
 
         [AllowNull]
@@ -22,9 +22,9 @@ namespace MinecraftServerSharp.Net
 
         public override Type PacketType => typeof(TPacket);
 
-        public PacketHolder(NetPacketEncoder.PacketWriterDelegate<TPacket> writerDelegate)
+        public PacketHolder()
         {
-            WriterDelegate = writerDelegate ?? throw new ArgumentNullException(nameof(writerDelegate));
+            Writer = default!;
             Packet = default;
         }
     }

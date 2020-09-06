@@ -16,6 +16,8 @@
   <ItemGroup>
     <Compile Remove="Network\Data\INetBinaryReader.cs" />
     <Compile Remove="Network\Data\INetBinaryWriter.cs" />
+    <Compile Remove="Network\*"/>
+    <None Include="Network\*"/>
   </ItemGroup>
 
   <ItemGroup>
