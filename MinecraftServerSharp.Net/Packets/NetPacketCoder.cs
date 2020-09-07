@@ -183,19 +183,6 @@ namespace MinecraftServerSharp.Net.Packets
             RegisterPacketTypes(packetTypes.Where(predicate));
         }
 
-        public void RegisterLoopbackPacketTypes(Assembly assembly)
-        {
-            var loopbackFields = new HashSet<TPacketId>(typeof(TPacketId).GetFields().Where(x =>
-            {
-                var attrib = x.GetCustomAttribute<PacketIdMappingAttribute>();
-                return attrib != null && attrib.State == ProtocolState.Loopback;
-            }).Select(x => (TPacketId)(x.GetRawConstantValue() ?? 0)));
-
-            var packetTypes = PacketStructInfo.GetPacketTypes(assembly);
-            RegisterPacketTypes(packetTypes.Where(
-                x => loopbackFields.Contains(EnumConverter<TPacketId>.Convert(x.Attribute.PacketId))));
-        }
-
         #endregion
 
         #region CoderDelegate-related methods

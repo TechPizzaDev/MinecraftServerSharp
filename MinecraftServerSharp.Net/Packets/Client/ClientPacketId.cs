@@ -6,7 +6,6 @@ namespace MinecraftServerSharp.Net.Packets
     public enum ClientPacketId
     {
         Undefined,
-        [Mapping(State.Loopback, 0)] ChangeState,
 
         #region Handshaking
 

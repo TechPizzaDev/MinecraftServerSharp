@@ -171,17 +171,8 @@ namespace MinecraftServerSharp.Runner
                 var answer = new ServerLegacyServerListPong(
                     isBeta, manager.ProtocolVersion, manager.GameVersion, motd, 0, 100);
 
-                connection.EnqueuePacket(new LoopbackChangeState(ProtocolState.Closing));
+                connection.Close(immediate: false);
             };
-
-
-            manager.SetPacketHandler(delegate
-                (NetConnection connection, LoopbackChangeState changeState)
-            {
-                Console.WriteLine("state change to: " + changeState.NextState);
-                connection.ProtocolState = changeState.NextState;
-            });
-
 
             manager.SetPacketHandler(delegate
                 (NetConnection connection, ClientRequest request)
@@ -202,7 +193,8 @@ namespace MinecraftServerSharp.Runner
 
                 var answer = new ServerResponse((Utf8String)jsonResponse);
                 connection.EnqueuePacket(answer);
-                connection.EnqueuePacket(new LoopbackChangeState(ProtocolState.Closing));
+
+                connection.Close(immediate: false);
             });
 
 
@@ -213,7 +205,7 @@ namespace MinecraftServerSharp.Runner
                     handshake.NextState != ProtocolState.Login)
                     return;
 
-                connection.EnqueuePacket(new LoopbackChangeState(handshake.NextState));
+                connection.ProtocolState = handshake.NextState;
             });
 
 

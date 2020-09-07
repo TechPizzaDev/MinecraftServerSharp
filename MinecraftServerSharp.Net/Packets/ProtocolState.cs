@@ -10,8 +10,7 @@ namespace MinecraftServerSharp.Net.Packets
 
         Handshaking,
         Play,
-
-        Loopback,
+        
         Closing,
         Disconnected
     }

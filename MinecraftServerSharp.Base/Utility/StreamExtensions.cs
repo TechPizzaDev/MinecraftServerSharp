@@ -16,10 +16,10 @@ namespace MinecraftServerSharp.Utility
             if (stream == null)
                 throw new ArgumentNullException(nameof(stream));
 
+            stream.Position = 0;
+
             if (length == 0)
                 return;
-
-            stream.Position = 0;
 
             var helper = stream.GetBlockOffset(length);
             stream.RemoveBlockRange(0, helper.Block);

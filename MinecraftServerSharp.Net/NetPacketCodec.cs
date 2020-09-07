@@ -10,8 +10,10 @@ using MinecraftServerSharp.Utility;
 
 namespace MinecraftServerSharp.Net
 {
-    public delegate int PacketHandlerDelegate(
-        NetConnection connection, int rawPacketId, NetPacketDecoder.PacketIdDefinition packetIdDefinition);
+    public delegate OperationStatus PacketHandlerDelegate(
+        NetConnection connection,
+        NetPacketDecoder.PacketIdDefinition packetIdDefinition,
+        out int messageLength);
 
     public delegate void LegacyServerListPingHandlerDelegate(
         NetConnection connection, ClientLegacyServerListPing? ping);
@@ -104,26 +106,34 @@ namespace MinecraftServerSharp.Net
 
             return Task.Run(async () =>
             {
-                var buffer = new byte[1024 * 16];
-                var memory = buffer.AsMemory();
+                var readBuffer = new byte[1024 * 16];
+                var readMemory = readBuffer.AsMemory();
                 var socket = connection.Socket;
 
-                var state = new ReceiveState(connection.BufferReader);
+                var receiveBuffer = connection.ReceiveBuffer;
+                var state = new ReceiveState(new NetBinaryReader(receiveBuffer));
 
                 try
                 {
                     int read;
-                    while ((read = await socket.ReceiveAsync(memory, SocketFlags.None)) != 0)
+                    while ((read = await socket.ReceiveAsync(readMemory, SocketFlags.None)) != 0)
                     {
-                        int packetRead = ProcessReceive(connection, memory.Slice(0, read), ref state);
-                        if (packetRead == 0)
+                        var readSlice = readMemory.Slice(0, read);
+
+                        OperationStatus handleStatus;
+                        while ((handleStatus = HandlePacket(
+                            connection, readSlice, ref state, out VarInt totalMessageLength)) == OperationStatus.Done &&
+                            connection.ProtocolState != ProtocolState.Closing)
+                        {
+                            receiveBuffer.TrimStart(totalMessageLength);
+                            Console.WriteLine(totalMessageLength + "/" + receiveBuffer.Length);
+                        }
+
+                        if (handleStatus == OperationStatus.InvalidData)
+                        {
+                            // TODO: do something more?
                             break;
-
-                        if (packetRead == -1)
-                            throw new Exception("Failed to read packet.");
-
-                        connection.ReceiveBuffer.TrimStart(packetRead);
-                        state.ResetForPacket();
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -141,98 +151,85 @@ namespace MinecraftServerSharp.Net
             public readonly NetBinaryReader Reader;
 
             public ProtocolState? ProtocolOverride;
-            public int ReceivedLength;
-            public int ReceivedLengthBytes;
 
             public ReceiveState(NetBinaryReader reader)
             {
                 Reader = reader;
                 ProtocolOverride = default;
-                ReceivedLength = -1;
-                ReceivedLengthBytes = -1;
-            }
-
-            public void ResetForPacket()
-            {
-                ReceivedLength = -1;
-                ReceivedLengthBytes = -1;
             }
         }
 
-        public int ProcessReceive(NetConnection connection, ref ReceiveState state)
+        public OperationStatus HandlePacket(
+            NetConnection connection, ref ReceiveState state, out VarInt totalMessageLength)
         {
-            while (state.Reader.Length > 0)
+            totalMessageLength = default;
+
+            if (state.Reader.PeekByte() == LegacyServerListPingPacketDefinition.RawId)
             {
-                state.Reader.Position = 0;
-                if (state.ReceivedLength == -1)
-                {
-                    if (state.Reader.PeekByte() == LegacyServerListPingPacketDefinition.RawId)
-                    {
-                        state.Reader.Position++;
-                        if (ReadLegacyServerListPing(connection) != OperationStatus.NeedMoreData)
-                        {
-                            connection.Close(immediate: false);
-                            return -1;
-                        }
-                    }
-                    else if (state.Reader.Read(
-                        out VarInt messageLength, out int messageLengthBytes) == OperationStatus.Done)
-                    {
-                        state.ReceivedLength = messageLength;
-                        state.ReceivedLengthBytes = messageLengthBytes;
-                    }
-                }
+                state.Reader.Position++;
 
-                if (state.ReceivedLength != -1 &&
-                    state.Reader.Length >= state.ReceivedLength)
-                {
-                    if (!ValidatePacketAndGetId(
-                        connection, ref state, out var rawPacketId, out var packetIdDefinition))
-                        return -1;
+                var legacyServerListPingStatus = ReadLegacyServerListPing(connection, state.Reader);
+                if (legacyServerListPingStatus != OperationStatus.NeedMoreData)
+                    connection.Close(immediate: false);
 
-                    var packetHandler = GetPacketHandler(packetIdDefinition.Id);
-                    return packetHandler.Invoke(connection, rawPacketId, packetIdDefinition);
-                }
-                else
-                {
-                    break;
-                }
+                return legacyServerListPingStatus;
             }
-            return 0;
+
+            var messageLengthStatus = state.Reader.Read(out VarInt packetLength, out int packetLengthBytes);
+            if (messageLengthStatus != OperationStatus.Done)
+                return messageLengthStatus;
+
+            if (packetLength > NetManager.MaxClientPacketSize)
+            {
+                connection.Kick($"Packet length {packetLength} exceeds {NetManager.MaxClientPacketSize}.");
+                return OperationStatus.Done;
+            }
+
+            totalMessageLength = packetLengthBytes + packetLength;
+            if (state.Reader.Length < totalMessageLength)
+                return OperationStatus.NeedMoreData;
+
+            var packetIdStatus = state.Reader.Read(out VarInt rawPacketId, out int packetIdBytes);
+            if (packetIdStatus != OperationStatus.Done)
+            {
+                connection.Kick("Packet ID is incorrectly encoded.");
+                return packetIdStatus;
+            }
+
+            if (!Decoder.TryGetPacketIdDefinition(
+                state.ProtocolOverride ?? connection.ProtocolState, rawPacketId, out var packetIdDefinition))
+            {
+                connection.Kick($"Unknown packet ID \"{rawPacketId}\".");
+                return OperationStatus.InvalidData;
+            }
+
+            var packetHandler = GetPacketHandler(packetIdDefinition.Id);
+            var handlerStatus = packetHandler.Invoke(connection, packetIdDefinition, out int readLength);
+            if (handlerStatus != OperationStatus.Done)
+                return handlerStatus;
+
+            if (readLength > packetLength)
+                throw new Exception("Packet handler read too much bytes.");
+
+            return OperationStatus.Done;
         }
 
-        public int ProcessReceive(
-            NetConnection connection, Memory<byte> data, ref ReceiveState state)
+        public OperationStatus HandlePacket(
+            NetConnection connection, Memory<byte> data, ref ReceiveState state, out VarInt totalMessageLength)
         {
             // TODO: this only reads uncompressed packets for now, 
             // this will require slight change when compressed packets are implemented
 
             // We process by the message length (unless it's a legacy server list ping), 
             // so don't worry if we received parts of the next message.
+
+            state.Reader.Seek(0, SeekOrigin.End);
+            state.Reader.BaseStream.Write(data.Span);
             connection.BytesReceived += data.Length;
-            connection.ReceiveBuffer.Seek(0, SeekOrigin.End);
-            connection.ReceiveBuffer.Write(data.Span);
 
-            return ProcessReceive(connection, ref state);
-        }
+            state.Reader.Position = 0;
 
-        public void FlushLoopbackBuffer(NetConnection connection)
-        {
-            var loopbackBuffer = connection.LoopbackBuffer;
-
-            var state = new ReceiveState(new NetBinaryReader(loopbackBuffer))
-            {
-                ProtocolOverride = ProtocolState.Loopback
-            };
-
-            int totalPacketRead = 0;
-            int packetRead;
-            while ((packetRead = ProcessReceive(connection, ref state)) > 0)
-            {
-                state.ResetForPacket();
-                totalPacketRead += packetRead;
-            }
-            connection.ReceiveBuffer.TrimStart(totalPacketRead);
+            return HandlePacket(connection, ref state, out totalMessageLength);
         }
 
         public async Task<NetSendState> FlushSendBuffer(NetConnection connection)
@@ -244,12 +241,12 @@ namespace MinecraftServerSharp.Net
             int length = (int)sendBuffer.Length;
             if (length > 0 && connection.ProtocolState != ProtocolState.Disconnected)
             {
-                int toWrite = length;
+                int left = length;
                 int block = 0;
-                while (toWrite > 0 && connection.ProtocolState != ProtocolState.Closing)
+                while (left > 0)
                 {
                     var buffer = sendBuffer.GetBlock(block);
-                    int blockLength = Math.Min(sendBuffer.BlockSize, toWrite);
+                    int blockLength = Math.Min(sendBuffer.BlockSize, left);
 
                     var data = buffer.Slice(0, blockLength);
                     int write = await connection.Socket.SendAsync(data, SocketFlags.None);
@@ -260,7 +257,7 @@ namespace MinecraftServerSharp.Net
                     }
 
                     connection.BytesSent += write;
-                    toWrite -= write;
+                    left -= write;
                     block++;
                 }
 
@@ -269,46 +266,12 @@ namespace MinecraftServerSharp.Net
             return NetSendState.FullSend;
         }
 
-        private bool ValidatePacketAndGetId(
-            NetConnection connection,
-            ref ReceiveState state,
-            out VarInt rawPacketId,
-            out NetPacketDecoder.PacketIdDefinition definition)
-        {
-            if (state.Reader.Read(
-                out rawPacketId, out int packetIdBytes) != OperationStatus.Done)
-            {
-                connection.Kick("Packet ID is incorrectly encoded.");
-                definition = default;
-                return false;
-            }
-
-            int packetLength = state.ReceivedLength - packetIdBytes;
-            if (packetLength > NetManager.MaxClientPacketSize)
-            {
-                connection.Kick(
-                    $"Packet length {packetLength} exceeds {NetManager.MaxClientPacketSize}.");
-                definition = default;
-                return false;
-            }
-
-            if (!Decoder.TryGetPacketIdDefinition(
-                state.ProtocolOverride ?? connection.ProtocolState, rawPacketId, out definition))
-            {
-                connection.Kick($"Unknown packet ID \"{rawPacketId}\".");
-                return false;
-            }
-
-            return true;
-        }
-
-        private OperationStatus ReadLegacyServerListPing(NetConnection connection)
+        private OperationStatus ReadLegacyServerListPing(NetConnection connection, NetBinaryReader reader)
         {
             try
             {
                 ClientLegacyServerListPing? nPacket = default;
 
-                var reader = connection.BufferReader;
                 if (reader.Length == 1)
                 {
                     // beta ping
@@ -324,7 +287,7 @@ namespace MinecraftServerSharp.Net
 
                     if (reader.Length > 2)
                     {
-                        var (packetStatus, length) = connection.ReadPacket(out ClientLegacyServerListPing packet);
+                        var packetStatus = connection.ReadPacket(out ClientLegacyServerListPing packet, out _);
                         if (packetStatus != OperationStatus.Done)
                             return packetStatus;
 

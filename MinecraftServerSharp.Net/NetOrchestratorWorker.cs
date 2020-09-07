@@ -7,6 +7,7 @@ using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Tasks;
 using MinecraftServerSharp.Data.IO;
 using MinecraftServerSharp.Net.Packets;
 using MinecraftServerSharp.Utility;
@@ -122,23 +123,11 @@ namespace MinecraftServerSharp.Net
                 compressed = true;
             }
 
-            bufferWriter.Position = 0;
-            lock (connection.WriteMutex)
-            {
-                NetBinaryWriter resultWriter;
-                if (mode == PacketSerializationMode.Loopback)
-                {
-                    resultWriter = new NetBinaryWriter(
-                        connection.LoopbackBuffer, connection.BufferWriter.Options);
-                }
-                else
-                {
-                    resultWriter = connection.BufferWriter;
-                }
+            var resultWriter = new NetBinaryWriter(connection.SendBuffer);
+            resultWriter.WriteVar(rawLength);
 
-                resultWriter.WriteVar(rawLength);
-                bufferWriter.BaseStream.SCopyTo(resultWriter.BaseStream);
-            }
+            bufferWriter.Position = 0;
+            bufferWriter.BaseStream.SCopyTo(resultWriter.BaseStream);
 
             return new PacketWriteResult(compressed, rawLength, length);
         }
@@ -160,57 +149,36 @@ namespace MinecraftServerSharp.Net
                     if (!Orchestrator.QueuesToFlush.TryDequeue(out var orchestratorQueue))
                         continue;
 
-                    try
+                    var connection = orchestratorQueue.Connection;
+
+                    while (orchestratorQueue.SendQueue.TryDequeue(out var packetHolder))
                     {
-                        var connection = orchestratorQueue.Connection;
+                        Debug.Assert(
+                            packetHolder.Connection != null, "Packet holder has no attached connection.");
 
-                        while (orchestratorQueue.SendQueue.TryDequeue(out var packetHolder))
+                        if (packetHolder.Connection.ProtocolState != ProtocolState.Disconnected)
                         {
-                            Debug.Assert(
-                                packetHolder.Connection != null, "Packet holder has no attached connection.");
+                            var structAttrib = packetHolder.PacketType.GetCustomAttribute<PacketStructAttribute>();
 
-                            if (packetHolder.Connection.ProtocolState != ProtocolState.Disconnected)
-                            {
-                                var structAttrib = packetHolder.PacketType.GetCustomAttribute<PacketStructAttribute>();
-                                if (structAttrib != null && structAttrib.IsClientPacket)
-                                    packetHolder.State = ProtocolState.Loopback;
+                            var mode = PacketSerializationMode.Uncompressed;
 
-                                var mode = PacketSerializationMode.Uncompressed;
+                            var writePacketDelegate = GetWritePacketDelegate(packetHolder.PacketType);
 
-                                if (packetHolder.State == ProtocolState.Loopback)
-                                    mode = PacketSerializationMode.Loopback;
-
-                                var writePacketDelegate = GetWritePacketDelegate(packetHolder.PacketType);
-
-                                // TODO: compression
-                                var result = writePacketDelegate.Invoke(packetHolder, mode, _packetWriteBuffer);
-                            }
-
-                            // TODO: batch return of holders for less locking
-                            Orchestrator.ReturnPacketHolder(packetHolder);
+                            // TODO: compression
+                            var result = writePacketDelegate.Invoke(packetHolder, mode, _packetWriteBuffer);
                         }
 
-                        if (Monitor.TryEnter(connection.WriteMutex))
-                        {
-                            try
-                            {
-                                Orchestrator.Codec.FlushSendBuffer(connection).ContinueWith((task) =>
-                                {
-                                    if (task.Result == NetSendState.FullSend)
-                                        Orchestrator.Codec.FlushLoopbackBuffer(connection);
-                                });
-                            }
-                            finally
-                            {
-                                Monitor.Exit(connection.WriteMutex);
-                            }
-                        }
+                        // TODO: batch return of holders for less locking
+                        Orchestrator.ReturnPacketHolder(packetHolder);
                     }
-                    finally
+
+                    Task.Run(async () => await Orchestrator.Codec.FlushSendBuffer(connection)).ContinueWith((task) =>
                     {
                         lock (Orchestrator.OccupiedQueues)
                             Orchestrator.OccupiedQueues.Remove(orchestratorQueue);
-                    }
+                    
+                    }, TaskContinuationOptions.ExecuteSynchronously);
+
                 }
                 catch (Exception ex)
                 {

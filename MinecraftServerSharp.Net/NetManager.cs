@@ -27,7 +27,7 @@ namespace MinecraftServerSharp.Net
         public bool Config_AppendGameVersionToBetaStatus { get; } = true;
 
         private HashSet<NetConnection> _connections;
-        
+
         public RecyclableMemoryManager MemoryManager { get; }
         public NetPacketCodec Codec { get; }
         public NetOrchestrator Orchestrator { get; }
@@ -80,15 +80,17 @@ namespace MinecraftServerSharp.Net
             if (handler == null)
                 throw new ArgumentNullException(nameof(handler));
 
-            Codec.SetPacketHandler(id, (connection, rawId, definition) =>
+            Codec.SetPacketHandler(id, delegate (
+                NetConnection connection,
+                NetPacketDecoder.PacketIdDefinition packetIdDefinition,
+                out int messageLength)
             {
-                var (status, length) = connection.ReadPacket<TPacket>(out var packet);
-                if (status == OperationStatus.Done)
-                {
-                    handler.Invoke(connection, packet);
-                    return length;
-                }
-                return -1;
+                var status = connection.ReadPacket<TPacket>(out var packet, out messageLength);
+                if (status != OperationStatus.Done)
+                    return status;
+
+                handler.Invoke(connection, packet);
+                return OperationStatus.Done;
             });
         }
 
@@ -156,13 +158,14 @@ namespace MinecraftServerSharp.Net
                 var connection = list[i];
                 if (connection.ProtocolState == ProtocolState.Closing)
                 {
-                    if (connection.SendBuffer.Length == 0)
+                    if (Orchestrator.PacketSendQueues.TryGetValue(connection, out var queue) &&
+                        !Orchestrator.OccupiedQueues.Contains(queue))
                     {
-                        System.Threading.Thread.Sleep(500);
-                        connection.Close(immediate: true);
+                        if (connection.SendBuffer.Length == 0)
+                            connection.Close(immediate: true);
+                        else
+                            Console.WriteLine("Delaying close");
                     }
-                    else
-                        Console.WriteLine("Delaying close");
                 }
             }
             return list.Count;

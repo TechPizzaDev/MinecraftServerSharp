@@ -28,9 +28,6 @@ namespace MinecraftServerSharp.Data.IO
 
             if (!BaseStream.CanRead)
                 throw new IOException("The stream is not readable.");
-
-            if (!BaseStream.CanSeek)
-                throw new IOException("The stream is not seekable.");
         }
 
         public long Seek(int offset, SeekOrigin origin)

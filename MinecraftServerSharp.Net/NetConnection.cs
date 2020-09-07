@@ -19,12 +19,8 @@ namespace MinecraftServerSharp.Net
 
         // TODO: make better use of the streams (recycle them better or something)
         public ChunkedMemoryStream ReceiveBuffer { get; }
-        public ChunkedMemoryStream LoopbackBuffer { get; }
         public ChunkedMemoryStream SendBuffer { get; }
-        public NetBinaryReader BufferReader { get; }
-        public NetBinaryWriter BufferWriter { get; }
 
-        public object WriteMutex { get; } = new object();
         public object CloseMutex { get; } = new object();
 
         public long BytesSent { get; set; }
@@ -50,23 +46,23 @@ namespace MinecraftServerSharp.Net
             RemoteEndPoint = (IPEndPoint)socket.RemoteEndPoint;
 
             ReceiveBuffer = Orchestrator.MemoryManager.GetStream();
-            LoopbackBuffer = Orchestrator.MemoryManager.GetStream();
             SendBuffer = Orchestrator.MemoryManager.GetStream();
-            BufferReader = new NetBinaryReader(ReceiveBuffer);
-            BufferWriter = new NetBinaryWriter(SendBuffer);
 
             ProtocolState = ProtocolState.Handshaking;
         }
 
         #endregion
 
-        public (OperationStatus Status, int Length) ReadPacket<TPacket>(out TPacket packet)
+        public OperationStatus ReadPacket<TPacket>(out TPacket packet, out int length)
         {
-            var reader = Orchestrator.Codec.Decoder.GetPacketReader<TPacket>();
-            long oldPosition = BufferReader.Position;
-            var status = reader.Invoke(BufferReader, out packet);
-            int length = (int)(BufferReader.Position - oldPosition);
-            return (status, length);
+            var packetReader = Orchestrator.Codec.Decoder.GetPacketReader<TPacket>();
+            var reader = new NetBinaryReader(ReceiveBuffer);
+
+            long startPosition = reader.Position;
+            var status = packetReader.Invoke(reader, out packet);
+
+            length = (int)(reader.Position - startPosition);
+            return status;
         }
 
         public void EnqueuePacket<TPacket>(TPacket packet)
@@ -77,16 +73,6 @@ namespace MinecraftServerSharp.Net
         public void TrimSendBufferStart(int length)
         {
             SendBuffer.TrimStart(length);
-        }
-
-        /// <summary>
-        /// Removes the first message from the receive buffer
-        /// while keeping all the to-be-processed data.
-        /// </summary>
-        public void TrimFirstReceivedMessage()
-        {
-            int offset = TotalReceivedLength;
-            TrimReceiveBufferStart(offset);
         }
 
         public void Kick(Exception? exception)
