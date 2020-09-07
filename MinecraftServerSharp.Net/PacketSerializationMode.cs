@@ -4,6 +4,7 @@
     {
         Uncompressed,
         NoHeader,
-        Compressed
+        Compressed,
+        Loopback
     }
 }

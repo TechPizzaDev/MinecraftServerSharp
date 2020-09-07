@@ -3,13 +3,14 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
-using System.Threading;
+using System.Threading.Tasks;
+using MinecraftServerSharp.Data.IO;
 using MinecraftServerSharp.Net.Packets;
 using MinecraftServerSharp.Utility;
 
 namespace MinecraftServerSharp.Net
 {
-    public delegate void PacketHandlerDelegate(
+    public delegate int PacketHandlerDelegate(
         NetConnection connection, int rawPacketId, NetPacketDecoder.PacketIdDefinition packetIdDefinition);
 
     public delegate void LegacyServerListPingHandlerDelegate(
@@ -52,7 +53,7 @@ namespace MinecraftServerSharp.Net
             Decoder.RegisterClientPacketTypesFromCallingAssembly();
             Console.WriteLine("Registered " + Decoder.RegisteredTypeCount + " client packet types");
 
-            Decoder.InitializePacketIdMaps();
+            Decoder.InitializePacketIdMaps(typeof(ClientPacketId).GetFields());
 
             Decoder.CreateCoderDelegates();
             if (!Decoder.TryGetPacketIdDefinition(ClientPacketId.LegacyServerListPing, out var definition))
@@ -64,9 +65,10 @@ namespace MinecraftServerSharp.Net
         private void SetupEncoder()
         {
             Encoder.RegisterServerPacketTypesFromCallingAssembly();
+
             Console.WriteLine("Registered " + Decoder.RegisteredTypeCount + " server packet types");
 
-            Encoder.InitializePacketIdMaps();
+            Encoder.InitializePacketIdMaps(typeof(ServerPacketId).GetFields());
 
             Encoder.CreateCoderDelegates();
         }
@@ -84,162 +86,196 @@ namespace MinecraftServerSharp.Net
             PacketHandlers.Add(id, packetHandler);
         }
 
-        public void AddConnection(NetConnection connection)
+        public PacketHandlerDelegate GetPacketHandler(ClientPacketId id)
+        {
+            if (!PacketHandlers.TryGetValue(id, out var packetHandler))
+                throw new Exception($"Missing packet handler for \"{id}\".");
+            return packetHandler;
+        }
+
+        public Task AddConnection(NetConnection connection)
         {
             if (connection == null)
                 throw new ArgumentNullException(nameof(connection));
 
-            connection.ReceiveEvent.Completed += (s, e) => ProcessReceive((NetConnection)e.UserToken);
-            connection.SendEvent.Completed += (s, e) => ProcessSend((NetConnection)e.UserToken);
-
-            new Thread(() =>
-            {
-                // TODO: fix this issue please
-                //       possible have to drop SocketAsyncEventArgs in favor of non-blocking Sockets
-
-                Thread.Sleep(10000);
-                if (connection.State == ProtocolState.Status)
-                {
-                    if (connection.Socket.ReceiveAsync(connection.ReceiveEvent))
-                    {
-                        Console.WriteLine(connection.ReceiveEvent.BytesTransferred);
-                    }
-                }
-            }).Start();
+            // TODO: cancellation token
 
             // As soon as the client connects, start receiving
-            if (!connection.Socket.ReceiveAsync(connection.ReceiveEvent))
-                ProcessReceive(connection);
+
+            return Task.Run(async () =>
+            {
+                var buffer = new byte[1024 * 16];
+                var memory = buffer.AsMemory();
+                var socket = connection.Socket;
+
+                var state = new ReceiveState(connection.BufferReader);
+
+                try
+                {
+                    int read;
+                    while ((read = await socket.ReceiveAsync(memory, SocketFlags.None)) != 0)
+                    {
+                        int packetRead = ProcessReceive(connection, memory.Slice(0, read), ref state);
+                        if (packetRead == 0)
+                            break;
+
+                        if (packetRead == -1)
+                            throw new Exception("Failed to read packet.");
+
+                        connection.ReceiveBuffer.TrimStart(packetRead);
+                        state.ResetForPacket();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex);
+                    connection.Kick("Server Error: \n" + ex.ToString().Replace("\r", ""));
+                }
+
+                connection.Close(immediate: false);
+            });
         }
 
-        private void ProcessReceive(NetConnection connection)
+        public struct ReceiveState
+        {
+            public readonly NetBinaryReader Reader;
+
+            public ProtocolState? ProtocolOverride;
+            public int ReceivedLength;
+            public int ReceivedLengthBytes;
+
+            public ReceiveState(NetBinaryReader reader)
+            {
+                Reader = reader;
+                ProtocolOverride = default;
+                ReceivedLength = -1;
+                ReceivedLengthBytes = -1;
+            }
+
+            public void ResetForPacket()
+            {
+                ReceivedLength = -1;
+                ReceivedLengthBytes = -1;
+            }
+        }
+
+        public int ProcessReceive(NetConnection connection, ref ReceiveState state)
+        {
+            while (state.Reader.Length > 0)
+            {
+                state.Reader.Position = 0;
+                if (state.ReceivedLength == -1)
+                {
+                    if (state.Reader.PeekByte() == LegacyServerListPingPacketDefinition.RawId)
+                    {
+                        state.Reader.Position++;
+                        if (ReadLegacyServerListPing(connection) != OperationStatus.NeedMoreData)
+                        {
+                            connection.Close(immediate: false);
+                            return -1;
+                        }
+                    }
+                    else if (state.Reader.Read(
+                        out VarInt messageLength, out int messageLengthBytes) == OperationStatus.Done)
+                    {
+                        state.ReceivedLength = messageLength;
+                        state.ReceivedLengthBytes = messageLengthBytes;
+                    }
+                }
+
+                if (state.ReceivedLength != -1 &&
+                    state.Reader.Length >= state.ReceivedLength)
+                {
+                    if (!ValidatePacketAndGetId(
+                        connection, ref state, out var rawPacketId, out var packetIdDefinition))
+                        return -1;
+
+                    var packetHandler = GetPacketHandler(packetIdDefinition.Id);
+                    return packetHandler.Invoke(connection, rawPacketId, packetIdDefinition);
+                }
+                else
+                {
+                    break;
+                }
+            }
+            return 0;
+        }
+
+        public int ProcessReceive(
+            NetConnection connection, Memory<byte> data, ref ReceiveState state)
         {
             // TODO: this only reads uncompressed packets for now, 
             // this will require slight change when compressed packets are implemented
 
-            try
-            {
-                var re = connection.ReceiveEvent;
-                var reader = connection.BufferReader;
+            // We process by the message length (unless it's a legacy server list ping), 
+            // so don't worry if we received parts of the next message.
+            connection.BytesReceived += data.Length;
+            connection.ReceiveBuffer.Seek(0, SeekOrigin.End);
+            connection.ReceiveBuffer.Write(data.Span);
 
-                AfterReceive:
-                if (re.SocketError != SocketError.Success ||
-                    re.BytesTransferred == 0) // 0 == closed connection
-                {
-                    connection.Close(immediate: true);
-                    return;
-                }
-
-                // We process by the message length (unless it's a legacy server list ping), 
-                // so don't worry if we received parts of the next message.
-                connection.BytesReceived += re.BytesTransferred;
-                connection.ReceiveBuffer.Seek(0, SeekOrigin.End);
-                connection.ReceiveBuffer.Write(re.MemoryBuffer.Slice(0, re.BytesTransferred).Span);
-
-                while (reader.Length > 0)
-                {
-                    reader.Position = 0;
-                    if (connection.ReceivedLength == -1)
-                    {
-                        if (reader.PeekByte() == LegacyServerListPingPacketDefinition.RawId)
-                        {
-                            reader.Position++;
-                            if (ReadLegacyServerListPing(connection) != OperationStatus.NeedMoreData)
-                            {
-                                connection.Close(immediate: false);
-                                return;
-                            }
-                        }
-                        else if (reader.Read(
-                            out VarInt messageLength, out int messageLengthBytes) == OperationStatus.Done)
-                        {
-                            connection.ReceivedLength = messageLength;
-                            connection.ReceivedLengthBytes = messageLengthBytes;
-                        }
-                    }
-
-                    if (connection.ReceivedLength != -1 &&
-                        reader.Length >= connection.ReceivedLength)
-                    {
-                        if (!ValidatePacketAndGetId(connection, out var rawPacketId, out var packetIdDefinition))
-                            return;
-
-                        // TODO: add packet handlers that use typed delegates and are routed
-                        // by ClientPacketId and the ID on the PacketStruct attribute
-
-                        if (!PacketHandlers.TryGetValue(packetIdDefinition.Id, out var packetHandler))
-                            throw new Exception($"Missing packet handler for \"{packetIdDefinition.Id}\".");
-
-                        packetHandler.Invoke(connection, rawPacketId, packetIdDefinition);
-
-                        connection.TrimFirstReceivedMessage();
-                    }
-                    else
-                    {
-                        break;
-                    }
-                }
-
-                if (!connection.Socket.ReceiveAsync(re))
-                    goto AfterReceive;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex);
-                connection.Kick("Server Error: \n" + ex.ToString().Replace("\r", ""));
-            }
+            return ProcessReceive(connection, ref state);
         }
 
-        private void ProcessSend(NetConnection connection)
+        public void FlushLoopbackBuffer(NetConnection connection)
         {
-            try
-            {
-                var se = connection.SendEvent;
-                if (se.SocketError != SocketError.Success ||
-                    se.BytesTransferred == 0) // 0 == closed connection
-                {
-                    connection.Close(immediate: true);
-                    return;
-                }
+            var loopbackBuffer = connection.LoopbackBuffer;
 
-                connection.BytesSent += se.BytesTransferred;
-                connection.TrimSendBufferStart(se.BytesTransferred);
-
-                TryFlushSendBuffer(connection);
-            }
-            catch (Exception ex)
+            var state = new ReceiveState(new NetBinaryReader(loopbackBuffer))
             {
-                Console.WriteLine(ex);
-                connection.Close(immediate: true);
+                ProtocolOverride = ProtocolState.Loopback
+            };
+
+            int totalPacketRead = 0;
+            int packetRead;
+            while ((packetRead = ProcessReceive(connection, ref state)) > 0)
+            {
+                state.ResetForPacket();
+                totalPacketRead += packetRead;
             }
+            connection.ReceiveBuffer.TrimStart(totalPacketRead);
         }
 
-        public void TryFlushSendBuffer(NetConnection connection)
+        public async Task<NetSendState> FlushSendBuffer(NetConnection connection)
         {
             if (connection == null)
                 throw new ArgumentNullException(nameof(connection));
 
-            lock (connection.WriteMutex)
+            var sendBuffer = connection.SendBuffer;
+            int length = (int)sendBuffer.Length;
+            if (length > 0 && connection.ProtocolState != ProtocolState.Disconnected)
             {
-                long length = connection.SendBuffer.Length;
-                if (length > 0 && connection.State != ProtocolState.Disconnected)
+                int toWrite = length;
+                int block = 0;
+                while (toWrite > 0 && connection.ProtocolState != ProtocolState.Closing)
                 {
-                    var buffer = connection.SendBuffer.GetBlock(0);
-                    int blockLength = Math.Min(connection.SendBuffer.BlockSize, (int)length);
-                    connection.SendEvent.SetBuffer(buffer.Slice(0, blockLength));
+                    var buffer = sendBuffer.GetBlock(block);
+                    int blockLength = Math.Min(sendBuffer.BlockSize, toWrite);
 
-                    if (!connection.Socket.SendAsync(connection.SendEvent))
-                        ProcessSend(connection);
+                    var data = buffer.Slice(0, blockLength);
+                    int write = await connection.Socket.SendAsync(data, SocketFlags.None);
+                    if (write == 0)
+                    {
+                        connection.Close(immediate: false);
+                        return NetSendState.Closing;
+                    }
+
+                    connection.BytesSent += write;
+                    toWrite -= write;
+                    block++;
                 }
+
+                connection.SendBuffer.TrimStart(length);
             }
+            return NetSendState.FullSend;
         }
 
         private bool ValidatePacketAndGetId(
             NetConnection connection,
+            ref ReceiveState state,
             out VarInt rawPacketId,
             out NetPacketDecoder.PacketIdDefinition definition)
         {
-            if (connection.BufferReader.Read(
+            if (state.Reader.Read(
                 out rawPacketId, out int packetIdBytes) != OperationStatus.Done)
             {
                 connection.Kick("Packet ID is incorrectly encoded.");
@@ -247,7 +283,7 @@ namespace MinecraftServerSharp.Net
                 return false;
             }
 
-            int packetLength = connection.ReceivedLength - packetIdBytes;
+            int packetLength = state.ReceivedLength - packetIdBytes;
             if (packetLength > NetManager.MaxClientPacketSize)
             {
                 connection.Kick(
@@ -257,7 +293,7 @@ namespace MinecraftServerSharp.Net
             }
 
             if (!Decoder.TryGetPacketIdDefinition(
-                connection.State, rawPacketId, out definition))
+                state.ProtocolOverride ?? connection.ProtocolState, rawPacketId, out definition))
             {
                 connection.Kick($"Unknown packet ID \"{rawPacketId}\".");
                 return false;

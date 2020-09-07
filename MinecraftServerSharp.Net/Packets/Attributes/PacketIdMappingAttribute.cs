@@ -18,6 +18,7 @@ namespace MinecraftServerSharp.Net.Packets
                 case ProtocolState.Status:
                 case ProtocolState.Login:
                 case ProtocolState.Play:
+                case ProtocolState.Loopback:
                     break;
 
                 default:

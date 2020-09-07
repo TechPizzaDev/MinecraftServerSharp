@@ -6,6 +6,7 @@ namespace MinecraftServerSharp.Net.Packets
     public enum ServerPacketId
     {
         Undefined,
+        [Mapping(State.Loopback, 0)] ChangeState,
 
         [Mapping(State.Handshaking, 0xff)] LegacyServerListPong,
 

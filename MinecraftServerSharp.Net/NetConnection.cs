@@ -15,12 +15,11 @@ namespace MinecraftServerSharp.Net
 
         public NetOrchestrator Orchestrator { get; }
         public Socket Socket { get; }
-        public SocketAsyncEventArgs ReceiveEvent { get; }
-        public SocketAsyncEventArgs SendEvent { get; }
         public IPEndPoint RemoteEndPoint { get; }
 
         // TODO: make better use of the streams (recycle them better or something)
         public ChunkedMemoryStream ReceiveBuffer { get; }
+        public ChunkedMemoryStream LoopbackBuffer { get; }
         public ChunkedMemoryStream SendBuffer { get; }
         public NetBinaryReader BufferReader { get; }
         public NetBinaryWriter BufferWriter { get; }
@@ -28,15 +27,11 @@ namespace MinecraftServerSharp.Net
         public object WriteMutex { get; } = new object();
         public object CloseMutex { get; } = new object();
 
-        public int ReceivedLength { get; set; } = -1;
-        public int ReceivedLengthBytes { get; set; } = -1;
-        public int TotalReceivedLength => ReceivedLength + ReceivedLengthBytes;
-
         public long BytesSent { get; set; }
         public long BytesReceived { get; set; }
 
         // TODO: add thread-safe protocol state propagation
-        public ProtocolState State { get; set; }
+        public ProtocolState ProtocolState { get; set; }
 
         public string? UserName { get; internal set; }
 
@@ -45,25 +40,22 @@ namespace MinecraftServerSharp.Net
         public NetConnection(
             NetOrchestrator orchestrator,
             Socket socket,
-            SocketAsyncEventArgs receiveEvent,
-            SocketAsyncEventArgs sendEvent,
             Action<NetConnection> closeAction)
         {
             Orchestrator = orchestrator ?? throw new ArgumentNullException(nameof(orchestrator));
             Socket = socket ?? throw new ArgumentNullException(nameof(socket));
-            ReceiveEvent = receiveEvent ?? throw new ArgumentNullException(nameof(receiveEvent));
-            SendEvent = sendEvent ?? throw new ArgumentNullException(nameof(sendEvent));
             _closeAction = closeAction ?? throw new ArgumentNullException(nameof(closeAction));
 
             // get it here as we can't get it later if the socket gets disposed
             RemoteEndPoint = (IPEndPoint)socket.RemoteEndPoint;
 
             ReceiveBuffer = Orchestrator.MemoryManager.GetStream();
+            LoopbackBuffer = Orchestrator.MemoryManager.GetStream();
             SendBuffer = Orchestrator.MemoryManager.GetStream();
             BufferReader = new NetBinaryReader(ReceiveBuffer);
             BufferWriter = new NetBinaryWriter(SendBuffer);
 
-            State = ProtocolState.Handshaking;
+            ProtocolState = ProtocolState.Handshaking;
         }
 
         #endregion
@@ -80,14 +72,6 @@ namespace MinecraftServerSharp.Net
         public void EnqueuePacket<TPacket>(TPacket packet)
         {
             Orchestrator.EnqueuePacket(this, packet);
-        }
-
-        public void TrimReceiveBufferStart(int length)
-        {
-            ReceiveBuffer.TrimStart(length);
-
-            ReceivedLength = -1;
-            ReceivedLengthBytes = -1;
         }
 
         public void TrimSendBufferStart(int length)
@@ -139,12 +123,12 @@ namespace MinecraftServerSharp.Net
         {
             if (reason != null)
             {
-                if (State == ProtocolState.Play)
+                if (ProtocolState == ProtocolState.Play)
                 {
                     var packet = new ServerPlayDisconnect(reason.Value);
                     EnqueuePacket(packet);
                 }
-                else if (State == ProtocolState.Login)
+                else if (ProtocolState == ProtocolState.Login)
                 {
                     var packet = new ServerLoginDisconnect(reason.Value);
                     EnqueuePacket(packet);
@@ -159,7 +143,7 @@ namespace MinecraftServerSharp.Net
         {
             if (!immediate)
             {
-                State = ProtocolState.Closing;
+                ProtocolState = ProtocolState.Closing;
                 return;
             }
 
@@ -168,7 +152,7 @@ namespace MinecraftServerSharp.Net
                 if (_closeAction == null)
                     return;
 
-                State = ProtocolState.Disconnected;
+                ProtocolState = ProtocolState.Disconnected;
                 _closeAction.Invoke(this);
                 _closeAction = null;
 

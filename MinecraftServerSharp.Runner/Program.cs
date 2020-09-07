@@ -15,7 +15,7 @@ namespace MinecraftServerSharp.Runner
     {
         // TODO: move these to a Game class
         public const string PongResource = "Minecraft/Net/Pong.json";
-        private static int tickCount;
+        private static long tickCount;
         private static Random rng = new Random();
         private static NetManager manager;
         private static string _requestPongBase;
@@ -135,8 +135,10 @@ namespace MinecraftServerSharp.Runner
         private static void Game_Tick(Ticker ticker)
         {
             tickCount++;
-            if (tickCount % 10 == 0) // Every half second
+            if (tickCount % 20 == 0) // Every second
             {
+                manager.TickAlive(tickCount);
+
                 //Console.WriteLine(
                 //    "Tick Time: " +
                 //    sender.ElapsedTime.TotalMilliseconds.ToString("00.00") +
@@ -145,14 +147,10 @@ namespace MinecraftServerSharp.Runner
                 //    " | " +
                 //    (sender.ElapsedTime.Ticks / (float)sender.TargetTime.Ticks * 100f).ToString("00.0") + "%");
 
-                int count = manager.GetConnectionCount();
-                if (count > 0)
-                    Console.WriteLine(count + " connections");
+                int connectionCount = manager.UpdateConnections();
 
-                if (tickCount % 20 == 0) // Every second
-                {
-                    manager.TickAlive(tickCount);
-                }
+                if (connectionCount > 0)
+                    Console.WriteLine(connectionCount + " connections");
             }
 
             //world.Tick();
@@ -173,10 +171,16 @@ namespace MinecraftServerSharp.Runner
                 var answer = new ServerLegacyServerListPong(
                     isBeta, manager.ProtocolVersion, manager.GameVersion, motd, 0, 100);
 
-                connection.EnqueuePacket(answer);
-
-                connection.State = ProtocolState.Closing;
+                connection.EnqueuePacket(new LoopbackChangeState(ProtocolState.Closing));
             };
+
+
+            manager.SetPacketHandler(delegate
+                (NetConnection connection, LoopbackChangeState changeState)
+            {
+                Console.WriteLine("state change to: " + changeState.NextState);
+                connection.ProtocolState = changeState.NextState;
+            });
 
 
             manager.SetPacketHandler(delegate
@@ -198,6 +202,7 @@ namespace MinecraftServerSharp.Runner
 
                 var answer = new ServerResponse((Utf8String)jsonResponse);
                 connection.EnqueuePacket(answer);
+                connection.EnqueuePacket(new LoopbackChangeState(ProtocolState.Closing));
             });
 
 
@@ -208,7 +213,7 @@ namespace MinecraftServerSharp.Runner
                     handshake.NextState != ProtocolState.Login)
                     return;
 
-                connection.State = handshake.NextState;
+                connection.EnqueuePacket(new LoopbackChangeState(handshake.NextState));
             });
 
 
@@ -230,7 +235,7 @@ namespace MinecraftServerSharp.Runner
 
                 connection.EnqueuePacket(answer);
 
-                connection.State = ProtocolState.Play;
+                connection.ProtocolState = ProtocolState.Play;
 
                 var playerId = new EntityId(69);
 
@@ -294,7 +299,7 @@ namespace MinecraftServerSharp.Runner
             manager.SetPacketHandler(delegate
                 (NetConnection connection, ClientTeleportConfirm teleportConfirm)
             {
-                Console.WriteLine("Teleport Confirm: Id " + teleportConfirm.TeleportId);
+                //Console.WriteLine("Teleport Confirm: Id " + teleportConfirm.TeleportId);
             });
 
 

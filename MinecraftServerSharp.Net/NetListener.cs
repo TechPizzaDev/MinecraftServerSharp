@@ -64,27 +64,18 @@ namespace MinecraftServerSharp.Net
 
         private void ProcessAccept(SocketAsyncEventArgs acceptEvent)
         {
-            var receiveEvent = new SocketAsyncEventArgs(); // TODO: pool 
-            var sendEvent = new SocketAsyncEventArgs(); // TODO: pool 
-
             var connection = new NetConnection(
                 Orchestrator,
                 acceptEvent.AcceptSocket,
-                receiveEvent,
-                sendEvent,
                 closeAction: CloseClientSocket);
           
-            var receiveBuffer = new byte[1024 * 16];
-            receiveEvent.SetBuffer(receiveBuffer, 0, receiveBuffer.Length);
-
-            receiveEvent.UserToken = connection;
-            sendEvent.UserToken = connection;
-
             // TODO: Use delay when sending initial data, 
-            // then disable delay after initial data has been sent.
+            //       then disable delay after initial data has been sent.
             connection.Socket.NoDelay = true;
 
-            // TODO: do some validation of the client
+            connection.Socket.Blocking = true;
+
+            // TODO: do validation of the client
             Connection?.Invoke(this, connection);
 
             // Accept the next connection request
@@ -100,8 +91,6 @@ namespace MinecraftServerSharp.Net
             catch (Exception) // throws if client process has already closed
             {
             }
-
-            // _readWritePool.Push(e); // TODO: pool
 
             Disconnection?.Invoke(this, connection);
         }

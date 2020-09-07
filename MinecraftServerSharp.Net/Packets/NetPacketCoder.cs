@@ -43,9 +43,8 @@ namespace MinecraftServerSharp.Net.Packets
 
         #region PacketId-related methods
 
-        public virtual void InitializePacketIdMaps()
+        public virtual void InitializePacketIdMaps(IEnumerable<FieldInfo> fields)
         {
-            var fields = typeof(TPacketId).GetFields();
             var mappingAttributeList = fields
                 .Where(f => f.GetCustomAttribute<PacketIdMappingAttribute>() != null)
                 .Select(f => new PacketIdMappingInfo(f, f.GetCustomAttribute<PacketIdMappingAttribute>()!))
@@ -182,6 +181,19 @@ namespace MinecraftServerSharp.Net.Packets
             var assembly = Assembly.GetCallingAssembly();
             var packetTypes = PacketStructInfo.GetPacketTypes(assembly);
             RegisterPacketTypes(packetTypes.Where(predicate));
+        }
+
+        public void RegisterLoopbackPacketTypes(Assembly assembly)
+        {
+            var loopbackFields = new HashSet<TPacketId>(typeof(TPacketId).GetFields().Where(x =>
+            {
+                var attrib = x.GetCustomAttribute<PacketIdMappingAttribute>();
+                return attrib != null && attrib.State == ProtocolState.Loopback;
+            }).Select(x => (TPacketId)(x.GetRawConstantValue() ?? 0)));
+
+            var packetTypes = PacketStructInfo.GetPacketTypes(assembly);
+            RegisterPacketTypes(packetTypes.Where(
+                x => loopbackFields.Contains(EnumConverter<TPacketId>.Convert(x.Attribute.PacketId))));
         }
 
         #endregion

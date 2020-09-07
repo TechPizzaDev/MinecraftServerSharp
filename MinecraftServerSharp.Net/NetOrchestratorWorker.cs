@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Threading;
 using MinecraftServerSharp.Data.IO;
 using MinecraftServerSharp.Net.Packets;
@@ -19,7 +20,7 @@ namespace MinecraftServerSharp.Net
     /// </summary>
     public partial class NetOrchestratorWorker : IDisposable
     {
-        private delegate PacketWriteResult WritePacketDelegate(
+        public delegate PacketWriteResult WritePacketDelegate(
             PacketHolder packetHolder,
             PacketSerializationMode mode,
             Stream destination);
@@ -66,7 +67,7 @@ namespace MinecraftServerSharp.Net
             _flushRequestEvent.Set();
         }
 
-        private static WritePacketDelegate GetWritePacketDelegate(Type packetType)
+        public static WritePacketDelegate GetWritePacketDelegate(Type packetType)
         {
             return WritePacketDelegateCache.GetOrAdd(packetType, (type) =>
             {
@@ -77,7 +78,7 @@ namespace MinecraftServerSharp.Net
         }
 
         public static PacketWriteResult WritePacket<TPacket>(
-            PacketHolder packetHolder, PacketSerializationMode mode, Stream destination)
+            PacketHolder packetHolder, PacketSerializationMode mode, Stream bufferStream)
         {
             if (packetHolder == null)
                 throw new ArgumentNullException(nameof(packetHolder));
@@ -87,7 +88,7 @@ namespace MinecraftServerSharp.Net
                 throw new Exception("Packet holder has no target connection.");
 
             var holder = (PacketHolder<TPacket>)packetHolder;
-            var writer = new NetBinaryWriter(destination)
+            var bufferWriter = new NetBinaryWriter(bufferStream)
             {
                 Position = 0,
                 Length = 0
@@ -98,17 +99,19 @@ namespace MinecraftServerSharp.Net
                 if (!connection.Orchestrator.Codec.Encoder.TryGetPacketIdDefinition(
                     holder.State, holder.PacketType, out var idDefinition))
                 {
-                    Console.WriteLine("whydo: " + holder.State + ": " + idDefinition.Id);
+                    Console.WriteLine("why: " + holder.State + ": " + idDefinition.Id);
 
                     // We don't really want to continue if we don't even know what we're sending.
-                    throw new Exception("Undefined server packet ID.");
+                    throw new Exception(
+                        $"Failed to get server packet ID defintion " +
+                        $"(State: {holder.State}, Type: {holder.PacketType}).");
                 }
-                writer.WriteVar(idDefinition.RawId);
+                bufferWriter.WriteVar(idDefinition.RawId);
             }
 
-            holder.Writer.Invoke(writer, holder.Packet);
+            holder.Writer.Invoke(bufferWriter, holder.Packet);
 
-            int rawLength = (int)writer.Length;
+            int rawLength = (int)bufferWriter.Length;
             int length = rawLength;
             bool compressed = false;
 
@@ -119,11 +122,22 @@ namespace MinecraftServerSharp.Net
                 compressed = true;
             }
 
-            writer.Position = 0;
+            bufferWriter.Position = 0;
             lock (connection.WriteMutex)
             {
-                connection.BufferWriter.WriteVar(rawLength);
-                writer.BaseStream.SCopyTo(connection.SendBuffer);
+                NetBinaryWriter resultWriter;
+                if (mode == PacketSerializationMode.Loopback)
+                {
+                    resultWriter = new NetBinaryWriter(
+                        connection.LoopbackBuffer, connection.BufferWriter.Options);
+                }
+                else
+                {
+                    resultWriter = connection.BufferWriter;
+                }
+
+                resultWriter.WriteVar(rawLength);
+                bufferWriter.BaseStream.SCopyTo(resultWriter.BaseStream);
             }
 
             return new PacketWriteResult(compressed, rawLength, length);
@@ -155,31 +169,41 @@ namespace MinecraftServerSharp.Net
                             Debug.Assert(
                                 packetHolder.Connection != null, "Packet holder has no attached connection.");
 
-                            if (packetHolder.Connection.State != ProtocolState.Disconnected)
+                            if (packetHolder.Connection.ProtocolState != ProtocolState.Disconnected)
                             {
+                                var structAttrib = packetHolder.PacketType.GetCustomAttribute<PacketStructAttribute>();
+                                if (structAttrib != null && structAttrib.IsClientPacket)
+                                    packetHolder.State = ProtocolState.Loopback;
+
+                                var mode = PacketSerializationMode.Uncompressed;
+
+                                if (packetHolder.State == ProtocolState.Loopback)
+                                    mode = PacketSerializationMode.Loopback;
+
                                 var writePacketDelegate = GetWritePacketDelegate(packetHolder.PacketType);
 
                                 // TODO: compression
-                                var result = writePacketDelegate.Invoke(
-                                    packetHolder, PacketSerializationMode.Uncompressed, _packetWriteBuffer);
+                                var result = writePacketDelegate.Invoke(packetHolder, mode, _packetWriteBuffer);
                             }
 
                             // TODO: batch return of holders for less locking
                             Orchestrator.ReturnPacketHolder(packetHolder);
                         }
 
-                        try
+                        if (Monitor.TryEnter(connection.WriteMutex))
                         {
-                            Orchestrator.Codec.TryFlushSendBuffer(connection);
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"Exception while flushing send buffer: {ex}");
-                        }
-                        finally
-                        {
-                            if (connection.State == ProtocolState.Closing)
-                                connection.Close(immediate: true);
+                            try
+                            {
+                                Orchestrator.Codec.FlushSendBuffer(connection).ContinueWith((task) =>
+                                {
+                                    if (task.Result == NetSendState.FullSend)
+                                        Orchestrator.Codec.FlushLoopbackBuffer(connection);
+                                });
+                            }
+                            finally
+                            {
+                                Monitor.Exit(connection.WriteMutex);
+                            }
                         }
                     }
                     finally

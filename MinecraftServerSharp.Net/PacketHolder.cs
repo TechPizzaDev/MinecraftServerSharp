@@ -8,6 +8,7 @@ namespace MinecraftServerSharp.Net
     {
         public long TransactionId { get; set; }
         public NetConnection? Connection { get; set; }
+        public ProtocolState State { get; set; }
 
         public abstract Type PacketType { get; }
     }
@@ -15,8 +16,7 @@ namespace MinecraftServerSharp.Net
     public class PacketHolder<TPacket> : PacketHolder
     {
         public NetPacketWriterDelegate<TPacket> Writer { get; set; }
-        public ProtocolState State { get; set; }
-
+        
         [AllowNull]
         public TPacket Packet { get; set; }
 

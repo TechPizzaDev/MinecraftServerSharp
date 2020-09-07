@@ -27,8 +27,7 @@ namespace MinecraftServerSharp.Net
         public bool Config_AppendGameVersionToBetaStatus { get; } = true;
 
         private HashSet<NetConnection> _connections;
-        private string? _requestPongBase;
-
+        
         public RecyclableMemoryManager MemoryManager { get; }
         public NetPacketCodec Codec { get; }
         public NetOrchestrator Orchestrator { get; }
@@ -87,7 +86,9 @@ namespace MinecraftServerSharp.Net
                 if (status == OperationStatus.Done)
                 {
                     handler.Invoke(connection, packet);
+                    return length;
                 }
+                return -1;
             });
         }
 
@@ -142,13 +143,38 @@ namespace MinecraftServerSharp.Net
             }
         }
 
+        public int UpdateConnections()
+        {
+            var list = new List<NetConnection>(_connections.Count);
+            lock (ConnectionMutex)
+            {
+                list.AddRange(_connections);
+            }
+
+            for (int i = 0; i < list.Count; i++)
+            {
+                var connection = list[i];
+                if (connection.ProtocolState == ProtocolState.Closing)
+                {
+                    if (connection.SendBuffer.Length == 0)
+                    {
+                        System.Threading.Thread.Sleep(500);
+                        connection.Close(immediate: true);
+                    }
+                    else
+                        Console.WriteLine("Delaying close");
+                }
+            }
+            return list.Count;
+        }
+
         public void TickAlive(long keepAliveId)
         {
             lock (ConnectionMutex)
             {
                 foreach (NetConnection connection in Connections)
                 {
-                    if (connection.State == ProtocolState.Play)
+                    if (connection.ProtocolState == ProtocolState.Play)
                         connection.EnqueuePacket(new ServerKeepAlive(keepAliveId));
                 }
             }

@@ -103,7 +103,8 @@ namespace MinecraftServerSharp.Net
                 _packetHolderPool.Return(packetHolder);
         }
 
-        public PacketHolder<TPacket> RentPacketHolder<TPacket>(NetConnection connection, in TPacket packet)
+        public PacketHolder<TPacket> RentPacketHolder<TPacket>(
+            NetConnection connection, in TPacket packet)
         {
             if (connection == null)
                 throw new ArgumentNullException(nameof(connection));
@@ -129,7 +130,7 @@ namespace MinecraftServerSharp.Net
             if (packetHolder.Connection == null)
                 throw new ArgumentException("No assigned connection.");
 
-            if(!PacketSendQueues.TryGetValue(packetHolder.Connection, out var queue))
+            if (!PacketSendQueues.TryGetValue(packetHolder.Connection, out var queue))
             {
                 queue = new NetOrchestratorQueue(packetHolder.Connection);
                 PacketSendQueues.TryAdd(queue.Connection, queue);
@@ -146,7 +147,8 @@ namespace MinecraftServerSharp.Net
             RequestFlush();
         }
 
-        public void EnqueuePacket<TPacket>(NetConnection target, in TPacket packet)
+        public void EnqueuePacket<TPacket>(
+            NetConnection target, in TPacket packet)
         {
             var packetHolder = RentPacketHolder(target, packet);
             EnqueuePacket(packetHolder);

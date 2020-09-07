@@ -27,7 +27,7 @@ namespace MinecraftServerSharp.Net
         public PacketHolder<TPacket> Rent<TPacket>(
             NetPacketWriterDelegate<TPacket> writer,
             NetConnection connection,
-            TPacket packet)
+            in TPacket packet)
         {
 #pragma warning disable IDE0016 // Use 'throw' expression
             if (writer == null)
@@ -53,7 +53,7 @@ namespace MinecraftServerSharp.Net
 
             packetHolder.Writer = writer;
             packetHolder.Connection = connection;
-            packetHolder.State = connection.State;
+            packetHolder.State = connection.ProtocolState;
             packetHolder.Packet = packet;
             return packetHolder;
         }

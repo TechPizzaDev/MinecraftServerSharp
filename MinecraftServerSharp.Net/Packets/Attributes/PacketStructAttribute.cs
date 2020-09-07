@@ -12,6 +12,7 @@ namespace MinecraftServerSharp.Net.Packets
 
         public bool IsClientPacket { get; }
         public bool IsServerPacket { get; }
+        public bool IsLoopbackPacket => IsClientPacket && IsServerPacket;
 
         public PacketStructAttribute(int packetId)
         {
@@ -25,6 +26,12 @@ namespace MinecraftServerSharp.Net.Packets
 
         public PacketStructAttribute(ServerPacketId packetId) : this((int)packetId)
         {
+            IsServerPacket = true;
+        }
+
+        public PacketStructAttribute(LoopbackPacketId packetId) : this((int)packetId)
+        {
+            IsClientPacket = true;
             IsServerPacket = true;
         }
     }
