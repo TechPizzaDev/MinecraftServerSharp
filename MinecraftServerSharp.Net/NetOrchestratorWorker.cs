@@ -172,11 +172,17 @@ namespace MinecraftServerSharp.Net
                         Orchestrator.ReturnPacketHolder(packetHolder);
                     }
 
-                    Task.Run(async () => await Orchestrator.Codec.FlushSendBuffer(connection)).ContinueWith((task) =>
+                    var flushTask = Orchestrator.Codec.FlushSendBuffer(connection);
+                    flushTask.ContinueWith((task) =>
                     {
-                        lock (Orchestrator.OccupiedQueues)
-                            Orchestrator.OccupiedQueues.Remove(orchestratorQueue);
-                    
+                        lock (orchestratorQueue.EngageMutex)
+                        {
+                            if (orchestratorQueue.SendQueue.IsEmpty)
+                                orchestratorQueue.IsEngaged = false;
+                            else
+                                Orchestrator.QueuesToFlush.Enqueue(orchestratorQueue);
+                        }
+
                     }, TaskContinuationOptions.ExecuteSynchronously);
 
                 }

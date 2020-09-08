@@ -6,23 +6,26 @@ using MinecraftServerSharp.Utility;
 
 namespace MinecraftServerSharp.Net
 {
+    public class NetOrchestratorQueue
+    {
+        public NetConnection Connection { get; }
+
+        public object EngageMutex { get; } = new object();
+        public ConcurrentQueue<PacketHolder> SendQueue { get; } = new ConcurrentQueue<PacketHolder>();
+
+        public bool IsEngaged { get; set; }
+
+        public NetOrchestratorQueue(NetConnection connection)
+        {
+            Connection = connection ?? throw new ArgumentNullException(nameof(connection));
+        }
+    }
+
     /// <summary>
     /// Orchestrates threads through <see cref="NetOrchestratorWorker"/> instances.
     /// </summary>
     public class NetOrchestrator
     {
-        public class NetOrchestratorQueue
-        {
-            public NetConnection Connection { get; }
-            public ConcurrentQueue<PacketHolder> SendQueue { get; } = new ConcurrentQueue<PacketHolder>();
-            public object WorkerMutex { get; } = new object();
-
-            public NetOrchestratorQueue(NetConnection connection)
-            {
-                Connection = connection ?? throw new ArgumentNullException(nameof(connection));
-            }
-        }
-
         public const int PacketPoolItemLimit = 64;
         public const int PacketPoolCommonItemLimit = 256;
 
@@ -47,14 +50,10 @@ namespace MinecraftServerSharp.Net
             new ConcurrentDictionary<NetConnection, NetOrchestratorQueue>();
 
         /// <summary>
-        /// Acts as a control so only one worker is processing a connection.
-        /// </summary>
-        public HashSet<NetOrchestratorQueue> OccupiedQueues { get; } = new HashSet<NetOrchestratorQueue>();
-
-        /// <summary>
         /// Holds queues that have packets to send.
         /// </summary>
-        public ConcurrentQueue<NetOrchestratorQueue> QueuesToFlush { get; } = new ConcurrentQueue<NetOrchestratorQueue>();
+        public ConcurrentQueue<NetOrchestratorQueue> QueuesToFlush { get; } =
+            new ConcurrentQueue<NetOrchestratorQueue>();
 
         public NetOrchestrator(RecyclableMemoryManager memoryManager, NetPacketCodec codec)
         {
@@ -93,6 +92,8 @@ namespace MinecraftServerSharp.Net
 
         public void RequestFlush()
         {
+            // TODO: smarter flushing
+
             foreach (var worker in _workers)
                 worker.RequestFlush();
         }
@@ -137,14 +138,22 @@ namespace MinecraftServerSharp.Net
             }
             queue.SendQueue.Enqueue(packetHolder);
 
-            lock (OccupiedQueues)
+            if (queue.IsEngaged)
+                return;
+
+            bool requestFlush = false;
+            lock (queue.EngageMutex)
             {
-                // Only allow one worker to work on a queue.
-                // The worker will unoccupy the queue when done.
-                if (OccupiedQueues.Add(queue))
-                    QueuesToFlush.Enqueue(queue);
+                if (queue.IsEngaged)
+                    return;
+
+                requestFlush = true;
+                queue.IsEngaged = true;
+                QueuesToFlush.Enqueue(queue);
             }
-            RequestFlush();
+
+            if (requestFlush)
+                RequestFlush();
         }
 
         public void EnqueuePacket<TPacket>(

@@ -29,7 +29,7 @@ namespace MinecraftServerSharp.Net
         // TODO: add thread-safe protocol state propagation
         public ProtocolState ProtocolState { get; set; }
 
-        public string? UserName { get; internal set; }
+        public string? UserName { get; set; }
 
         #region Constructors
 
@@ -70,20 +70,20 @@ namespace MinecraftServerSharp.Net
             Orchestrator.EnqueuePacket(this, packet);
         }
 
-        public void TrimSendBufferStart(int length)
-        {
-            SendBuffer.TrimStart(length);
-        }
-
         public void Kick(Exception? exception)
         {
+            bool detailed = false;
+            
             Chat? chat = null;
             if (exception != null)
             {
+                string errorMessage = 
+                    (detailed ? exception.ToString() : exception.Message).Replace("\r", "");
+
                 var dyn = new[]
                 {
                     new { text = "Server Exception\n", bold = true },
-                    new { text = exception.ToString(), bold = false }
+                    new { text = errorMessage, bold = false }
                 };
                 chat = new Chat((Utf8String)JsonSerializer.Serialize(dyn));
             }

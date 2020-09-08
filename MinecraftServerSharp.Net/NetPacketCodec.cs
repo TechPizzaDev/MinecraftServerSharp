@@ -95,7 +95,7 @@ namespace MinecraftServerSharp.Net
             return packetHandler;
         }
 
-        public Task AddConnection(NetConnection connection)
+        public async Task EngageConnection(NetConnection connection)
         {
             if (connection == null)
                 throw new ArgumentNullException(nameof(connection));
@@ -104,46 +104,53 @@ namespace MinecraftServerSharp.Net
 
             // As soon as the client connects, start receiving
 
-            return Task.Run(async () =>
+            var readBuffer = new byte[1024 * 16];
+            var readMemory = readBuffer.AsMemory();
+            var socket = connection.Socket;
+
+            var receiveBuffer = connection.ReceiveBuffer;
+            var state = new ReceiveState(new NetBinaryReader(receiveBuffer));
+
+            try
             {
-                var readBuffer = new byte[1024 * 16];
-                var readMemory = readBuffer.AsMemory();
-                var socket = connection.Socket;
-
-                var receiveBuffer = connection.ReceiveBuffer;
-                var state = new ReceiveState(new NetBinaryReader(receiveBuffer));
-
-                try
+                int read;
+                while ((read = await socket.ReceiveAsync(readMemory, SocketFlags.None)) != 0)
                 {
-                    int read;
-                    while ((read = await socket.ReceiveAsync(readMemory, SocketFlags.None)) != 0)
+                    // TODO: this only reads uncompressed packets for now, 
+                    // this will require slight change when compressed packets are implemented
+
+                    // We process by the message length (unless it's a legacy server list ping), 
+                    // so don't worry if we received parts of the next message.
+
+                    var readSlice = readMemory.Slice(0, read);
+                    state.Reader.Seek(0, SeekOrigin.End);
+                    state.Reader.BaseStream.Write(readSlice.Span);
+                    connection.BytesReceived += readSlice.Length;
+
+                    state.Reader.Position = 0;
+
+                    OperationStatus handleStatus;
+                    while ((handleStatus = HandlePacket(
+                        connection, ref state, out VarInt totalMessageLength)) == OperationStatus.Done &&
+                        connection.ProtocolState != ProtocolState.Closing)
                     {
-                        var readSlice = readMemory.Slice(0, read);
+                        receiveBuffer.TrimStart(totalMessageLength);
+                    }
 
-                        OperationStatus handleStatus;
-                        while ((handleStatus = HandlePacket(
-                            connection, readSlice, ref state, out VarInt totalMessageLength)) == OperationStatus.Done &&
-                            connection.ProtocolState != ProtocolState.Closing)
-                        {
-                            receiveBuffer.TrimStart(totalMessageLength);
-                            Console.WriteLine(totalMessageLength + "/" + receiveBuffer.Length);
-                        }
-
-                        if (handleStatus == OperationStatus.InvalidData)
-                        {
-                            // TODO: do something more?
-                            break;
-                        }
+                    if (handleStatus == OperationStatus.InvalidData)
+                    {
+                        // TODO: do something more?
+                        break;
                     }
                 }
-                catch (Exception ex)
-                {
-                    Console.WriteLine(ex);
-                    connection.Kick("Server Error: \n" + ex.ToString().Replace("\r", ""));
-                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex);
+                connection.Kick(ex);
+            }
 
-                connection.Close(immediate: false);
-            });
+            connection.Close(immediate: false);
         }
 
         public struct ReceiveState
@@ -212,24 +219,6 @@ namespace MinecraftServerSharp.Net
                 throw new Exception("Packet handler read too much bytes.");
 
             return OperationStatus.Done;
-        }
-
-        public OperationStatus HandlePacket(
-            NetConnection connection, Memory<byte> data, ref ReceiveState state, out VarInt totalMessageLength)
-        {
-            // TODO: this only reads uncompressed packets for now, 
-            // this will require slight change when compressed packets are implemented
-
-            // We process by the message length (unless it's a legacy server list ping), 
-            // so don't worry if we received parts of the next message.
-
-            state.Reader.Seek(0, SeekOrigin.End);
-            state.Reader.BaseStream.Write(data.Span);
-            connection.BytesReceived += data.Length;
-
-            state.Reader.Position = 0;
-
-            return HandlePacket(connection, ref state, out totalMessageLength);
         }
 
         public async Task<NetSendState> FlushSendBuffer(NetConnection connection)

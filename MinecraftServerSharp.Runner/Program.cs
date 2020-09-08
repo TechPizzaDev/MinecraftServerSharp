@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Net;
 using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Text.Json;
 using MinecraftServerSharp.Data;
 using MinecraftServerSharp.Net;
 using MinecraftServerSharp.Net.Packets;
@@ -17,8 +19,8 @@ namespace MinecraftServerSharp.Runner
         public const string PongResource = "Minecraft/Net/Pong.json";
         private static long tickCount;
         private static Random rng = new Random();
-        private static NetManager manager;
-        private static string _requestPongBase;
+        private static NetManager _manager;
+        private static string? _requestPongBase;
 
         private static void Main(string[] args)
         {
@@ -105,23 +107,23 @@ namespace MinecraftServerSharp.Runner
 
             var ticker = new Ticker(targetTickTime: TimeSpan.FromMilliseconds(50));
 
-            manager = new NetManager();
-            manager.Listener.Connection += Manager_Connection;
-            manager.Listener.Disconnection += Manager_Disconnection;
-            SetPacketHandlers(manager);
+            _manager = new NetManager();
+            _manager.Listener.Connection += Manager_Connection;
+            _manager.Listener.Disconnection += Manager_Disconnection;
+            SetPacketHandlers(_manager);
 
             ushort port = 25565;
             var localEndPoint = new IPEndPoint(IPAddress.Any, port);
-            manager.Bind(localEndPoint);
+            _manager.Bind(localEndPoint);
             Console.WriteLine("Listener bound to endpoint " + localEndPoint);
 
             Console.WriteLine("Setting up network manager...");
-            manager.Setup();
+            _manager.Setup();
 
             int backlog = 200;
             Console.WriteLine("Listener backlog queue size: " + backlog);
 
-            manager.Listen(backlog);
+            _manager.Listen(backlog);
             Console.WriteLine("Listening for connections...");
 
             ticker.Tick += Game_Tick;
@@ -137,7 +139,7 @@ namespace MinecraftServerSharp.Runner
             tickCount++;
             if (tickCount % 20 == 0) // Every second
             {
-                manager.TickAlive(tickCount);
+                _manager.TickAlive(tickCount);
 
                 //Console.WriteLine(
                 //    "Tick Time: " +
@@ -147,14 +149,14 @@ namespace MinecraftServerSharp.Runner
                 //    " | " +
                 //    (sender.ElapsedTime.Ticks / (float)sender.TargetTime.Ticks * 100f).ToString("00.0") + "%");
 
-                int connectionCount = manager.UpdateConnections();
-
-                if (connectionCount > 0)
-                    Console.WriteLine(connectionCount + " connections");
+                int updateCount = _manager.UpdateConnections(out int activeCount);
+                
+                //if (updateCount > 0)
+                //    Console.WriteLine(activeCount + " connections");
             }
 
             //world.Tick();
-            manager.Orchestrator.RequestFlush();
+            _manager.Orchestrator.RequestFlush();
         }
 
         private static void SetPacketHandlers(NetManager manager)
@@ -193,8 +195,6 @@ namespace MinecraftServerSharp.Runner
 
                 var answer = new ServerResponse((Utf8String)jsonResponse);
                 connection.EnqueuePacket(answer);
-
-                connection.Close(immediate: false);
             });
 
 
@@ -227,6 +227,7 @@ namespace MinecraftServerSharp.Runner
 
                 connection.EnqueuePacket(answer);
 
+                connection.UserName = name.ToString();
                 connection.ProtocolState = ProtocolState.Play;
 
                 var playerId = new EntityId(69);
@@ -281,7 +282,7 @@ namespace MinecraftServerSharp.Runner
             });
 
 
-            void PlayerPositionChange(NetConnection connection, double x, double y, double z)
+            static void PlayerPositionChange(NetConnection connection, double x, double y, double z)
             {
                 connection.EnqueuePacket(
                     new ServerUpdateViewPosition((VarInt)(x / 16), (VarInt)(z / 16)));
@@ -305,6 +306,12 @@ namespace MinecraftServerSharp.Runner
                 //    " Z" + playerPosition.Z);
 
                 PlayerPositionChange(connection, playerPosition.X, playerPosition.FeetY, playerPosition.Z);
+            });
+
+
+            manager.SetPacketHandler(delegate
+                (NetConnection connection, ClientPlayerMovement playerMovement)
+            {
             });
 
 
@@ -378,8 +385,29 @@ namespace MinecraftServerSharp.Runner
             manager.SetPacketHandler(delegate
                 (NetConnection connection, ClientChat chat)
             {
-                // TODO broadcast to everyone
+                // TODO: better broadcasting
+
                 Console.WriteLine("<" + connection.UserName + ">: " + chat.Message);
+
+                var dyn = new
+                {
+                    translate = "chat.type.text",
+                    with = new[]
+                    {
+                        new { text = connection.UserName, color = "red" },
+                        new { text = chat.Message.ToString(), color = "reset" }
+                    }
+                };
+
+                var chatToSend = new Chat(new Utf8String(JsonSerializer.Serialize(dyn)));
+
+                lock (manager.ConnectionMutex)
+                {
+                    foreach (var conn in manager.Connections)
+                    {
+                        conn.EnqueuePacket(new ServerChat(chatToSend, 0));
+                    }
+                }
             });
 
 

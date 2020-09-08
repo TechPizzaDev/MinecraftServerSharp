@@ -125,7 +125,7 @@ namespace MinecraftServerSharp.Net
                     throw new InvalidOperationException();
             }
 
-            Codec.AddConnection(connection);
+            var connectionTask = Codec.EngageConnection(connection);
         }
 
         private void Listener_Disconnection(NetListener sender, NetConnection connection)
@@ -145,7 +145,7 @@ namespace MinecraftServerSharp.Net
             }
         }
 
-        public int UpdateConnections()
+        public int UpdateConnections(out int activeConnectionCount)
         {
             var list = new List<NetConnection>(_connections.Count);
             lock (ConnectionMutex)
@@ -153,13 +153,14 @@ namespace MinecraftServerSharp.Net
                 list.AddRange(_connections);
             }
 
+            int activeCount = 0;
             for (int i = 0; i < list.Count; i++)
             {
                 var connection = list[i];
                 if (connection.ProtocolState == ProtocolState.Closing)
                 {
                     if (Orchestrator.PacketSendQueues.TryGetValue(connection, out var queue) &&
-                        !Orchestrator.OccupiedQueues.Contains(queue))
+                        !queue.IsEngaged)
                     {
                         if (connection.SendBuffer.Length == 0)
                             connection.Close(immediate: true);
@@ -167,7 +168,13 @@ namespace MinecraftServerSharp.Net
                             Console.WriteLine("Delaying close");
                     }
                 }
+                else
+                {
+                    activeCount++;
+                }
             }
+
+            activeConnectionCount = activeCount;
             return list.Count;
         }
 
