@@ -15,7 +15,11 @@ namespace MinecraftServerSharp.Net.Packets
     {
         public delegate OperationStatus PacketReaderDelegate<TPacket>(NetBinaryReader reader, out TPacket packet);
 
-        private static Type[] _binaryReaderTypes = new[] { typeof(NetBinaryReader) };
+        private static Type[] _binaryReaderTypes = new[] 
+        {
+            typeof(NetBinaryReader),
+            typeof(NetBinaryReaderTypeExtensions)
+        };
 
         public NetPacketDecoder() : base()
         {
@@ -52,6 +56,8 @@ namespace MinecraftServerSharp.Net.Packets
 
             RegisterDataTypeAsOut(typeof(Utf8String));
             RegisterDataTypeAsOut(typeof(string));
+
+            RegisterDataTypeAsOut(typeof(Position));
         }
 
         #endregion

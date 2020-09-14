@@ -2,7 +2,6 @@
 
 namespace MinecraftServerSharp.Net.Packets
 {
-
     [PacketStruct(ServerPacketId.JoinGame)]
     public readonly struct ServerJoinGame
     {
@@ -29,7 +28,7 @@ namespace MinecraftServerSharp.Net.Packets
         {
             LevelType = levelType ?? throw new ArgumentNullException(nameof(levelType));
             if (LevelType.Length > 16)
-                throw new ArgumentException("Invalid length.", nameof(levelType));;
+                throw new ArgumentException("Invalid level type.", nameof(levelType));;
 
             if (viewDistance < 2 || viewDistance > 32)
                 throw new ArgumentOutOfRangeException(nameof(viewDistance));

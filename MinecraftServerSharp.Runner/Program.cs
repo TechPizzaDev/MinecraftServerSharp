@@ -141,18 +141,17 @@ namespace MinecraftServerSharp.Runner
             {
                 _manager.TickAlive(tickCount);
 
-                //Console.WriteLine(
-                //    "Tick Time: " +
-                //    sender.ElapsedTime.TotalMilliseconds.ToString("00.00") +
-                //    "/" +
-                //    sender.TargetTime.TotalMilliseconds.ToString("00") + " ms" +
-                //    " | " +
-                //    (sender.ElapsedTime.Ticks / (float)sender.TargetTime.Ticks * 100f).ToString("00.0") + "%");
-
                 int updateCount = _manager.UpdateConnections(out int activeCount);
-                
                 //if (updateCount > 0)
                 //    Console.WriteLine(activeCount + " connections");
+
+                Console.WriteLine(
+                    "Tick Time: " +
+                    ticker.ElapsedTime.TotalMilliseconds.ToString("00.00") +
+                    "/" +
+                    ticker.TargetTime.TotalMilliseconds.ToString("00") + " ms" +
+                    " | " +
+                    (ticker.ElapsedTime.Ticks / (float)ticker.TargetTime.Ticks * 100f).ToString("00.0") + "%");
             }
 
             //world.Tick();
@@ -215,7 +214,7 @@ namespace MinecraftServerSharp.Runner
                 var answer = new ServerPong(ping.Payload);
                 connection.EnqueuePacket(answer);
             });
-
+            
 
             manager.SetPacketHandler(delegate
                 (NetConnection connection, ClientLoginStart loginStart)
@@ -233,7 +232,7 @@ namespace MinecraftServerSharp.Runner
                 var playerId = new EntityId(69);
 
                 connection.EnqueuePacket(new ServerJoinGame(
-                    playerId.Value, 3, 0, 0, 0, (Utf8String)"default", 16, false, true));
+                    playerId.Value, 1, 0, 0, 0, (Utf8String)"default", 16, false, true));
 
                 connection.EnqueuePacket(new ServerPluginMessage(
                     (Utf8String)"minecraft:brand",
@@ -287,6 +286,27 @@ namespace MinecraftServerSharp.Runner
                 connection.EnqueuePacket(
                     new ServerUpdateViewPosition((VarInt)(x / 16), (VarInt)(z / 16)));
             }
+
+
+            manager.SetPacketHandler(delegate (
+                NetConnection connection, ClientPlayerAbilities playerAbilities)
+            {
+
+            });
+
+
+            manager.SetPacketHandler(delegate (
+                NetConnection connection, ClientCreativeInventoryAction creativeInventoryAction)
+            {
+                Console.WriteLine(creativeInventoryAction.Present);
+            });
+
+
+            manager.SetPacketHandler(delegate (
+                NetConnection connection, ClientPlayerBlockPlacement playerBlockPlacement)
+            {
+                Console.WriteLine(playerBlockPlacement.Location);
+            });
 
 
             manager.SetPacketHandler(delegate
@@ -387,14 +407,18 @@ namespace MinecraftServerSharp.Runner
             {
                 // TODO: better broadcasting
 
-                Console.WriteLine("<" + connection.UserName + ">: " + chat.Message);
+                string? name = connection.UserName;
+                if (name == null)
+                    name = "null";
+
+                Console.WriteLine("<" + name + ">: " + chat.Message);
 
                 var dyn = new
                 {
                     translate = "chat.type.text",
                     with = new[]
                     {
-                        new { text = connection.UserName, color = "red" },
+                        new { text = name, color = "red" },
                         new { text = chat.Message.ToString(), color = "reset" }
                     }
                 };

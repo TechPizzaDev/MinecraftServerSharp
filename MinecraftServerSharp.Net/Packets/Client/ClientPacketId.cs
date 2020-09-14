@@ -43,12 +43,15 @@ namespace MinecraftServerSharp.Net.Packets
         [Mapping(State.Play, 0x12)] PlayerPositionRotation,
         [Mapping(State.Play, 0x13)] PlayerRotation,
         [Mapping(State.Play, 0x14)] PlayerMovement,
+        [Mapping(State.Play, 0x19)] PlayerAbilities,
 
         [Mapping(State.Play, 0x1B)] EntityAction,
         [Mapping(State.Play, 0x1D)] RecipeBookData,
 
         [Mapping(State.Play, 0x2A)] Animation,
         [Mapping(State.Play, 0x23)] HeldItemChange,
+        [Mapping(State.Play, 0x26)] CreativeInventoryAction,
+        [Mapping(State.Play, 0x2C)] PlayerBlockPlacement,
 
         #endregion
     }
