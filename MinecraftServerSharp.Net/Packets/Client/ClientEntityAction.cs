@@ -6,14 +6,14 @@ namespace MinecraftServerSharp.Net.Packets
     public readonly struct ClientEntityAction
     {
         public VarInt EntityId { get; }
-        public ClientActionId ActionId { get; }
+        public ActionId ActionId { get; }
         public VarInt JumpBoost { get; }
 
         [PacketConstructor]
         public ClientEntityAction(VarInt entityId, VarInt actionId, VarInt jumpBoost)
         {
             EntityId = entityId;
-            ActionId = (ClientActionId)actionId.Value;
+            ActionId = (ActionId)actionId.Value;
             JumpBoost = jumpBoost;
         }
     }

@@ -1,7 +1,7 @@
 ﻿
 namespace MinecraftServerSharp.Data
 {
-    public enum ClientHandId
+    public enum HandId
     {
         MainHand = 0,
         OffHand = 1

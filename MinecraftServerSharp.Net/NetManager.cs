@@ -108,7 +108,6 @@ namespace MinecraftServerSharp.Net
 
         public void Listen(int backlog)
         {
-            // TODO: fix some kind of concurrency that corrupts sent data
             Orchestrator.Start(workerCount: 4);
 
             Listener.Connection += Listener_Connection;
@@ -118,14 +117,15 @@ namespace MinecraftServerSharp.Net
         }
 
         private void Listener_Connection(NetListener sender, NetConnection connection)
-        {
+        {   
             lock (ConnectionMutex)
             {
                 if (!_connections.Add(connection))
                     throw new InvalidOperationException();
             }
 
-            var connectionTask = Codec.EngageConnection(connection);
+            // TODO: manage connection tasks
+            var connectionTask = Codec.EngageConnection(connection, cancellationToken: default);
         }
 
         private void Listener_Disconnection(NetListener sender, NetConnection connection)

@@ -1,7 +1,7 @@
 ﻿
 namespace MinecraftServerSharp.Data
 {
-    public enum ClientActionId
+    public enum ActionId
     {
         StartSneaking = 0,
         StopSneaking = 1,

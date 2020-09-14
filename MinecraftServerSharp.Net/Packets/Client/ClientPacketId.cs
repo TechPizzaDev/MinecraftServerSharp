@@ -45,6 +45,7 @@ namespace MinecraftServerSharp.Net.Packets
         [Mapping(State.Play, 0x14)] PlayerMovement,
         [Mapping(State.Play, 0x19)] PlayerAbilities,
 
+        [Mapping(State.Play, 0x1A)] PlayerDigging,
         [Mapping(State.Play, 0x1B)] EntityAction,
         [Mapping(State.Play, 0x1D)] RecipeBookData,
 
@@ -52,6 +53,7 @@ namespace MinecraftServerSharp.Net.Packets
         [Mapping(State.Play, 0x23)] HeldItemChange,
         [Mapping(State.Play, 0x26)] CreativeInventoryAction,
         [Mapping(State.Play, 0x2C)] PlayerBlockPlacement,
+        [Mapping(State.Play, 0x2D)] UseItem,
 
         #endregion
     }

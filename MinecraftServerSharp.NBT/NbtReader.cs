@@ -226,7 +226,9 @@ namespace MinecraftServerSharp.NBT
                     break;
 
                 case NbtType.End:
-                    _state._containerInfoStack.Pop();
+                    // Documents with a single End tag are valid.
+                    if (!_state._containerInfoStack.IsEmpty)
+                        _state._containerInfoStack.Pop();
                     break;
 
                 case NbtType.List:

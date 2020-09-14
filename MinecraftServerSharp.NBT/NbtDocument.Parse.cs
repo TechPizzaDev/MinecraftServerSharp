@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -113,7 +112,8 @@ namespace MinecraftServerSharp.NBT
                     {
                         database.Append(location, reader.TagSpan.Length, numberOfRows: 1, type, flags);
 
-                        var compoundFrame = stack.Pop();
+                        // Documents with a single End tag are valid.
+                        var compoundFrame = stack.IsEmpty ? default : stack.Pop();
 
                         database.SetNumberOfRows(
                             compoundFrame.ContainerIndex, numberOfRows - compoundFrame.NumberOfRows + 1); // +1 for End

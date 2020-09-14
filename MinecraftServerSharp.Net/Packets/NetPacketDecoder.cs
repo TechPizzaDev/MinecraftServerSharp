@@ -4,7 +4,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using MinecraftServerSharp.Data;
 using MinecraftServerSharp.Data.IO;
+using MinecraftServerSharp.NBT;
 
 namespace MinecraftServerSharp.Net.Packets
 {
@@ -15,10 +17,11 @@ namespace MinecraftServerSharp.Net.Packets
     {
         public delegate OperationStatus PacketReaderDelegate<TPacket>(NetBinaryReader reader, out TPacket packet);
 
-        private static Type[] _binaryReaderTypes = new[] 
+        private static Type[] _binaryReaderTypes = new[]
         {
             typeof(NetBinaryReader),
-            typeof(NetBinaryReaderTypeExtensions)
+            typeof(NetBinaryReaderTypeExtensions),
+            typeof(NetBinaryReaderNbtExtensions)
         };
 
         public NetPacketDecoder() : base()
@@ -35,10 +38,12 @@ namespace MinecraftServerSharp.Net.Packets
 
         protected virtual void RegisterDataTypes()
         {
-            void RegisterDataTypeAsOut(Type outType)
+            void RegisterDataTypeAsOut(params Type[] outType)
             {
-                RegisterDataType(outType.MakeByRefType());
+                RegisterDataType(outType.SkipLast(1).Append(outType.Last().MakeByRefType()).ToArray());
             }
+
+            // TODO: add attribute for auto-registering
 
             RegisterDataTypeAsOut(typeof(bool));
             RegisterDataTypeAsOut(typeof(sbyte));
@@ -47,17 +52,16 @@ namespace MinecraftServerSharp.Net.Packets
             RegisterDataTypeAsOut(typeof(ushort));
             RegisterDataTypeAsOut(typeof(int));
             RegisterDataTypeAsOut(typeof(long));
-
             RegisterDataTypeAsOut(typeof(VarInt));
             RegisterDataTypeAsOut(typeof(VarLong));
-
             RegisterDataTypeAsOut(typeof(float));
             RegisterDataTypeAsOut(typeof(double));
-
             RegisterDataTypeAsOut(typeof(Utf8String));
             RegisterDataTypeAsOut(typeof(string));
 
-            RegisterDataTypeAsOut(typeof(Position));
+            RegisterDataTypeAsOut(typeof(NetBinaryReader), typeof(Position));
+            RegisterDataTypeAsOut(typeof(NetBinaryReader), typeof(Slot));
+            RegisterDataTypeAsOut(typeof(NetBinaryReader), typeof(NbtDocument));
         }
 
         #endregion
@@ -149,6 +153,8 @@ namespace MinecraftServerSharp.Net.Packets
             LabelTarget returnTarget,
             ParameterInfo[] constructorParams)
         {
+            var retType = typeof(OperationStatus);
+
             for (int i = 0; i < constructorParams.Length; i++)
             {
                 var constructorParam = constructorParams[i];
@@ -159,16 +165,36 @@ namespace MinecraftServerSharp.Net.Packets
                 variables.Add(resultVar);
                 constructorArgs.Add(resultVar);
 
-                var dataTypeKey = new DataTypeKey(
-                    typeof(OperationStatus), constructorParam.ParameterType.MakeByRefType());
+                var readType = constructorParam.ParameterType.MakeByRefType();
+                var tuples = new[]
+                {
+                    (Reader: readerParam,
+                    Args: new[] { resultVar },
+                    Key: new DataTypeKey(retType, readType)),
 
-                var readMethod = DataTypeHandlers[dataTypeKey];
-                var readCall = Expression.Call(readerParam, readMethod, arguments: resultVar);
-                expressions.Add(Expression.Assign(resultCodeVar, readCall));
+                    (Reader: null,
+                    Args: new[] { readerParam, resultVar },
+                    Key: new DataTypeKey(retType, typeof(NetBinaryReader), readType)),
+                };
 
-                expressions.Add(Expression.IfThen(
-                    test: Expression.NotEqual(resultCodeVar, Expression.Constant(OperationStatus.Done)),
-                    ifTrue: Expression.Goto(returnTarget)));
+                MethodInfo? readMethod = null;
+                foreach (var (reader, args, dataKey) in tuples)
+                {
+                    if (DataTypeHandlers.TryGetValue(dataKey, out readMethod))
+                    {
+                        var readCall = Expression.Call(reader, readMethod, args);
+                        expressions.Add(Expression.Assign(resultCodeVar, readCall));
+
+                        expressions.Add(Expression.IfThen(
+                            test: Expression.NotEqual(resultCodeVar, Expression.Constant(OperationStatus.Done)),
+                            ifTrue: Expression.Goto(returnTarget)));
+
+                        break;
+                    }
+                }
+
+                if (readMethod == null)
+                    throw new Exception();
             }
         }
     }

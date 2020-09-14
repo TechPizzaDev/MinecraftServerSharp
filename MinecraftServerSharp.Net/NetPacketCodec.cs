@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
+using System.Threading;
 using System.Threading.Tasks;
 using MinecraftServerSharp.Data.IO;
 using MinecraftServerSharp.Net.Packets;
@@ -95,12 +96,10 @@ namespace MinecraftServerSharp.Net
             return packetHandler;
         }
 
-        public async Task EngageConnection(NetConnection connection)
+        public async Task EngageConnection(NetConnection connection, CancellationToken cancellationToken)
         {
             if (connection == null)
                 throw new ArgumentNullException(nameof(connection));
-
-            // TODO: cancellation token
 
             // As soon as the client connects, start receiving
 
@@ -109,15 +108,16 @@ namespace MinecraftServerSharp.Net
             var socket = connection.Socket;
 
             var receiveBuffer = connection.ReceiveBuffer;
-            var state = new ReceiveState(new NetBinaryReader(receiveBuffer));
+            var state = new ReceiveState(new NetBinaryReader(receiveBuffer), cancellationToken);
 
             try
             {
                 int read;
-                while ((read = await socket.ReceiveAsync(readMemory, SocketFlags.None)) != 0)
+                while ((read = await socket.ReceiveAsync(
+                    readMemory, SocketFlags.None, state.CancellationToken)) != 0)
                 {
                     // TODO: this only reads uncompressed packets for now, 
-                    // this will require slight change when compressed packets are implemented
+                    //  this will require slight change when compressed packets are implemented
 
                     // We process by the message length (unless it's a legacy server list ping), 
                     // so don't worry if we received parts of the next message.
@@ -125,9 +125,8 @@ namespace MinecraftServerSharp.Net
                     var readSlice = readMemory.Slice(0, read);
                     state.Reader.Seek(0, SeekOrigin.End);
                     state.Reader.BaseStream.Write(readSlice.Span);
-                    connection.BytesReceived += readSlice.Length;
-
                     state.Reader.Position = 0;
+                    connection.BytesReceived += readSlice.Length;
 
                     OperationStatus handleStatus;
                     while ((handleStatus = HandlePacket(
@@ -139,7 +138,7 @@ namespace MinecraftServerSharp.Net
 
                     if (handleStatus == OperationStatus.InvalidData)
                     {
-                        // TODO: do something more?
+                        // TODO: handle this state?
                         break;
                     }
                 }
@@ -156,12 +155,15 @@ namespace MinecraftServerSharp.Net
         public struct ReceiveState
         {
             public readonly NetBinaryReader Reader;
+            public readonly CancellationToken CancellationToken;
 
             public ProtocolState? ProtocolOverride;
 
-            public ReceiveState(NetBinaryReader reader)
+            public ReceiveState(NetBinaryReader reader, CancellationToken cancellationToken)
             {
                 Reader = reader;
+                CancellationToken = cancellationToken;
+
                 ProtocolOverride = default;
             }
         }

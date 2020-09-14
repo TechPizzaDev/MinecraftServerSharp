@@ -5,7 +5,7 @@ namespace MinecraftServerSharp.Net.Packets
     [PacketStruct(ClientPacketId.PlayerBlockPlacement)]
     public readonly struct ClientPlayerBlockPlacement
     {
-        public ClientHandId Hand { get; }
+        public HandId Hand { get; }
         public Position Location { get; }
         public BlockFace Face { get; }
         public float CursorPositionX { get; }
@@ -23,7 +23,7 @@ namespace MinecraftServerSharp.Net.Packets
             float cursorPositionZ, 
             bool insideBlock)
         {
-            Hand = hand.AsEnum<ClientHandId>();
+            Hand = hand.AsEnum<HandId>();
             Location = location;
             Face = face.AsEnum<BlockFace>();
             CursorPositionX = cursorPositionX;

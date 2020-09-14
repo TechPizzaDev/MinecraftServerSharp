@@ -20,8 +20,8 @@ namespace MinecraftServerSharp.Net.Packets
         private static Type[] _binaryWriterWriteMethodSources = new[]
         {
             typeof(NetBinaryWriter),
-            typeof(NetBinaryWriterNbtExtensions),
             typeof(NetBinaryWriterTypeExtensions),
+            typeof(NetBinaryWriterNbtExtensions),
         };
 
         public NetPacketEncoder() : base()
@@ -38,6 +38,8 @@ namespace MinecraftServerSharp.Net.Packets
 
         protected virtual void RegisterDataTypes()
         {
+            // TODO: add attribute for auto-registering
+
             RegisterDataType(typeof(bool));
             RegisterDataType(typeof(sbyte));
             RegisterDataType(typeof(byte));
@@ -45,20 +47,17 @@ namespace MinecraftServerSharp.Net.Packets
             RegisterDataType(typeof(ushort));
             RegisterDataType(typeof(int));
             RegisterDataType(typeof(long));
-
             RegisterDataType(typeof(VarInt));
             RegisterDataType(typeof(VarLong));
-
             RegisterDataType(typeof(float));
             RegisterDataType(typeof(double));
-
             RegisterDataType(typeof(Utf8String));
             RegisterDataType(typeof(string));
 
-            RegisterDataType(typeof(Chat));
-            RegisterDataType(typeof(Angle));
-            RegisterDataType(typeof(Position));
-            RegisterDataType(typeof(UUID));
+            RegisterDataType(typeof(NetBinaryWriter), typeof(Chat));
+            RegisterDataType(typeof(NetBinaryWriter), typeof(Angle));
+            RegisterDataType(typeof(NetBinaryWriter), typeof(Position));
+            RegisterDataType(typeof(NetBinaryWriter), typeof(UUID));
         }
 
         #endregion
@@ -131,21 +130,48 @@ namespace MinecraftServerSharp.Net.Packets
                 var property = Expression.Property(packetParam, propertyInfo.Property);
                 bool isEnumProperty = propertyInfo.Type.IsEnum;
 
-                MethodInfo? propertyWriteMethod;
-                Type? writtenType;
+                (ParameterExpression? Writer, Expression[] Args) writeInfo;
+                MethodInfo? writeMethod;
+
+                Type? writeType;
                 if (isEnumProperty)
                 {
-                    writtenType = propertyInfo.Type.GetEnumUnderlyingType();
-                    var enumPropertyTypeKey = DataTypeKey.FromVoid(writtenType);
-                    if (!DataTypeHandlers.TryGetValue(enumPropertyTypeKey, out propertyWriteMethod))
-                        throw new Exception("Missing enum write method for \"" + enumPropertyTypeKey + "\".");
+                    // Enums get sligthly special treatment.
+                    writeType = propertyInfo.Type.GetEnumUnderlyingType();
+                    var enumTypeKey = DataTypeKey.FromVoid(writeType);
+                    if (!DataTypeHandlers.TryGetValue(enumTypeKey, out writeMethod))
+                        throw new Exception("Missing enum write method for \"" + enumTypeKey + "\".");
+
+                    writeInfo = (writerParam, new[] { Expression.Convert(property, writeType) });
                 }
                 else
                 {
-                    writtenType = propertyInfo.Type;
-                    var propertyTypeKey = DataTypeKey.FromVoid(writtenType);
-                    if (!DataTypeHandlers.TryGetValue(propertyTypeKey, out propertyWriteMethod))
-                        throw new Exception("Missing write method for \"" + propertyTypeKey + "\".");
+                    writeType = propertyInfo.Type;
+
+                    var writeInfos = new[]
+                    {
+                        (Writer: writerParam,
+                        Args: new Expression[] { property },
+                        Key: new DataTypeKey(typeof(void), writeType)),
+
+                        (Writer: null,
+                        Args: new Expression[] { writerParam, property },
+                        Key: new DataTypeKey(typeof(void), typeof(NetBinaryWriter), writeType)),
+                    };
+
+                    writeInfo = default;
+                    writeMethod = null;
+                    foreach (var tWriteInfo in writeInfos)
+                    {
+                        if (DataTypeHandlers.TryGetValue(tWriteInfo.Key, out writeMethod))
+                        {
+                            writeInfo = (tWriteInfo.Writer, tWriteInfo.Args);
+                            break;
+                        }
+                    }
+
+                    if (writeMethod == null)
+                        throw new Exception("Missing write method for \"" + writeType + "\".");
                 }
 
                 var lengthPrefixedAttrib = propertyInfo.Property.GetCustomAttribute<LengthPrefixedAttribute>();
@@ -158,19 +184,20 @@ namespace MinecraftServerSharp.Net.Packets
                         var propertyLength = Expression.Convert(length, lengthPrefixedAttrib.LengthType);
                         expressions.Add(Expression.Call(writerParam, lengthWriteMethod, new[] { propertyLength }));
                     }
-                    else
+                    else if (lengthPrefixedAttrib.LengthSource == LengthSource.WrittenBytes)
                     {
                         throw new NotImplementedException();
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException(
+                            "Unknown length source: " + lengthPrefixedAttrib.LengthSource);
                     }
                 }
 
                 // TODO: write collections
 
-                var callArgument = isEnumProperty
-                    ? Expression.Convert(property, writtenType)
-                    : (Expression)property;
-
-                expressions.Add(Expression.Call(writerParam, propertyWriteMethod, new[] { callArgument }));
+                expressions.Add(Expression.Call(writeInfo.Writer, writeMethod, writeInfo.Args));
             }
         }
 

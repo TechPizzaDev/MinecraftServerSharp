@@ -289,6 +289,20 @@ namespace MinecraftServerSharp.Runner
 
 
             manager.SetPacketHandler(delegate (
+                NetConnection connection, ClientUseItem useItem)
+            {
+                Console.WriteLine("item used");
+            });
+
+
+            manager.SetPacketHandler(delegate (
+                NetConnection connection, ClientPlayerDigging playerAbilities)
+            {
+                Console.WriteLine("digging status: " + playerAbilities.Status);
+            });
+
+
+            manager.SetPacketHandler(delegate (
                 NetConnection connection, ClientPlayerAbilities playerAbilities)
             {
 
@@ -298,7 +312,8 @@ namespace MinecraftServerSharp.Runner
             manager.SetPacketHandler(delegate (
                 NetConnection connection, ClientCreativeInventoryAction creativeInventoryAction)
             {
-                Console.WriteLine(creativeInventoryAction.Present);
+                Console.WriteLine(
+                    creativeInventoryAction.Slot + ": " + creativeInventoryAction.SlotData.Present);
             });
 
 
