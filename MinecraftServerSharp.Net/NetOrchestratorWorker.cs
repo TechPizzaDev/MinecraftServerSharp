@@ -168,7 +168,6 @@ namespace MinecraftServerSharp.Net
                             var result = writePacketDelegate.Invoke(packetHolder, mode, _packetWriteBuffer);
                         }
 
-                        // TODO: batch return of holders for less locking
                         Orchestrator.ReturnPacketHolder(packetHolder);
                     }
 

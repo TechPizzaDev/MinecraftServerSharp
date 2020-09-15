@@ -28,14 +28,14 @@ namespace MinecraftServerSharp
             while (true)
             {
                 long currentTicks = Stopwatch.GetTimestamp();
-                long actualSleepTicks = currentTicks - lastTicks;
+                long sleepTicks = currentTicks - lastTicks;
                 Tick?.Invoke(this);
                 lastTicks = Stopwatch.GetTimestamp();
                 ElapsedTime = TimeSpan.FromTicks(lastTicks - currentTicks);
 
                 // Try to sleep for as long as possible without overshooting the target time.
                 var preciseSleepTime = TargetTime - ElapsedTime;
-                long sleepOverheadTicks = Math.Max(0, actualSleepTicks - targetSleepTicks);
+                long sleepOverheadTicks = Math.Max(0, sleepTicks - targetSleepTicks);
                 targetSleepTicks = preciseSleepTime.Ticks - sleepOverheadTicks;
 
                 int sleepMillis = (int)(targetSleepTicks / TimeSpan.TicksPerMillisecond);
