@@ -169,37 +169,5 @@ namespace MinecraftServerSharp.Data.IO
         }
 
         #endregion
-
-        public void Write(Chat chat)
-        {
-            Write(chat.Value);
-        }
-
-        public void Write(Angle angle)
-        {
-            Write(angle.Value);
-        }
-
-        public void Write(Position position)
-        {
-            Write((long)position.Value);
-        }
-
-        public void Write(UUID uuid)
-        {
-            Span<byte> buffer = stackalloc byte[sizeof(ulong) * 2];
-            if (Options.IsBigEndian)
-            {
-                BinaryPrimitives.WriteUInt64BigEndian(buffer, uuid.X);
-                BinaryPrimitives.WriteUInt64BigEndian(buffer.Slice(sizeof(ulong)), uuid.Y);
-            }
-            else
-            {
-                throw new NotImplementedException();
-                BinaryPrimitives.WriteUInt64LittleEndian(buffer, uuid.X);
-                BinaryPrimitives.WriteUInt64LittleEndian(buffer.Slice(sizeof(ulong)), uuid.Y);
-            }
-            Write(buffer);
-        }
     }
 }

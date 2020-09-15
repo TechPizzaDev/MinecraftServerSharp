@@ -1,18 +1,23 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
     <TargetFramework>netcoreapp3.1</TargetFramework>
-    <Nullable>enable</Nullable>
+    <RootNamespace>MinecraftServerSharp</RootNamespace>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>enable</Nullable>
   </PropertyGroup>
-
+  
   <ItemGroup>
-    <None Remove="Templates\pingConfig.json" />
+    <None Remove="Old\**" />
+    <Compile Remove="Old\**" />
+    <Resource Remove="Old\**" />
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Templates\**" />
+    <Compile Remove="Network\Data\INetBinaryReader.cs" />
+    <Compile Remove="Network\Data\INetBinaryWriter.cs" />
+    <Compile Remove="Network\*"/>
+    <None Include="Network\*"/>
   </ItemGroup>
 
   <ItemGroup>
@@ -25,8 +30,6 @@
   <ItemGroup>
     <ProjectReference Include="..\MinecraftServerSharp.Base\MinecraftServerSharp.Base.csproj" />
     <ProjectReference Include="..\MinecraftServerSharp.NBT\MinecraftServerSharp.NBT.csproj" />
-    <ProjectReference Include="..\MinecraftServerSharp.Net\MinecraftServerSharp.Net.csproj" />
-    <ProjectReference Include="..\MinecraftServerSharp.Server\MinecraftServerSharp.World.csproj" />
   </ItemGroup>
 
 </Project>

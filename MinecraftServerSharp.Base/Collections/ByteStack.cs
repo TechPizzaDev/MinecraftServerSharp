@@ -20,6 +20,8 @@ namespace MinecraftServerSharp.Collections
         public int ByteCount => ByteCapacity - TopOfStack;
         public int Count => ByteCount / Unsafe.SizeOf<T>();
 
+        public bool IsEmpty => TopOfStack == ByteCapacity;
+
         public ByteStack(int initialSize, bool clearOnReturn = true)
         {
             _rentedBuffer = ArrayPool<byte>.Shared.Rent(initialSize * Unsafe.SizeOf<T>());

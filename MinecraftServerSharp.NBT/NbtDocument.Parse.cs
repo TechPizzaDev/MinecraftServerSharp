@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using MinecraftServerSharp.Collections;
@@ -12,7 +10,8 @@ namespace MinecraftServerSharp.NBT
         private static NbtDocument Parse(
             ReadOnlyMemory<byte> data,
             NbtOptions options,
-            byte[]? extraRentedBytes)
+            byte[]? extraRentedBytes,
+            out int bytesConsumed)
         {
             ReadOnlySpan<byte> dataSpan = data.Span;
             var database = new MetadataDb(data.Length);
@@ -24,7 +23,7 @@ namespace MinecraftServerSharp.NBT
             try
             {
                 Parse(ref reader, ref database, ref stack);
-                Debug.Assert(reader.BytesConsumed == dataSpan.Length);
+                bytesConsumed = (int)reader.BytesConsumed;
             }
             catch
             {
@@ -40,6 +39,7 @@ namespace MinecraftServerSharp.NBT
             return new NbtDocument(data, options, database, extraRentedBytes);
         }
 
+        // TODO:
         //public static NbtDocument Parse(Stream data, NbtOptions? options = default)
         //{
         //
@@ -50,9 +50,10 @@ namespace MinecraftServerSharp.NBT
         //
         //}
 
-        public static NbtDocument Parse(ReadOnlyMemory<byte> data, NbtOptions? options = default)
+        public static NbtDocument Parse(
+            ReadOnlyMemory<byte> data, out int bytesConsumed, NbtOptions? options = default)
         {
-            return Parse(data, options ?? NbtOptions.JavaDefault, null);
+            return Parse(data, options ?? NbtOptions.JavaDefault, null, out bytesConsumed);
         }
 
         //public static NbtDocument ParseValue(ref NbtReader reader)
@@ -113,7 +114,8 @@ namespace MinecraftServerSharp.NBT
                     {
                         database.Append(location, reader.TagSpan.Length, numberOfRows: 1, type, flags);
 
-                        var compoundFrame = stack.Pop();
+                        // Documents with a single End tag are valid.
+                        var compoundFrame = stack.IsEmpty ? default : stack.Pop();
 
                         database.SetNumberOfRows(
                             compoundFrame.ContainerIndex, numberOfRows - compoundFrame.NumberOfRows + 1); // +1 for End

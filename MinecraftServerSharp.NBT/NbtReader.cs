@@ -24,6 +24,8 @@ namespace MinecraftServerSharp.NBT
         /// </returns>
         public bool IsFinalBlock { get; }
 
+        public bool EndOfData { get; private set; }
+
         /// <summary>
         /// Gets the index that the last processed element starts at (within the given input data).
         /// </summary>
@@ -137,6 +139,9 @@ namespace MinecraftServerSharp.NBT
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private bool HasMoreData()
         {
+            if (EndOfData)
+                return false;
+
             if (_consumed >= _data.Length)
             {
                 //if (_isNotPrimitive && IsLastSpan)
@@ -215,6 +220,8 @@ namespace MinecraftServerSharp.NBT
                     read += nameLengthBytes;
 
                     NameSpan = slice.Slice(read, nameLength);
+                    var name = new Utf8String(NameSpan);
+                    Console.WriteLine(name);
                     read += nameLength;
                 }
             }
@@ -226,7 +233,12 @@ namespace MinecraftServerSharp.NBT
                     break;
 
                 case NbtType.End:
-                    _state._containerInfoStack.Pop();
+                    // Documents with a single End tag are valid.
+                    if (!_state._containerInfoStack.IsEmpty)
+                        _state._containerInfoStack.Pop();
+
+                    if (_state._containerInfoStack.ByteCount == 0)
+                        EndOfData = true;
                     break;
 
                 case NbtType.List:

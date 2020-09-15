@@ -1,4 +1,4 @@
-# MinecraftServerSharp
+# ![](icon.png) MinecraftServerSharp
 Minecraft server implementation in C#  
 Note that this is currently just a passion project and the points below are more of a vision for the future of this project. 
 

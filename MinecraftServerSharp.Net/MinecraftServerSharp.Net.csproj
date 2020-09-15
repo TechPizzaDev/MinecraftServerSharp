@@ -1,7 +1,14 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>netcoreapp3.1</TargetFramework>
+    <Nullable>enable</Nullable>
   </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MinecraftServerSharp.Base\MinecraftServerSharp.Base.csproj" />
+    <ProjectReference Include="..\MinecraftServerSharp.NBT\MinecraftServerSharp.NBT.csproj" />
+    <ProjectReference Include="..\MinecraftServerSharp.Server\MinecraftServerSharp.World.csproj" />
+  </ItemGroup>
 
 </Project>

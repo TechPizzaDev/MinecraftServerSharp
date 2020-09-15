@@ -553,21 +553,21 @@ namespace MinecraftServerSharp.Utility
         /// Retrieve a new MemoryStream object with no tag and a default initial capacity.
         /// </summary>
         /// <returns>A MemoryStream.</returns>
-        public RecyclableMemoryStream GetStream() => new RecyclableMemoryStream(this);
+        public ChunkedMemoryStream GetStream() => new ChunkedMemoryStream(this);
 
         /// <summary>
         /// Retrieve a new MemoryStream object with no tag and a default initial capacity.
         /// </summary>
         /// <param name="id">A unique identifier which can be used to trace usages of the stream.</param>
         /// <returns>A MemoryStream.</returns>
-        public RecyclableMemoryStream GetStream(Guid id) => new RecyclableMemoryStream(this, id);
+        public ChunkedMemoryStream GetStream(Guid id) => new ChunkedMemoryStream(this, id);
 
         /// <summary>
         /// Retrieve a new MemoryStream object with the given tag and a default initial capacity.
         /// </summary>
         /// <param name="tag">A tag which can be used to track the source of the stream.</param>
         /// <returns>A MemoryStream.</returns>
-        public RecyclableMemoryStream GetStream(string? tag) => new RecyclableMemoryStream(this, tag);
+        public ChunkedMemoryStream GetStream(string? tag) => new ChunkedMemoryStream(this, tag);
 
         /// <summary>
         /// Retrieve a new MemoryStream object with the given tag and a default initial capacity.
@@ -575,7 +575,7 @@ namespace MinecraftServerSharp.Utility
         /// <param name="id">A unique identifier which can be used to trace usages of the stream.</param>
         /// <param name="tag">A tag which can be used to track the source of the stream.</param>
         /// <returns>A MemoryStream.</returns>
-        public MemoryStream GetStream(Guid id, string? tag) => new RecyclableMemoryStream(this, id, tag);
+        public MemoryStream GetStream(Guid id, string? tag) => new ChunkedMemoryStream(this, id, tag);
 
         /// <summary>
         /// Retrieve a new MemoryStream object with the given tag and at least the given capacity.
@@ -583,9 +583,9 @@ namespace MinecraftServerSharp.Utility
         /// <param name="tag">A tag which can be used to track the source of the stream.</param>
         /// <param name="requiredSize">The minimum desired capacity for the stream.</param>
         /// <returns>A MemoryStream.</returns>
-        public RecyclableMemoryStream GetStream(string? tag, int requiredSize)
+        public ChunkedMemoryStream GetStream(string? tag, int requiredSize)
         {
-            return new RecyclableMemoryStream(this, tag, requiredSize);
+            return new ChunkedMemoryStream(this, tag, requiredSize);
         }
 
         /// <summary>
@@ -593,7 +593,7 @@ namespace MinecraftServerSharp.Utility
         /// </summary>
         /// <param name="requiredSize">The minimum desired capacity for the stream.</param>
         /// <returns>A MemoryStream.</returns>
-        public RecyclableMemoryStream GetStream(int requiredSize) => GetStream(null, requiredSize);
+        public ChunkedMemoryStream GetStream(int requiredSize) => GetStream(null, requiredSize);
 
         /// <summary>
         /// Retrieve a new MemoryStream object with the given tag and at least the given capacity.
@@ -602,9 +602,9 @@ namespace MinecraftServerSharp.Utility
         /// <param name="tag">A tag which can be used to track the source of the stream.</param>
         /// <param name="requiredSize">The minimum desired capacity for the stream.</param>
         /// <returns>A MemoryStream.</returns>
-        public RecyclableMemoryStream GetStream(Guid id, string? tag, int requiredSize)
+        public ChunkedMemoryStream GetStream(Guid id, string? tag, int requiredSize)
         {
-            return new RecyclableMemoryStream(this, id, tag, requiredSize);
+            return new ChunkedMemoryStream(this, id, tag, requiredSize);
         }
 
         /// <summary>
@@ -620,12 +620,12 @@ namespace MinecraftServerSharp.Utility
         /// <param name="requiredSize">The minimum desired capacity for the stream.</param>
         /// <param name="asContiguousBuffer">Whether to attempt to use a single contiguous buffer.</param>
         /// <returns>A MemoryStream.</returns>
-        public RecyclableMemoryStream GetStream(Guid id, string? tag, int requiredSize, bool asContiguousBuffer)
+        public ChunkedMemoryStream GetStream(Guid id, string? tag, int requiredSize, bool asContiguousBuffer)
         {
             if (!asContiguousBuffer || requiredSize <= BlockSize)
                 return GetStream(id, tag, requiredSize);
 
-            return new RecyclableMemoryStream(this, id, tag, requiredSize, GetLargeBuffer(requiredSize, tag));
+            return new ChunkedMemoryStream(this, id, tag, requiredSize, GetLargeBuffer(requiredSize, tag));
         }
 
         /// <summary>
@@ -640,7 +640,7 @@ namespace MinecraftServerSharp.Utility
         /// <param name="requiredSize">The minimum desired capacity for the stream.</param>
         /// <param name="asContiguousBuffer">Whether to attempt to use a single contiguous buffer.</param>
         /// <returns>A MemoryStream.</returns>
-        public RecyclableMemoryStream GetStream(string? tag, int requiredSize, bool asContiguousBuffer)
+        public ChunkedMemoryStream GetStream(string? tag, int requiredSize, bool asContiguousBuffer)
         {
             return GetStream(Guid.Empty, tag, requiredSize, asContiguousBuffer);
         }
@@ -656,12 +656,12 @@ namespace MinecraftServerSharp.Utility
         /// <param name="offset">The offset from the start of the buffer to copy from.</param>
         /// <param name="count">The number of bytes to copy from the buffer.</param>
         /// <returns>A MemoryStream.</returns>
-        public RecyclableMemoryStream GetStream(Guid id, string? tag, byte[] buffer, int offset, int count)
+        public ChunkedMemoryStream GetStream(Guid id, string? tag, byte[] buffer, int offset, int count)
         {
-            RecyclableMemoryStream? stream = null;
+            ChunkedMemoryStream? stream = null;
             try
             {
-                stream = new RecyclableMemoryStream(this, id, tag, count);
+                stream = new ChunkedMemoryStream(this, id, tag, count);
                 stream.Write(buffer, offset, count);
                 stream.Position = 0;
                 return stream;
@@ -680,7 +680,7 @@ namespace MinecraftServerSharp.Utility
         /// <remarks>The new stream's position is set to the beginning of the stream when returned.</remarks>
         /// <param name="buffer">The byte buffer to copy data from.</param>
         /// <returns>A MemoryStream.</returns>
-        public RecyclableMemoryStream GetStream(byte[] buffer)
+        public ChunkedMemoryStream GetStream(byte[] buffer)
         {
             if (buffer == null)
                 throw new ArgumentNullException(nameof(buffer));
@@ -698,7 +698,7 @@ namespace MinecraftServerSharp.Utility
         /// <param name="offset">The offset from the start of the buffer to copy from.</param>
         /// <param name="count">The number of bytes to copy from the buffer.</param>
         /// <returns>A MemoryStream.</returns>
-        public RecyclableMemoryStream GetStream(string? tag, byte[] buffer, int offset, int count)
+        public ChunkedMemoryStream GetStream(string? tag, byte[] buffer, int offset, int count)
         {
             return GetStream(Guid.Empty, tag, buffer, offset, count);
         }

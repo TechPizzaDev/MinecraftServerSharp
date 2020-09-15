@@ -8,7 +8,7 @@ namespace MinecraftServerSharp.Utility
         /// <summary>
         /// Removes a front portion of the memory stream.
         /// </summary>
-        public static void TrimStart(this RecyclableMemoryStream stream, int length)
+        public static void TrimStart(this ChunkedMemoryStream stream, int length)
         {
             // TODO: change RecyclableMemoryStream to allow every block to have
             // an offset, so we don't need to shift data
@@ -16,10 +16,10 @@ namespace MinecraftServerSharp.Utility
             if (stream == null)
                 throw new ArgumentNullException(nameof(stream));
 
+            stream.Position = 0;
+
             if (length == 0)
                 return;
-
-            stream.Position = 0;
 
             var helper = stream.GetBlockOffset(length);
             stream.RemoveBlockRange(0, helper.Block);
