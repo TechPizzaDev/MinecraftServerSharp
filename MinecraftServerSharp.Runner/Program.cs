@@ -4,7 +4,9 @@ using System.Globalization;
 using System.Net;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
+using System.Threading;
 using MinecraftServerSharp.Data;
 using MinecraftServerSharp.Net;
 using MinecraftServerSharp.Net.Packets;
@@ -214,7 +216,7 @@ namespace MinecraftServerSharp.Runner
                 var answer = new ServerPong(ping.Payload);
                 connection.EnqueuePacket(answer);
             });
-            
+
 
             manager.SetPacketHandler(delegate
                 (NetConnection connection, ClientLoginStart loginStart)
@@ -318,12 +320,35 @@ namespace MinecraftServerSharp.Runner
 
 
             manager.SetPacketHandler(delegate (
-                NetConnection connection, ClientPlayerBlockPlacement playerBlockPlacement)
+                NetConnection connection, ClientClickWindow clickWindow)
             {
-                Console.WriteLine(playerBlockPlacement.Location);
+                Console.WriteLine(clickWindow.Slot);
             });
 
 
+            manager.SetPacketHandler(delegate (
+                NetConnection connection, ClientPlayerBlockPlacement playerBlockPlacement)
+            {
+                byte windowID = 1;
+
+                //Console.WriteLine(playerBlockPlacement.);
+                connection.EnqueuePacket(new ServerOpenWindow(windowID, 13, Chat.Text("Inv on place")));
+
+                System.Threading.Tasks.Task.Run(() =>
+                {
+                    connection.EnqueuePacket(new ServerWindowProperty(windowID, 3, 100));
+
+                    short x = 0;
+                    while(x < 100)
+                    {
+                        connection.EnqueuePacket(new ServerWindowProperty(windowID, 2, x));
+
+                        x += 2;
+                        Thread.Sleep(50);
+                    }
+                });
+            });
+            
             manager.SetPacketHandler(delegate
                 (NetConnection connection, ClientTeleportConfirm teleportConfirm)
             {
@@ -392,7 +417,6 @@ namespace MinecraftServerSharp.Runner
             manager.SetPacketHandler(delegate
                 (NetConnection connection, ClientEntityAction entityAction)
             {
-
             });
 
 
@@ -413,7 +437,6 @@ namespace MinecraftServerSharp.Runner
             manager.SetPacketHandler(delegate
                 (NetConnection connection, ClientRecipeBookData recipeBookData)
             {
-
             });
 
 

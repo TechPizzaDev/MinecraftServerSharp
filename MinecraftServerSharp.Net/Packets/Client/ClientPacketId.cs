@@ -34,6 +34,7 @@ namespace MinecraftServerSharp.Net.Packets
         [Mapping(State.Play, 0x00)] TeleportConfirm,
         [Mapping(State.Play, 0x03)] ChatMessage,
         [Mapping(State.Play, 0x05)] ClientSettings,
+        [Mapping(State.Play, 0x09)] ClickWindow,
         [Mapping(State.Play, 0x0A)] CloseWindow,
         [Mapping(State.Play, 0x0B)] PluginMessage,
         

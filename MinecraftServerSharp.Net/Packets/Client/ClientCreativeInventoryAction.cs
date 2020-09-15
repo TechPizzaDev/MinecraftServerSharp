@@ -1,6 +1,5 @@
 ﻿namespace MinecraftServerSharp.Net.Packets
 {
-
     [PacketStruct(ClientPacketId.CreativeInventoryAction)]
     public readonly struct ClientCreativeInventoryAction
     {

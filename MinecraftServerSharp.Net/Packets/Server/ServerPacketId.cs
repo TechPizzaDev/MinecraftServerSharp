@@ -30,12 +30,15 @@ namespace MinecraftServerSharp.Net.Packets
 
         [Mapping(State.Play, 0x03)] SpawnLivingEntity,
         [Mapping(State.Play, 0x0f)] ChatMessage,
+
+        [Mapping(State.Play, 0x16)] WindowProperty,
         [Mapping(State.Play, 0x19)] PluginMessage,
         [Mapping(State.Play, 0x1b)] PlayDisconnect,
 
         [Mapping(State.Play, 0x21)] KeepAlive,
         [Mapping(State.Play, 0x22)] ChunkData,
         [Mapping(State.Play, 0x26)] JoinGame,
+        [Mapping(State.Play, 0x2f)] OpenWindow,
 
         [Mapping(State.Play, 0x36)] PlayerPositionLook,
 
