@@ -1,4 +1,5 @@
 ﻿using System.Buffers;
+using System.IO;
 using MinecraftServerSharp.Data.IO;
 
 namespace MinecraftServerSharp.NBT
@@ -7,10 +8,17 @@ namespace MinecraftServerSharp.NBT
     {
         public static OperationStatus Read(this NetBinaryReader reader, out NbtDocument? document)
         {
-            // TODO: optimize with pooling and use cached instance for "single End tag" documents
+            // TODO: 
+            // optimize with pooling,
+            // read a smarter amount/implement NbtDocument.Parse(Stream)
+            // use cached instance for "single End tag" documents
 
-            byte[] nbtData = reader.ReadBytes((int)reader.Remaining);
-            document = NbtDocument.Parse(nbtData);
+            int toRead = (int)reader.Remaining;
+            byte[] nbtData = reader.ReadBytes(toRead);
+            document = NbtDocument.Parse(nbtData, out int bytesConsumed);
+
+            int seekBack = bytesConsumed - toRead;
+            reader.Seek(seekBack, SeekOrigin.Current);
 
             return OperationStatus.Done;
         }
