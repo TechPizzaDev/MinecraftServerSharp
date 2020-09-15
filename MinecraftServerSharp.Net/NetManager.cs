@@ -162,7 +162,7 @@ namespace MinecraftServerSharp.Net
                     if (Orchestrator.PacketSendQueues.TryGetValue(connection, out var queue) &&
                         !queue.IsEngaged)
                     {
-                        if (connection.SendBuffer.Length == 0)
+                        if (connection.SendBuffer.Length == 0 || !connection.Socket.Connected)
                             connection.Close(immediate: true);
                         else
                             Console.WriteLine("Delaying close");
