@@ -40,6 +40,7 @@ namespace MinecraftServerSharp.Net.Packets
         [Mapping(State.Play, 0x26)] JoinGame,
         [Mapping(State.Play, 0x2f)] OpenWindow,
 
+        [Mapping(State.Play, 0x32)] PlayerAbilities,
         [Mapping(State.Play, 0x36)] PlayerPositionLook,
 
         [Mapping(State.Play, 0x41)] UpdateViewPosition,

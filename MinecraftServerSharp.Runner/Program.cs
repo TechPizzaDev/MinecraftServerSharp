@@ -19,6 +19,7 @@ namespace MinecraftServerSharp.Runner
     {
         // TODO: move these to a Game class
         public const string PongResource = "Minecraft/Net/Pong.json";
+
         private static long tickCount;
         private static Random rng = new Random();
         private static NetManager _manager;
@@ -246,6 +247,11 @@ namespace MinecraftServerSharp.Runner
                 connection.EnqueuePacket(new ServerPlayerPositionLook(
                     0, 128, 0, 0, 0, ServerPlayerPositionLook.PositionRelatives.None, 1337));
 
+                connection.EnqueuePacket(new ServerPlayerAbilities(
+                    ServerAbilityFlags.AllowFlying | ServerAbilityFlags.Flying,
+                    0.15f,
+                    0.1f));
+
                 var palette = new DirectBlockPalette();
                 uint num = 100;
                 for (uint j = 0; j < num; j++)
@@ -338,12 +344,13 @@ namespace MinecraftServerSharp.Runner
                 {
                     connection.EnqueuePacket(new ServerWindowProperty(windowID, 3, 100));
 
-                    short x = 0;
-                    while(x < 100)
+                    float x = 0;
+                    while(x < 20)
                     {
-                        connection.EnqueuePacket(new ServerWindowProperty(windowID, 2, x));
+                        short value = (short)((Math.Sin(x) + 1) * 50);
+                        connection.EnqueuePacket(new ServerWindowProperty(windowID, 2, value));
 
-                        x += 2;
+                        x += 0.2f;
                         Thread.Sleep(50);
                     }
                 });
