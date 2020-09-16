@@ -23,10 +23,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\MinecraftServerSharp.Base\MCServerSharp.Base.csproj" />
-    <ProjectReference Include="..\MinecraftServerSharp.NBT\MCServerSharp.NBT.csproj" />
-    <ProjectReference Include="..\MinecraftServerSharp.Net\MCServerSharp.Net.csproj" />
-    <ProjectReference Include="..\MinecraftServerSharp.Server\MCServerSharp.World.csproj" />
+    <ProjectReference Include="..\MCServerSharp.Base\MCServerSharp.Base.csproj" />
+    <ProjectReference Include="..\MCServerSharp.NBT\MCServerSharp.NBT.csproj" />
+    <ProjectReference Include="..\MCServerSharp.Net\MCServerSharp.Net.csproj" />
+    <ProjectReference Include="..\MCServerSharp.Server\MCServerSharp.World.csproj" />
   </ItemGroup>
 
 </Project>

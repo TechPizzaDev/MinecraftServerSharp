@@ -101,7 +101,7 @@ namespace MCServerSharp.Runner
             var configProvider = new FallbackResourceProvider(
                 new FileResourceProvider("Config", includeDirectoryName: false),
                 new AssemblyResourceProvider(
-                    Assembly.GetExecutingAssembly(), "MinecraftServerSharp.Runner.Templates.Config"));
+                    Assembly.GetExecutingAssembly(), "MCServerSharp.Runner.Templates.Config"));
 
             using var pong = configProvider.OpenResourceReader(PongResource);
             if (pong == null)

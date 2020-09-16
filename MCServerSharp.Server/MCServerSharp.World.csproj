@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>netcoreapp3.1</TargetFramework>
-    <RootNamespace>MinecraftServerSharp</RootNamespace>
+    <RootNamespace>MCServerSharp</RootNamespace>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Nullable>enable</Nullable>
   </PropertyGroup>
@@ -28,8 +28,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\MinecraftServerSharp.Base\MCServerSharp.Base.csproj" />
-    <ProjectReference Include="..\MinecraftServerSharp.NBT\MCServerSharp.NBT.csproj" />
+    <ProjectReference Include="..\MCServerSharp.Base\MCServerSharp.Base.csproj" />
+    <ProjectReference Include="..\MCServerSharp.NBT\MCServerSharp.NBT.csproj" />
   </ItemGroup>
 
 </Project>

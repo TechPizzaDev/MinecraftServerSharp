@@ -4,8 +4,7 @@
     <TargetFramework>netcoreapp3.1</TargetFramework>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Nullable>enable</Nullable>
-    <AssemblyName>MinecraftServerSharp.Base</AssemblyName>
-    <RootNamespace>MinecraftServerSharp</RootNamespace>
+    <RootNamespace>MCServerSharp</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
