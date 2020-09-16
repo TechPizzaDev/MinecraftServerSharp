@@ -34,13 +34,13 @@ namespace MinecraftServerSharp
                 ElapsedTime = TimeSpan.FromTicks(lastTicks - currentTicks);
 
                 // Try to sleep for as long as possible without overshooting the target time.
-                var preciseSleepTime = TargetTime - ElapsedTime;
-                long sleepOverheadTicks = Math.Max(0, sleepTicks - targetSleepTicks);
-                targetSleepTicks = preciseSleepTime.Ticks - sleepOverheadTicks;
-
-                int sleepMillis = (int)(targetSleepTicks / TimeSpan.TicksPerMillisecond);
+                long preciseSleepTime = TargetTime.Ticks - ElapsedTime.Ticks;
+                long sleepOverheadTicks = sleepTicks - targetSleepTicks;
+                targetSleepTicks = preciseSleepTime - sleepOverheadTicks;
+                
+                long sleepMillis = targetSleepTicks / TimeSpan.TicksPerMillisecond;
                 if (sleepMillis > 0)
-                    Thread.Sleep(sleepMillis);
+                    Thread.Sleep((int)sleepMillis);
             }
         }
     }

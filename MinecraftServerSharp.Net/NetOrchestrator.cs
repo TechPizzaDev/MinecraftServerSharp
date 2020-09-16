@@ -25,7 +25,7 @@ namespace MinecraftServerSharp.Net
 
         private PacketHolderPool _packetHolderPool;
         private List<NetOrchestratorWorker> _workers;
-        
+
         public RecyclableMemoryManager MemoryManager { get; }
         public NetPacketCodec Codec { get; }
 
@@ -93,8 +93,7 @@ namespace MinecraftServerSharp.Net
             if (packet == null)
                 throw new ArgumentNullException(nameof(packet));
 
-            var encoder = Codec.Encoder;
-            var writer = encoder.GetPacketWriter<TPacket>();
+            var writer = Codec.Encoder.GetPacketWriter<TPacket>();
 
             lock (_packetHolderPool)
             {
@@ -119,22 +118,23 @@ namespace MinecraftServerSharp.Net
             }
             queue.SendQueue.Enqueue(packetHolder);
 
+            // We can safely return here without locking the queue.
+            // Workers will requeue the queue for flushing if 
+            // it contains packets after engagement.
             if (queue.IsEngaged)
                 return;
 
-            bool requestFlush = false;
             lock (queue.EngageMutex)
             {
                 if (queue.IsEngaged)
                     return;
-
-                requestFlush = true;
                 queue.IsEngaged = true;
+
+                // We enqueue while locked, 
+                // as workers may dequeue and check at any time.
                 QueuesToFlush.Enqueue(queue);
             }
-
-            if (requestFlush)
-                RequestFlush();
+            RequestFlush();
         }
 
         public void EnqueuePacket<TPacket>(

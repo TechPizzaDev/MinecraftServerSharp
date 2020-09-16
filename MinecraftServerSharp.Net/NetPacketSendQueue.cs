@@ -13,6 +13,9 @@ namespace MinecraftServerSharp.Net
         public object EngageMutex { get; } = new object();
         public ConcurrentQueue<PacketHolder> SendQueue { get; } = new ConcurrentQueue<PacketHolder>();
 
+        /// <summary>
+        /// Gets whether a <see cref="NetOrchestratorWorker"/> is processing this queue.
+        /// </summary>
         public bool IsEngaged { get; set; }
 
         public NetPacketSendQueue(NetConnection connection)
