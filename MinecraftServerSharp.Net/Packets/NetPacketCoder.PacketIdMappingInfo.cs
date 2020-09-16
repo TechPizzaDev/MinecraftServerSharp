@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Reflection;
 
-namespace MinecraftServerSharp.Net.Packets
+namespace MCServerSharp.Net.Packets
 {
     public abstract partial class NetPacketCoder<TPacketId>
         where TPacketId : Enum

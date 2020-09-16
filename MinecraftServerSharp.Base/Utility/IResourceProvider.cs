@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.IO;
 
-namespace MinecraftServerSharp.Utility
+namespace MCServerSharp.Utility
 {
     public interface IResourceProvider
     {

@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace MinecraftServerSharp.Net.Packets
+namespace MCServerSharp.Net.Packets
 {
     [PacketStruct(ServerPacketId.LoginSuccess)]
     public readonly struct ServerLoginSuccess

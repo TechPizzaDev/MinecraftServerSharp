@@ -1,6 +1,6 @@
-﻿using MinecraftServerSharp.NBT;
+﻿using MCServerSharp.NBT;
 
-namespace MinecraftServerSharp.Net.Packets
+namespace MCServerSharp.Net.Packets
 {
     public readonly struct Slot
     {

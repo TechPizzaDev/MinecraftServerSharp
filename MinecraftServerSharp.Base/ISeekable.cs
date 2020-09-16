@@ -1,6 +1,6 @@
 ﻿using System.IO;
 
-namespace MinecraftServerSharp
+namespace MCServerSharp
 {
     public interface ISeekable
     {

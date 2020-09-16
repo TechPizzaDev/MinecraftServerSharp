@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace MinecraftServerSharp
+namespace MCServerSharp
 {
     /// <summary>
     /// The exception that is thrown when trying to use an empty instance.

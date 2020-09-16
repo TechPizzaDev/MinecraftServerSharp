@@ -1,5 +1,5 @@
 ﻿
-namespace MinecraftServerSharp.NBT
+namespace MCServerSharp.NBT
 {
     public static class NbtTypeExtensions
     {

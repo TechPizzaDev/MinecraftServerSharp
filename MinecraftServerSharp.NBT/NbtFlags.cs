@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace MinecraftServerSharp.NBT
+namespace MCServerSharp.NBT
 {
     [Flags]
     public enum NbtFlags

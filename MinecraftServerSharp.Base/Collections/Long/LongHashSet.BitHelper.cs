@@ -2,7 +2,7 @@
 
 using System;
 
-namespace MinecraftServerSharp.Collections
+namespace MCServerSharp.Collections
 {
     public partial class LongHashSet<T>
     {

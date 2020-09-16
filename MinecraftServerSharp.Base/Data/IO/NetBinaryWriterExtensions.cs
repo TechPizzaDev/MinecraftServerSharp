@@ -2,7 +2,7 @@
 using System.Buffers.Binary;
 using System.Runtime.InteropServices;
 
-namespace MinecraftServerSharp.Data.IO
+namespace MCServerSharp.Data.IO
 {
     public static class NetBinaryWriterExtensions
     {

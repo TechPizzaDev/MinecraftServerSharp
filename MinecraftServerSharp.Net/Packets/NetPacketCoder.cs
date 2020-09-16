@@ -2,9 +2,9 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using MinecraftServerSharp.Utility;
+using MCServerSharp.Utility;
 
-namespace MinecraftServerSharp.Net.Packets
+namespace MCServerSharp.Net.Packets
 {
     public abstract partial class NetPacketCoder<TPacketId>
         where TPacketId : Enum

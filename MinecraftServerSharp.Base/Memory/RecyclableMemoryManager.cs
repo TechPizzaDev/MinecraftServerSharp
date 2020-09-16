@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 
-namespace MinecraftServerSharp.Utility
+namespace MCServerSharp.Utility
 {
     /// <summary>
     /// Manages pools of array objects.

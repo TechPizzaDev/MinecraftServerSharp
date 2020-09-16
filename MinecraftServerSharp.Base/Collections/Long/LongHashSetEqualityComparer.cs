@@ -3,7 +3,7 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
 
-namespace MinecraftServerSharp.Collections
+namespace MCServerSharp.Collections
 {
     internal sealed class LongHashSetEqualityComparer<T> : ILongEqualityComparer<LongHashSet<T>?>
     {

@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 
-namespace MinecraftServerSharp.Collections
+namespace MCServerSharp.Collections
 {
     public static class SetExtensions
     {

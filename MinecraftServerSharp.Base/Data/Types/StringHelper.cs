@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Text;
 
-namespace MinecraftServerSharp
+namespace MCServerSharp
 {
     public static class StringHelper
     {

@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace MinecraftServerSharp.Net.Packets
+namespace MCServerSharp.Net.Packets
 {
     [PacketStruct(ClientPacketId.ClientSettings)]
     public readonly struct ClientClientSettings

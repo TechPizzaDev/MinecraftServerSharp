@@ -4,7 +4,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 
-namespace MinecraftServerSharp.NBT
+namespace MCServerSharp.NBT
 {
     public sealed partial class NbtDocument
     {

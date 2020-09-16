@@ -1,5 +1,5 @@
 ﻿
-namespace MinecraftServerSharp.Collections
+namespace MCServerSharp.Collections
 {
     /// <summary>
     /// Used internally to control behavior of insertion into a 

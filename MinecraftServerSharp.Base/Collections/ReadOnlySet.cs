@@ -3,7 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 
-namespace MinecraftServerSharp.Collections
+namespace MCServerSharp.Collections
 {
     [DebuggerDisplay("Count = {Count}")]
     public class ReadOnlySet<T> : IReadOnlySet<T>, ISet<T>

@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace MinecraftServerSharp.Net.Packets
+namespace MCServerSharp.Net.Packets
 {
     [PacketStruct(ServerPacketId.PlayerPositionLook)]
     public readonly struct ServerPlayerPositionLook

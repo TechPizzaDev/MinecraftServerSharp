@@ -2,9 +2,9 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
-using MinecraftServerSharp.Utility;
+using MCServerSharp.Utility;
 
-namespace MinecraftServerSharp.Data
+namespace MCServerSharp.Data
 {
     public class AssemblyResourceProvider : IResourceProvider
     {

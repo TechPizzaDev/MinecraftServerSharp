@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace MinecraftServerSharp.Utility
+namespace MCServerSharp.Utility
 {
     public static class MemoryExtensions
     {

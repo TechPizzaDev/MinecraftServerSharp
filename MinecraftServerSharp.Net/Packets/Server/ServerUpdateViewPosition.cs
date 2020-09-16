@@ -1,5 +1,5 @@
 ﻿
-namespace MinecraftServerSharp.Net.Packets
+namespace MCServerSharp.Net.Packets
 {
     [PacketStruct(ServerPacketId.UpdateViewPosition)]
     public readonly struct ServerUpdateViewPosition

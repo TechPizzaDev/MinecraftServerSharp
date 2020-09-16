@@ -2,7 +2,7 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
 
-namespace MinecraftServerSharp.Collections
+namespace MCServerSharp.Collections
 {
     public sealed class NonRandomLongStringComparer : LongEqualityComparer<string?>
     {

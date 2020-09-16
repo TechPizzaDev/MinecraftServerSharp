@@ -1,6 +1,6 @@
 ﻿using System.Runtime.CompilerServices;
 
-namespace MinecraftServerSharp.Collections
+namespace MCServerSharp.Collections
 {
     public partial class LongEqualityComparer<T>
     {

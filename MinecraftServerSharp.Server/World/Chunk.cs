@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace MinecraftServerSharp.World
+namespace MCServerSharp.World
 {
     public class Chunk
     {

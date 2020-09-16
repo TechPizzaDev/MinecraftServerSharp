@@ -2,7 +2,7 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
-namespace MinecraftServerSharp.Collections
+namespace MCServerSharp.Collections
 {
     internal static partial class LongHashHelpers
     {

@@ -1,10 +1,10 @@
 ﻿using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using MinecraftServerSharp.Collections;
-using MinecraftServerSharp.Utility;
+using MCServerSharp.Collections;
+using MCServerSharp.Utility;
 
-namespace MinecraftServerSharp.Data
+namespace MCServerSharp.Data
 {
     public class FallbackResourceProvider : IResourceProvider
     {

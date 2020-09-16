@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 
-namespace MinecraftServerSharp.NBT
+namespace MCServerSharp.NBT
 {
     public readonly partial struct NbtElement
     {

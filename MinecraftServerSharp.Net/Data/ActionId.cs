@@ -1,5 +1,5 @@
 ﻿
-namespace MinecraftServerSharp.Data
+namespace MCServerSharp.Data
 {
     public enum ActionId
     {

@@ -1,5 +1,5 @@
 ﻿
-namespace MinecraftServerSharp.World
+namespace MCServerSharp.World
 {
     public class BlockState
     {

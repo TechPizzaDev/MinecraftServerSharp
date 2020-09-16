@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Runtime.InteropServices;
 
-namespace MinecraftServerSharp.Collections
+namespace MCServerSharp.Collections
 {
     internal class LongStringComparer : LongEqualityComparer<string?>
     {

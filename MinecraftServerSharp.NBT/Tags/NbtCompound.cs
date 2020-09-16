@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using MinecraftServerSharp.Data.IO;
+using MCServerSharp.Data.IO;
 
-namespace MinecraftServerSharp.NBT
+namespace MCServerSharp.NBT
 {
     public class NbtCompound : NbtContainer<NbtCompound>
     {

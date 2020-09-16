@@ -1,6 +1,6 @@
-﻿using MinecraftServerSharp.Data.IO;
+﻿using MCServerSharp.Data.IO;
 
-namespace MinecraftServerSharp.Net.Packets
+namespace MCServerSharp.Net.Packets
 {
     public interface IWritablePacket
     {

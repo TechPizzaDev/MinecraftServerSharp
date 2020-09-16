@@ -1,5 +1,5 @@
 ﻿
-namespace MinecraftServerSharp
+namespace MCServerSharp
 {
     public struct Position
     {

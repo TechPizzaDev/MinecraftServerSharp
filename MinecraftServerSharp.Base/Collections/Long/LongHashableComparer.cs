@@ -1,6 +1,6 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 
-namespace MinecraftServerSharp.Collections
+namespace MCServerSharp.Collections
 {
     internal class LongHashableComparer<T> : LongEqualityComparer<T>
         where T : ILongHashable

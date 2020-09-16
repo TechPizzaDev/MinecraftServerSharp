@@ -1,5 +1,5 @@
 ﻿
-namespace MinecraftServerSharp.Net.Packets
+namespace MCServerSharp.Net.Packets
 {
     [PacketStruct(ClientPacketId.RecipeBookData)]
     public readonly struct ClientRecipeBookData

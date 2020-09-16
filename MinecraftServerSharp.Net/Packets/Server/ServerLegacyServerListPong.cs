@@ -1,15 +1,15 @@
 ﻿using System;
 using System.IO;
-using MinecraftServerSharp.Data.IO;
+using MCServerSharp.Data.IO;
 
-namespace MinecraftServerSharp.Net.Packets
+namespace MCServerSharp.Net.Packets
 {
     [PacketStruct(ServerPacketId.LegacyServerListPong)]
     public readonly struct ServerLegacyServerListPong : IWritablePacket
     {
         public bool IsBeta { get; }
         public int ProtocolVersion { get; }
-        public MinecraftVersion MinecraftVersion { get; }
+        public MCVersion MinecraftVersion { get; }
         public string MessageOfTheDay { get; }
         public int CurrentPlayerCount { get; }
         public int MaxPlayers { get; }
@@ -17,7 +17,7 @@ namespace MinecraftServerSharp.Net.Packets
         public ServerLegacyServerListPong(
             bool isBeta,
             int protocolVersion, 
-            MinecraftVersion minecraftVersion,
+            MCVersion minecraftVersion,
             string messageOfTheDay,
             int currentPlayerCount, 
             int maxPlayers)

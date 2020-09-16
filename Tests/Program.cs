@@ -1,6 +1,6 @@
 ﻿using System;
-using MinecraftServerSharp;
-using MinecraftServerSharp.Utility;
+using MCServerSharp;
+using MCServerSharp.Utility;
 
 namespace Tests
 {

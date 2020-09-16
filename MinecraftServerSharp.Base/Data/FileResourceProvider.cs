@@ -1,8 +1,8 @@
 ﻿using System.Collections.Generic;
 using System.IO;
-using MinecraftServerSharp.Utility;
+using MCServerSharp.Utility;
 
-namespace MinecraftServerSharp.Data
+namespace MCServerSharp.Data
 {
     public class FileResourceProvider : IResourceProvider
     {

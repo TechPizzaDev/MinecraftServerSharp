@@ -1,8 +1,8 @@
 ﻿using System.Buffers;
-using MinecraftServerSharp.NBT;
-using MinecraftServerSharp.Net.Packets;
+using MCServerSharp.NBT;
+using MCServerSharp.Net.Packets;
 
-namespace MinecraftServerSharp.Data.IO
+namespace MCServerSharp.Data.IO
 {
     public static class NetBinaryReaderTypeExtensions
     {

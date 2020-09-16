@@ -1,4 +1,4 @@
-﻿namespace MinecraftServerSharp.Net.Packets
+﻿namespace MCServerSharp.Net.Packets
 {
     [PacketStruct(ServerPacketId.PluginMessage)]
     public readonly struct ServerPluginMessage

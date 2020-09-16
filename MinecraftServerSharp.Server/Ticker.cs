@@ -2,7 +2,7 @@
 using System.Diagnostics;
 using System.Threading;
 
-namespace MinecraftServerSharp
+namespace MCServerSharp
 {
     public class Ticker
     {

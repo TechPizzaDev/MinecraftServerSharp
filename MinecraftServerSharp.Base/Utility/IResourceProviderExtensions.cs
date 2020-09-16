@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 
-namespace MinecraftServerSharp.Utility
+namespace MCServerSharp.Utility
 {
     public static class IResourceProviderExtensions
     {

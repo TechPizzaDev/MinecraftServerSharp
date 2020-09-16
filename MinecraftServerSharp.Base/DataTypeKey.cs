@@ -2,7 +2,7 @@
 using System.Diagnostics;
 using System.Linq;
 
-namespace MinecraftServerSharp
+namespace MCServerSharp
 {
     [DebuggerDisplay("{" + nameof(GetDebuggerDisplay) + "(),nq}")]
     public readonly struct DataTypeKey : IEquatable<DataTypeKey>

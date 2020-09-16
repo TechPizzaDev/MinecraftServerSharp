@@ -1,8 +1,8 @@
 ﻿using System;
-using MinecraftServerSharp.Collections;
-using static MinecraftServerSharp.NBT.NbtReader;
+using MCServerSharp.Collections;
+using static MCServerSharp.NBT.NbtReader;
 
-namespace MinecraftServerSharp.NBT
+namespace MCServerSharp.NBT
 {
     public struct NbtReaderState : IDisposable
     {

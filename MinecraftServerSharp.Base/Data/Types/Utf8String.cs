@@ -2,7 +2,7 @@
 using System.Buffers;
 using System.Diagnostics;
 
-namespace MinecraftServerSharp
+namespace MCServerSharp
 {
     // TODO: do stuff with JsonEncodedText and such
     // TODO: overload + operator to more efficiently combine Utf8String and String instances

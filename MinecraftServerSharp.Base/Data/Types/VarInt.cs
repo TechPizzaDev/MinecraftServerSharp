@@ -4,7 +4,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 
-namespace MinecraftServerSharp
+namespace MCServerSharp
 {
     [DebuggerDisplay("{Value, nq}")]
     public readonly struct VarInt

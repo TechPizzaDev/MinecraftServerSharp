@@ -1,7 +1,7 @@
 ﻿using System;
 using System.IO;
 
-namespace MinecraftServerSharp.Utility
+namespace MCServerSharp.Utility
 {
     public static class StreamExtensions
     {

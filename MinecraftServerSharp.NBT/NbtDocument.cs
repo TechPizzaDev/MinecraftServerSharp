@@ -4,9 +4,9 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
-using static MinecraftServerSharp.NBT.NbtReader;
+using static MCServerSharp.NBT.NbtReader;
 
-namespace MinecraftServerSharp.NBT
+namespace MCServerSharp.NBT
 {
     /// <summary>
     /// Provides a mechanism for examining the structural content 

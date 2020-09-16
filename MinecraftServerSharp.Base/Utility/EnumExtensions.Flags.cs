@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Linq.Expressions;
 
-namespace MinecraftServerSharp
+namespace MCServerSharp
 {
     public static partial class EnumExtensions
     {

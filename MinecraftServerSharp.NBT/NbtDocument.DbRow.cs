@@ -2,7 +2,7 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace MinecraftServerSharp.NBT
+namespace MCServerSharp.NBT
 {
     public sealed partial class NbtDocument
     {

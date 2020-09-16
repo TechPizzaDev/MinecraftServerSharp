@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 
-namespace MinecraftServerSharp.Net
+namespace MCServerSharp.Net
 {
     /// <summary>
     /// Used to hold a thread-safe queue of packets to a client.

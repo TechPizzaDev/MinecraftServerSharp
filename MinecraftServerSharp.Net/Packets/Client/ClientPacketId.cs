@@ -1,7 +1,7 @@
-﻿using Mapping = MinecraftServerSharp.Net.Packets.PacketIdMappingAttribute;
-using State = MinecraftServerSharp.Net.Packets.ProtocolState;
+﻿using Mapping = MCServerSharp.Net.Packets.PacketIdMappingAttribute;
+using State = MCServerSharp.Net.Packets.ProtocolState;
 
-namespace MinecraftServerSharp.Net.Packets
+namespace MCServerSharp.Net.Packets
 {
     public enum ClientPacketId
     {

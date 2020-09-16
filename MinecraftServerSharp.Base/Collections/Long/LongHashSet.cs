@@ -7,7 +7,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
-namespace MinecraftServerSharp.Collections
+namespace MCServerSharp.Collections
 {
     public partial class LongHashSet<T> : ISet<T>, IReadOnlySet<T>, ICollection<T>, IReadOnlyCollection<T>
     {

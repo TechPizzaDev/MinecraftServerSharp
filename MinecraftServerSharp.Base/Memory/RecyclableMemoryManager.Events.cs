@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Diagnostics.Tracing;
 
-namespace MinecraftServerSharp.Utility
+namespace MCServerSharp.Utility
 {
     public sealed partial class RecyclableMemoryManager
     {

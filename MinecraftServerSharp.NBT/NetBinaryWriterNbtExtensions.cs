@@ -1,7 +1,7 @@
 ﻿using System;
-using MinecraftServerSharp.Data.IO;
+using MCServerSharp.Data.IO;
 
-namespace MinecraftServerSharp.NBT
+namespace MCServerSharp.NBT
 {
     public static class NetBinaryWriterNbtExtensions
     {

@@ -1,13 +1,13 @@
 ﻿
-namespace MinecraftServerSharp
+namespace MCServerSharp
 {
-    public class MinecraftSnapshotVersion : MinecraftVersion
+    public class MCSnapshotVersion : MCVersion
     {
         public int Year { get; }
         public byte Week { get; }
         public int Revision { get; }
 
-        public MinecraftSnapshotVersion(
+        public MCSnapshotVersion(
             int major, int minor,
             int year, byte week, int revision) : base(major, minor, 0)
         {

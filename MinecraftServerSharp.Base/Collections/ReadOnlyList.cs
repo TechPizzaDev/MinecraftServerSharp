@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Collections.ObjectModel;
 
-namespace MinecraftServerSharp.Collections
+namespace MCServerSharp.Collections
 {
     public class ReadOnlyList<T> : ReadOnlyCollection<T>
     {

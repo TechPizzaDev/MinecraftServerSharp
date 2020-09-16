@@ -1,6 +1,6 @@
 ﻿using System.Text.Json;
 
-namespace MinecraftServerSharp
+namespace MCServerSharp
 {
     public readonly struct Chat
     {

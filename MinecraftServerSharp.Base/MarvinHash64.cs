@@ -7,7 +7,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 
-namespace MinecraftServerSharp
+namespace MCServerSharp
 {
     public static class MarvinHash64
     {

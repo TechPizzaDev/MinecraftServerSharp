@@ -7,13 +7,13 @@ using System.Runtime.CompilerServices;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 using System.Threading;
-using MinecraftServerSharp.Data;
-using MinecraftServerSharp.Net;
-using MinecraftServerSharp.Net.Packets;
-using MinecraftServerSharp.Utility;
-using MinecraftServerSharp.World;
+using MCServerSharp.Data;
+using MCServerSharp.Net;
+using MCServerSharp.Net.Packets;
+using MCServerSharp.Utility;
+using MCServerSharp.World;
 
-namespace MinecraftServerSharp.Runner
+namespace MCServerSharp.Runner
 {
     internal class Program
     {

@@ -4,10 +4,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
-using MinecraftServerSharp.Data.IO;
-using MinecraftServerSharp.NBT;
+using MCServerSharp.Data.IO;
+using MCServerSharp.NBT;
 
-namespace MinecraftServerSharp.Net.Packets
+namespace MCServerSharp.Net.Packets
 {
     /// <summary>
     /// Gives access to delegates that turn message data into packets.

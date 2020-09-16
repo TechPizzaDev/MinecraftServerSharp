@@ -4,7 +4,7 @@ using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace MinecraftServerSharp.NBT
+namespace MCServerSharp.NBT
 {
     public ref struct NbtReader
     {

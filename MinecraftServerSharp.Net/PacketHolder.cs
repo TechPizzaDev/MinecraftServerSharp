@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
-using MinecraftServerSharp.Net.Packets;
+using MCServerSharp.Net.Packets;
 
-namespace MinecraftServerSharp.Net
+namespace MCServerSharp.Net
 {
     public abstract class PacketHolder
     {

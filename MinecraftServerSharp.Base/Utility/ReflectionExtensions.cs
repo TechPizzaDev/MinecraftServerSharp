@@ -2,7 +2,7 @@
 using System.Linq;
 using System.Reflection;
 
-namespace MinecraftServerSharp.Utility
+namespace MCServerSharp.Utility
 {
     public static class ReflectionExtensions
     {

@@ -2,7 +2,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
-namespace MinecraftServerSharp.Utility
+namespace MCServerSharp.Utility
 {
     public unsafe class UnmanagedMemory<T> : IMemory<T>, IDisposable
         where T : unmanaged

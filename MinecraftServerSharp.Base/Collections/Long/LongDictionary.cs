@@ -6,9 +6,9 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
-using MinecraftServerSharp.Utility;
+using MCServerSharp.Utility;
 
-namespace MinecraftServerSharp.Collections
+namespace MCServerSharp.Collections
 {
     [DebuggerDisplay("Count = {Count}")]
     public partial class LongDictionary<TKey, TValue> :

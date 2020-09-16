@@ -2,7 +2,7 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace MinecraftServerSharp.Utility
+namespace MCServerSharp.Utility
 {
     public static class UnsafeR
     {

@@ -4,9 +4,9 @@ using System;
 using System.ComponentModel;
 using System.Numerics;
 using System.Runtime.CompilerServices;
-using MinecraftServerSharp.Collections;
+using MCServerSharp.Collections;
 
-namespace MinecraftServerSharp
+namespace MCServerSharp
 {
     public struct LongHashCode
     {

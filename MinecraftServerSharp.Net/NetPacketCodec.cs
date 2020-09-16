@@ -5,11 +5,11 @@ using System.IO;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
-using MinecraftServerSharp.Data.IO;
-using MinecraftServerSharp.Net.Packets;
-using MinecraftServerSharp.Utility;
+using MCServerSharp.Data.IO;
+using MCServerSharp.Net.Packets;
+using MCServerSharp.Utility;
 
-namespace MinecraftServerSharp.Net
+namespace MCServerSharp.Net
 {
     public delegate OperationStatus PacketHandlerDelegate(
         NetConnection connection,

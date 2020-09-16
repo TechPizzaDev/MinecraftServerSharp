@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Reflection;
 
-namespace MinecraftServerSharp
+namespace MCServerSharp
 {
     public static class MethodInfoExtensions
     {

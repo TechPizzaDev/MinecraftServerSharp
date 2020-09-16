@@ -3,7 +3,7 @@ using System.Buffers.Binary;
 using System.IO;
 using System.Text;
 
-namespace MinecraftServerSharp.Data.IO
+namespace MCServerSharp.Data.IO
 {
     public readonly struct NetBinaryWriter
     {

@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
 
-namespace MinecraftServerSharp.World
+namespace MCServerSharp.World
 {
     public class ChunkSection
     {

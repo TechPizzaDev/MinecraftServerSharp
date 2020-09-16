@@ -1,4 +1,4 @@
-﻿namespace MinecraftServerSharp.NBT
+﻿namespace MCServerSharp.NBT
 {
     public enum NbtType
     {

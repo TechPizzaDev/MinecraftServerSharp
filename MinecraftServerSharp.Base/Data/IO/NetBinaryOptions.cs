@@ -1,5 +1,5 @@
 ﻿
-namespace MinecraftServerSharp.Data.IO
+namespace MCServerSharp.Data.IO
 {
     public struct NetBinaryOptions
     {

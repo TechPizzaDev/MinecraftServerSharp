@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using MinecraftServerSharp.Net.Packets;
-using MinecraftServerSharp.Utility;
+using MCServerSharp.Net.Packets;
+using MCServerSharp.Utility;
 
-namespace MinecraftServerSharp.Net
+namespace MCServerSharp.Net
 {
     /// <summary>
     /// Orchestrates threads through <see cref="NetOrchestratorWorker"/> instances.

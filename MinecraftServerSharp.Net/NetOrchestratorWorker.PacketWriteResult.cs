@@ -1,4 +1,4 @@
-﻿namespace MinecraftServerSharp.Net
+﻿namespace MCServerSharp.Net
 {
     public partial class NetOrchestratorWorker
     {

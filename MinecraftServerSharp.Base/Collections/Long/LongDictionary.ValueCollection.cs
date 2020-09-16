@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
-namespace MinecraftServerSharp.Collections
+namespace MCServerSharp.Collections
 {
     public partial class LongDictionary<TKey, TValue> where TKey : notnull
     {

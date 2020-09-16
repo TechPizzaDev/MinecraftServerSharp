@@ -16,8 +16,8 @@
   <ItemGroup>
     <Compile Remove="Network\Data\INetBinaryReader.cs" />
     <Compile Remove="Network\Data\INetBinaryWriter.cs" />
-    <Compile Remove="Network\*"/>
-    <None Include="Network\*"/>
+    <Compile Remove="Network\*" />
+    <None Include="Network\*" />
   </ItemGroup>
 
   <ItemGroup>
@@ -28,8 +28,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\MinecraftServerSharp.Base\MinecraftServerSharp.Base.csproj" />
-    <ProjectReference Include="..\MinecraftServerSharp.NBT\MinecraftServerSharp.NBT.csproj" />
+    <ProjectReference Include="..\MinecraftServerSharp.Base\MCServerSharp.Base.csproj" />
+    <ProjectReference Include="..\MinecraftServerSharp.NBT\MCServerSharp.NBT.csproj" />
   </ItemGroup>
 
 </Project>

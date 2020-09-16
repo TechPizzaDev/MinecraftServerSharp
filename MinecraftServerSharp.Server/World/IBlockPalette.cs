@@ -1,6 +1,6 @@
-﻿using MinecraftServerSharp.Data.IO;
+﻿using MCServerSharp.Data.IO;
 
-namespace MinecraftServerSharp.World
+namespace MCServerSharp.World
 {
     public interface IBlockPalette
     {

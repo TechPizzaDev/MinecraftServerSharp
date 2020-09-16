@@ -1,14 +1,14 @@
 ﻿using System.Globalization;
 
-namespace MinecraftServerSharp
+namespace MCServerSharp
 {
-    public class MinecraftVersion
+    public class MCVersion
     {
         public int Major { get; }
         public int Minor { get; }
         public int Patch { get; }
 
-        public MinecraftVersion(int major, int minor, int patch)
+        public MCVersion(int major, int minor, int patch)
         {
             Major = major;
             Minor = minor;

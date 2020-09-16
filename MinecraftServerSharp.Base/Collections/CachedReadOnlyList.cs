@@ -2,7 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 
-namespace MinecraftServerSharp.Collections
+namespace MCServerSharp.Collections
 {
     /// <summary>
     /// Caches a <see cref="ReadOnlyList{T}"/> and it's source to mitigate allocation from 

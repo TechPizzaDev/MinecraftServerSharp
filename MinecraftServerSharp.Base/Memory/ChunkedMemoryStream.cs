@@ -5,7 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Threading;
 
-namespace MinecraftServerSharp.Utility
+namespace MCServerSharp.Utility
 {
     /// <summary>
     /// <see cref="MemoryStream"/> implementation that deals with pooling and managing memory streams 

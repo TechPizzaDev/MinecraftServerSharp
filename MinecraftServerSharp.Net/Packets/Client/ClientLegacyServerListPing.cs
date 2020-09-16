@@ -1,7 +1,7 @@
 ﻿using System.Buffers;
-using MinecraftServerSharp.Data.IO;
+using MCServerSharp.Data.IO;
 
-namespace MinecraftServerSharp.Net.Packets
+namespace MCServerSharp.Net.Packets
 {
     [PacketStruct(ClientPacketId.LegacyServerListPing)]
     public readonly struct ClientLegacyServerListPing

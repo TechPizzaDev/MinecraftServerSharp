@@ -3,7 +3,7 @@
 using System.Collections;
 using System.Collections.Generic;
 
-namespace MinecraftServerSharp.Collections
+namespace MCServerSharp.Collections
 {
     public partial class LongHashSet<T>
     {

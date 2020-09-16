@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using MinecraftServerSharp.Collections;
+using MCServerSharp.Collections;
 
-namespace MinecraftServerSharp.NBT
+namespace MCServerSharp.NBT
 {
     public sealed partial class NbtDocument
     {

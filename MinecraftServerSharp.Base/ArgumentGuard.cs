@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace MinecraftServerSharp
+namespace MCServerSharp
 {
     public static class ArgumentGuard
     {

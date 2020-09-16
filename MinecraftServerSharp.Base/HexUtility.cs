@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Globalization;
 
-namespace MinecraftServerSharp
+namespace MCServerSharp
 {
     public static class HexUtility
     {

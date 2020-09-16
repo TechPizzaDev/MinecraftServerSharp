@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using MinecraftServerSharp.Net.Packets;
+using MCServerSharp.Net.Packets;
 
-namespace MinecraftServerSharp.Net
+namespace MCServerSharp.Net
 {
     public delegate bool StoreItemPredicate<TSender>(
         TSender sender, Type type, int currentCount);

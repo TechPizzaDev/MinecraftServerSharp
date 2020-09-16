@@ -1,9 +1,9 @@
 ﻿using System;
-using MinecraftServerSharp.Data.IO;
-using MinecraftServerSharp.NBT;
-using MinecraftServerSharp.World;
+using MCServerSharp.Data.IO;
+using MCServerSharp.NBT;
+using MCServerSharp.World;
 
-namespace MinecraftServerSharp.Net.Packets
+namespace MCServerSharp.Net.Packets
 {
     [PacketStruct(ServerPacketId.ChunkData)]
     public struct ServerChunkData : IWritablePacket

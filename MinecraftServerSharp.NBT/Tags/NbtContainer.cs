@@ -1,5 +1,5 @@
 ﻿
-namespace MinecraftServerSharp.NBT
+namespace MCServerSharp.NBT
 {
     public abstract class NbtContainer<TSelf> : NbTag
         where TSelf : class

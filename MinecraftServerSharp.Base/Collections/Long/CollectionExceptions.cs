@@ -2,7 +2,7 @@
 
 using System;
 
-namespace MinecraftServerSharp.Collections
+namespace MCServerSharp.Collections
 {
     internal class CollectionExceptions
     {

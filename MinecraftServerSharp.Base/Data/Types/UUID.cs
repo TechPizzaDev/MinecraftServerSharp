@@ -2,9 +2,9 @@
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Runtime.InteropServices;
-using MinecraftServerSharp.Utility;
+using MCServerSharp.Utility;
 
-namespace MinecraftServerSharp
+namespace MCServerSharp
 {
     // TODO: add parsing
 

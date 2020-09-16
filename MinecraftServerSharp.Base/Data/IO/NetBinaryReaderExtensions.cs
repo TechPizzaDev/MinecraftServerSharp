@@ -2,7 +2,7 @@
 using System.Buffers;
 using System.IO;
 
-namespace MinecraftServerSharp.Data.IO
+namespace MCServerSharp.Data.IO
 {
     public static class NetBinaryReaderExtensions
     {

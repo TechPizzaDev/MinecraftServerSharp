@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 
-namespace MinecraftServerSharp.Collections
+namespace MCServerSharp.Collections
 {
     // TODO: remove when NET5 hits
     public interface IReadOnlySet<T> : IReadOnlyCollection<T>, IEnumerable<T>

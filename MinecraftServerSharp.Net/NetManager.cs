@@ -4,11 +4,11 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Net;
 using System.Reflection;
-using MinecraftServerSharp.Collections;
-using MinecraftServerSharp.Net.Packets;
-using MinecraftServerSharp.Utility;
+using MCServerSharp.Collections;
+using MCServerSharp.Net.Packets;
+using MCServerSharp.Utility;
 
-namespace MinecraftServerSharp.Net
+namespace MCServerSharp.Net
 {
     public class NetManager
     {
@@ -23,7 +23,7 @@ namespace MinecraftServerSharp.Net
 
         // TODO: move these somewhere
         public int ProtocolVersion { get; } = 578;
-        public MinecraftVersion GameVersion { get; } = new MinecraftVersion(1, 15, 2);
+        public MCVersion GameVersion { get; } = new MCVersion(1, 15, 2);
         public bool Config_AppendGameVersionToBetaStatus { get; } = true;
 
         private HashSet<NetConnection> _connections;

@@ -1,6 +1,6 @@
-﻿using MinecraftServerSharp.Utility;
+﻿using MCServerSharp.Utility;
 
-namespace MinecraftServerSharp
+namespace MCServerSharp
 {
     public readonly struct EntityId
     {
