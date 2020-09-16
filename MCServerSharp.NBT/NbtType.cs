@@ -16,6 +16,6 @@
         IntArray = 11,
         LongArray = 12,
 
-        Null = 255,
+        Undefined = 255,
     }
 }

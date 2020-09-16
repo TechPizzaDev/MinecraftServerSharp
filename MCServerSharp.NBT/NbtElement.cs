@@ -28,7 +28,7 @@ namespace MCServerSharp.NBT
             }
         }
 
-        public NbtType Type => _parent?.GetTagType(_index) ?? NbtType.Null;
+        public NbtType Type => _parent?.GetTagType(_index) ?? NbtType.Undefined;
 
         public NbtFlags Flags => _parent?.GetFlags(_index) ?? NbtFlags.None;
 

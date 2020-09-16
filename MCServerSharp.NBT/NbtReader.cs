@@ -55,10 +55,11 @@ namespace MCServerSharp.NBT
 
         /// <summary>
         /// Gets the prefixed length of an array-like type.
+        /// </summary>
         /// <remarks>
         /// <see cref="NbtType.Compound"/> does not provide a length.
+        /// <see cref="NbtType.List"/> may have negative length when it's of <see cref="NbtType.End"/>.
         /// </remarks>
-        /// </summary>
         public int TagArrayLength { get; private set; }
 
         /// <summary>
@@ -112,7 +113,7 @@ namespace MCServerSharp.NBT
             _data = data;
             IsFinalBlock = isFinalBlock;
             _state = state;
-            TagType = NbtType.Null;
+            TagType = NbtType.Undefined;
         }
 
         // Summary:
@@ -167,9 +168,11 @@ namespace MCServerSharp.NBT
         /// Reads the next NBT element from the input source.
         /// </summary>
         /// <returns>true if the element was read successfully; otherwise, false.</returns>
-        /// <exception cref="Exception">
-        /// An invalid NBT element is encountered. -or- 
+        /// <exception cref="NbtDepthException">
         /// The current depth exceeds <see cref="NbtOptions.MaxDepth"/>.
+        /// </exception>
+        /// <exception cref="NbtReadException">
+        /// An invalid NBT element is encountered.
         /// </exception>
         public bool Read()
         {
@@ -189,7 +192,7 @@ namespace MCServerSharp.NBT
             var slice = _data.Slice(_consumed);
             int read = 0;
 
-            // TODO: optimize stack usage between here and switch
+            // TODO: optimize stack usage between here and TagType switch
 
             _state._containerInfoStack.TryPeek(out ContainerInfo containerInfo);
             if (containerInfo.InList && containerInfo.Length == 0)
@@ -220,8 +223,6 @@ namespace MCServerSharp.NBT
                     read += nameLengthBytes;
 
                     NameSpan = slice.Slice(read, nameLength);
-                    var name = new Utf8String(NameSpan);
-                    Console.WriteLine(name);
                     read += nameLength;
                 }
             }
@@ -248,12 +249,17 @@ namespace MCServerSharp.NBT
                     TagArrayLength = ReadListLength(
                         slice.Slice(sizeof(byte) + read), Options, out int listLengthBytes);
 
-                    // TODO: check if type is End and then accept negative length
+                    if (TagArrayLength <= 0 && listType != NbtType.End)
+                    {
+                        throw new NbtReadException(
+                            $"{NbtType.List} length was less than or equal to zero " +
+                            $"but the type was not {NbtType.End}.");
+                    }
 
                     _state._containerInfoStack.Push(new ContainerInfo
                     {
                         Type = listType,
-                        Length = TagArrayLength,
+                        Length = Math.Max(TagArrayLength, 0), // clamp in case of negative length
                         InList = true
                     });
                     ValueSpan = slice.Slice(read, sizeof(byte) + listLengthBytes);
@@ -330,7 +336,7 @@ namespace MCServerSharp.NBT
         }
 
         // Summary:
-        //     Skips the children of the current JSON token.
+        //     Skips the children of the current token.
         //
         // Exceptions:
         //   T:System.InvalidOperationException:

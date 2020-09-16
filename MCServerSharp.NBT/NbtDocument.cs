@@ -428,7 +428,7 @@ namespace MCServerSharp.NBT
                     //writer.WriteListStart(row.Length, );
                     return;
 
-                case NbtType.Null:
+                case NbtType.Undefined:
                     throw new Exception($"Unexpected {row.TagType} tag.");
 
                 default:
