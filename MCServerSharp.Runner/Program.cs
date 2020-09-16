@@ -20,8 +20,7 @@ namespace MCServerSharp.Runner
         // TODO: move these to a Game class
         public const string PongResource = "Minecraft/Net/Pong.json";
 
-        private static long tickCount;
-        private static Random rng = new Random();
+        private static long _tickCount;
         private static NetManager _manager;
         private static string? _requestPongBase;
 
@@ -139,10 +138,10 @@ namespace MCServerSharp.Runner
 
         private static void Game_Tick(Ticker ticker)
         {
-            tickCount++;
-            if (tickCount % 20 == 0) // Every second
+            _tickCount++;
+            if (_tickCount % 20 == 0) // Every second
             {
-                _manager.TickAlive(tickCount);
+                _manager.TickAlive(_tickCount);
 
                 int updateCount = _manager.UpdateConnections(out int activeCount);
                 //if (updateCount > 0)

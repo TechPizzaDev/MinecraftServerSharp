@@ -22,7 +22,19 @@ namespace MCServerSharp.World
 
         public bool IsEmpty => false;
 
+        /// <summary>
+        /// </summary>
+        /// <remarks>
+        /// Blocks are stored in YZX order.
+        /// </remarks>
         public ReadOnlyMemory<Block> Blocks => _blocks;
+
+        /// <summary>
+        /// </summary>
+        /// <remarks>
+        /// Block states are stored in YZX order.
+        /// </remarks>
+        public ReadOnlyMemory<BlockState> BlockStates => _blockStates;
 
         public ChunkSection(Chunk parent, int sectionY, IBlockPalette blockPalette)
         {
@@ -35,10 +47,21 @@ namespace MCServerSharp.World
 
             _blocks = new Block[BlockCount];
             _blockStates = new BlockState[BlockCount];
+
             _blocks.AsSpan().Fill(new Block(0));
             _blockStates.AsSpan().Fill(BlockState.Empty);
         }
 
+        /// <summary>
+        /// Returns an index to a block or block state array.
+        /// </summary>
+        /// <remarks>
+        /// Blocks and block states are stored in YZX order.
+        /// </remarks>
+        /// <param name="x"></param>
+        /// <param name="y"></param>
+        /// <param name="z"></param>
+        /// <returns></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int GetBlockIndex(int x, int y, int z)
         {
@@ -52,7 +75,7 @@ namespace MCServerSharp.World
 
         public BlockState GetBlockState(int x, int y, int z)
         {
-            return GetBlockState(GetBlockIndex(x, y, Z));
+            return GetBlockState(GetBlockIndex(x, y, z));
         }
 
         public Block GetBlock(int index)
