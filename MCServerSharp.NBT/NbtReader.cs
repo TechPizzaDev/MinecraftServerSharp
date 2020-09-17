@@ -24,7 +24,10 @@ namespace MCServerSharp.NBT
         /// </returns>
         public bool IsFinalBlock { get; }
 
-        public bool EndOfData { get; private set; }
+        /// <summary>
+        /// Gets whether the reader has emptied it's state stack and finished reading a document.
+        /// </summary>
+        public bool EndOfDocument { get; private set; }
 
         /// <summary>
         /// Gets the index that the last processed element starts at (within the given input data).
@@ -36,6 +39,9 @@ namespace MCServerSharp.NBT
         /// </summary>
         public NbtType TagType { get; private set; }
 
+        /// <summary>
+        /// Gets the flags of the last processed element.
+        /// </summary>
         public NbtFlags TagFlags { get; private set; }
 
         /// <summary>
@@ -140,7 +146,7 @@ namespace MCServerSharp.NBT
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private bool HasMoreData()
         {
-            if (EndOfData)
+            if (EndOfDocument)
                 return false;
 
             if (_consumed >= _data.Length)
@@ -161,8 +167,6 @@ namespace MCServerSharp.NBT
             }
             return true;
         }
-
-        // TODO: NbtException type
 
         /// <summary>
         /// Reads the next NBT element from the input source.
@@ -239,7 +243,7 @@ namespace MCServerSharp.NBT
                         _state._containerInfoStack.Pop();
 
                     if (_state._containerInfoStack.ByteCount == 0)
-                        EndOfData = true;
+                        EndOfDocument = true;
                     break;
 
                 case NbtType.List:

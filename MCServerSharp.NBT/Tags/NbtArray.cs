@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using MCServerSharp.Collections;
 using MCServerSharp.Data.IO;
 
@@ -17,6 +18,16 @@ namespace MCServerSharp.NBT
         public NbtArray(Utf8String? name, int count) : base(name)
         {
             Items = new T[count];
+        }
+
+        public Memory<T> AsMemory()
+        {
+            return Items;
+        }
+
+        public Span<T> AsSpan()
+        {
+            return Items;
         }
 
         public override void Write(NetBinaryWriter writer, NbtFlags flags)

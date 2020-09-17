@@ -1,5 +1,12 @@
 ﻿using System;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
+using System.IO;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using MCServerSharp;
+using MCServerSharp.Data.IO;
+using MCServerSharp.NBT;
 using MCServerSharp.Utility;
 
 namespace Tests
@@ -13,6 +20,9 @@ namespace Tests
 
             TestStreamTrimStart();
             Console.WriteLine(nameof(TestStreamTrimStart) + " passed");
+
+            TestNbtRegionFileRead();
+            Console.WriteLine(nameof(TestNbtRegionFileRead) + " passed");
         }
 
         private static void TestStreamTrimStart()
@@ -53,5 +63,66 @@ namespace Tests
         }
 
         #endregion
+
+        private static void TestNbtRegionFileRead()
+        {
+            // code adapted from https://github.com/rantingmong/blocm/blob/master/blocm_core/RegionFile.cs
+
+            int chunkX = 0;
+            int chunkZ = 0;
+
+            using var stream = File.OpenRead(
+               $@"..\..\..\..\MCJarServer\1.15.2\world\region\r.{chunkX}.{chunkZ}.mca");
+
+            int regionX = chunkX / 32;
+            int regionZ = chunkZ / 32;
+
+            var reader = new NetBinaryReader(stream);
+
+            var sectors = new ChunkLocation[1024];
+            var sectorsStatus = reader.Read(MemoryMarshal.Cast<ChunkLocation, int>(sectors));
+
+            var timestamps = new int[1024];
+            var timestampsStatus = reader.Read(timestamps);
+
+            //var document = NbtDocument.Parse(buffer.AsMemory(0, totalRead), out int consumed);
+            //Console.WriteLine(document.RootTag);
+        }
+
+        [StructLayout(LayoutKind.Sequential, Pack = 1)]
+        [DebuggerDisplay("{" + nameof(GetDebuggerDisplay) + "(),nq}")]
+        public readonly struct ChunkLocation : IEquatable<ChunkLocation>
+        {
+            public byte SectorCount { get; }
+
+            private readonly byte _offset0;
+            private readonly byte _offset1;
+            private readonly byte _offset2;
+
+            public int Offset => _offset0 | _offset1 >> 8 | _offset2 >> 16;
+
+            private string GetDebuggerDisplay()
+            {
+                return ToString();
+            }
+
+            public bool Equals(ChunkLocation other)
+            {
+                return SectorCount == other.SectorCount
+                    && _offset0 == other._offset0
+                    && _offset1 == other._offset1
+                    && _offset2 == other._offset2;
+            }
+
+            public override int GetHashCode()
+            {
+                return UnsafeR.As<ChunkLocation, int>(this);
+            }
+
+            public override string ToString()
+            {
+                return $"{SectorCount} @ [{Offset}]";
+            }
+        }
     }
 }

@@ -64,7 +64,7 @@ namespace MCServerSharp.Data.IO
 
             if (buffer.Length > 0)
                 // this should not happen if everything else works correctly
-                throw new EndOfStreamException();
+                return OperationStatus.NeedMoreData;
 
             return OperationStatus.Done;
         }

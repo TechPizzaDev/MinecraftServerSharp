@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Buffers;
+using System.Buffers.Binary;
 using System.IO;
+using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 
 namespace MCServerSharp.Data.IO
 {
@@ -18,6 +21,53 @@ namespace MCServerSharp.Data.IO
             byte[] result = new byte[count];
             reader.Read(result);
             return result;
+        }
+
+
+        public static OperationStatus Read(this NetBinaryReader reader, Span<int> destination)
+        {
+            static OperationStatus ReadBytes(NetBinaryReader reader, Span<int> destination)
+            {
+                return reader.Read(MemoryMarshal.AsBytes(destination));
+            }
+
+            static OperationStatus ReadReverse(NetBinaryReader reader, Span<int> destination)
+            {
+                Span<int> buffer = stackalloc int[Math.Min(destination.Length, 2048 / sizeof(int))];
+
+                int offset = 0;
+                do
+                {
+                    // TODO: vectorize
+
+                    var slice = buffer.Slice(0, Math.Min(buffer.Length, destination.Length - offset));
+                    var status = ReadBytes(reader, slice);
+                    if (status != OperationStatus.Done)
+                        return status;
+
+                    for (int i = 0; i < slice.Length; i++)
+                        destination[i + offset] = BinaryPrimitives.ReverseEndianness(slice[i]);
+
+                    offset += slice.Length;
+                }
+                while (offset < destination.Length);
+                return OperationStatus.Done;
+            }
+
+            if (BitConverter.IsLittleEndian)
+            {
+                if (reader.Options.IsBigEndian)
+                    return ReadReverse(reader, destination);
+                else
+                    return ReadBytes(reader, destination);
+            }
+            else
+            {
+                if (reader.Options.IsBigEndian)
+                    return ReadBytes(reader, destination);
+                else
+                    return ReadReverse(reader, destination);
+            }
         }
 
         public static int TryReadBytes(this NetBinaryReader reader, int count, Stream output)
