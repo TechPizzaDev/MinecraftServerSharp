@@ -420,12 +420,11 @@ namespace MCServerSharp.NBT
             switch (row.TagType)
             {
                 case NbtType.Compound:
-                    writer.WriteCompoundStart(row.ContainerLength);
+                    writer.WriteCompoundStart();
                     return;
 
                 case NbtType.List:
-                    throw new NotImplementedException();
-                    //writer.WriteListStart(row.Length, );
+                    //writer.WriteListStart(row.ContainerLength, containertype);
                     return;
 
                 case NbtType.Undefined:

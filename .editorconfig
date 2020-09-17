@@ -29,3 +29,12 @@ dotnet_diagnostic.CA1815.severity = suggestion
 
 # CA2225: Operator overloads have named alternates
 dotnet_diagnostic.CA2225.severity = none
+
+# CA1819: Properties should not return arrays
+dotnet_diagnostic.CA1819.severity = none
+
+# CA1043: Use Integral Or String Argument For Indexers
+dotnet_diagnostic.CA1043.severity = none
+
+# CA1710: Identifiers should have correct suffix
+dotnet_diagnostic.CA1710.severity = none

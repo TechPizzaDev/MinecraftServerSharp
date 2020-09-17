@@ -1,15 +1,27 @@
-﻿
+﻿using System.Collections;
+using System.Collections.Generic;
+
 namespace MCServerSharp.NBT
 {
-    public abstract class NbtContainer<TSelf> : NbTag
-        where TSelf : class
+    public abstract class NbtContainer<T, TEnumerator> : NbTag, IReadOnlyCollection<T>
+        where TEnumerator : IEnumerator<T>
     {
         public abstract int Count { get; }
-
-        protected NbtContainer(Utf8String? name) : base(name)
+        
+        public NbtContainer(Utf8String? name) : base(name)
         {
         }
 
-        public abstract TSelf Add(NbTag tag);
+        public abstract TEnumerator GetEnumerator();
+
+        IEnumerator<T> IEnumerable<T>.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
     }
 }

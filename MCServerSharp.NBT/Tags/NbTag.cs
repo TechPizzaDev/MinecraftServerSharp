@@ -4,8 +4,11 @@ namespace MCServerSharp.NBT
 {
     public abstract class NbTag
     {
-        public abstract NbtType Type { get; }
         public Utf8String? Name { get; }
+
+        public abstract NbtType Type { get; }
+
+        // TODO: system.string constructor
 
         public NbTag(Utf8String? name)
         {

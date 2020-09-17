@@ -139,9 +139,6 @@ namespace MCServerSharp.NBT
 
         public void WriteTo(NbtWriter writer)
         {
-            if (writer == null)
-                throw new ArgumentNullException(nameof(writer));
-
             CheckValidInstance();
 
             _parent.WriteTagTo(_index, writer);

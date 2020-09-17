@@ -2,15 +2,15 @@
 
 namespace MCServerSharp.NBT
 {
-    public class NbtLongArray : NbtArray<long>
+    public class NbtIntArray : NbtArray<int>
     {
-        public override NbtType Type => NbtType.LongArray;
+        public override NbtType Type => NbtType.IntArray;
 
-        public NbtLongArray(Utf8String? name, int count) : base(name, count)
+        public NbtIntArray(Utf8String? name, int count) : base(name, count)
         {
         }
 
-        public NbtLongArray(int count) : base(null, count)
+        public NbtIntArray(int count) : base(null, count)
         {
         }
 

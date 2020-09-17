@@ -2,9 +2,19 @@
 
 namespace MCServerSharp.NBT
 {
-    public class NbtWriter
+    public struct NbtWriter
     {
-        public void WriteCompoundStart(int length)
+        public void WriteName(ReadOnlySpan<char> name)
+        {
+
+        }
+
+        public void WriteName(ReadOnlySpan<byte> nameUtf8)
+        {
+
+        }
+
+        public void WriteCompoundStart()
         {
         }
 
@@ -17,7 +27,7 @@ namespace MCServerSharp.NBT
 
         }
 
-        public void WriteRaw(ReadOnlySpan<byte> data)
+        private void WriteRaw(ReadOnlySpan<byte> data)
         {
 
         }

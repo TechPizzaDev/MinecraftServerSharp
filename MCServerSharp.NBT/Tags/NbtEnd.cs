@@ -1,4 +1,5 @@
-﻿
+﻿using MCServerSharp.Data.IO;
+
 namespace MCServerSharp.NBT
 {
     public class NbtEnd : NbTag
