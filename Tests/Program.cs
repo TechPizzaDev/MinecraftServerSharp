@@ -79,14 +79,31 @@ namespace Tests
 
             var reader = new NetBinaryReader(stream);
 
-            var sectors = new ChunkLocation[1024];
-            var sectorsStatus = reader.Read(MemoryMarshal.Cast<ChunkLocation, int>(sectors));
+            var locations = new ChunkLocation[1024];
+            var sectorsStatus = reader.Read(MemoryMarshal.Cast<ChunkLocation, int>(locations));
 
             var timestamps = new int[1024];
             var timestampsStatus = reader.Read(timestamps);
 
             //var document = NbtDocument.Parse(buffer.AsMemory(0, totalRead), out int consumed);
             //Console.WriteLine(document.RootTag);
+
+            var chunkBuffer = new byte[locations.Length][];
+            for (int i = 0; i < 1024; i++)
+            {
+                var location = locations[i];
+
+                if (location.SectorOffset <= 0)
+                    continue;
+
+                // sector offset will always start at 2
+                reader.Seek(location.SectorOffset * 4096, SeekOrigin.Begin);
+
+                var lengthStatus = reader.Read(out int length);
+                var compressionTypeStatus = reader.Read(out byte compressionType);
+
+                chunkBuffer[i] = reader.ReadBytes(length);
+            }
         }
 
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -99,7 +116,7 @@ namespace Tests
             private readonly byte _offset1;
             private readonly byte _offset2;
 
-            public int Offset => _offset0 | _offset1 >> 8 | _offset2 >> 16;
+            public int SectorOffset => _offset0 | _offset1 >> 8 | _offset2 >> 16;
 
             private string GetDebuggerDisplay()
             {
@@ -121,7 +138,7 @@ namespace Tests
 
             public override string ToString()
             {
-                return $"{SectorCount} @ [{Offset}]";
+                return $"{SectorCount} @ [{SectorOffset}]";
             }
         }
     }
