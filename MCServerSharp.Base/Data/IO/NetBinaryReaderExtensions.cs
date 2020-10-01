@@ -3,18 +3,11 @@ using System.Buffers;
 using System.Buffers.Binary;
 using System.IO;
 using System.Runtime.InteropServices;
-using System.Text.RegularExpressions;
 
 namespace MCServerSharp.Data.IO
 {
     public static class NetBinaryReaderExtensions
     {
-        public static void Read(this NetBinaryReader reader, Span<byte> buffer)
-        {
-            if (reader.ReadBytes(buffer) != buffer.Length)
-                throw new EndOfStreamException();
-        }
-
         [Obsolete("Allocates array. Try to use Span<byte> overload.")]
         public static byte[] ReadBytes(this NetBinaryReader reader, int count)
         {
@@ -22,7 +15,6 @@ namespace MCServerSharp.Data.IO
             reader.Read(result);
             return result;
         }
-
 
         public static OperationStatus Read(this NetBinaryReader reader, Span<int> destination)
         {
@@ -80,7 +72,7 @@ namespace MCServerSharp.Data.IO
 
             Span<byte> buffer = stackalloc byte[4096];
             int total = 0;
-            while (count > 0)
+            do
             {
                 int read = reader.ReadBytes(buffer.Slice(0, Math.Min(buffer.Length, count)));
                 if (read == 0)
@@ -90,7 +82,7 @@ namespace MCServerSharp.Data.IO
                 total += read;
                 count -= read;
             }
-
+            while (count > 0);
             return total;
         }
     }

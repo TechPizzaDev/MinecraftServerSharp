@@ -25,11 +25,13 @@ namespace MCServerSharp.NBT
                 Parse(ref reader, ref database, ref stack);
                 bytesConsumed = (int)reader.BytesConsumed;
             }
+#if !DEBUG
             catch
             {
                 database.Dispose();
                 throw;
             }
+#endif
             finally
             {
                 readerState.Dispose();

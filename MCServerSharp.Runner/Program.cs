@@ -114,7 +114,7 @@ namespace MCServerSharp.Runner
             _manager.Listener.Disconnection += Manager_Disconnection;
             SetPacketHandlers(_manager);
 
-            ushort port = 25565;
+            ushort port = 25566;
             var localEndPoint = new IPEndPoint(IPAddress.Any, port);
             _manager.Bind(localEndPoint);
             Console.WriteLine("Listener bound to endpoint " + localEndPoint);

@@ -8,7 +8,7 @@ namespace MCServerSharp.NBT
 {
     public sealed partial class NbtDocument
     {
-        private struct MetadataDb : IDisposable
+        public struct MetadataDb : IDisposable
         {
             private byte[] _data;
 

@@ -7,7 +7,7 @@ namespace MCServerSharp.NBT
     public sealed partial class NbtDocument
     {
         [StructLayout(LayoutKind.Sequential)]
-        internal readonly struct DbRow
+        public readonly struct DbRow
         {
             public static int Size => Unsafe.SizeOf<DbRow>();
 

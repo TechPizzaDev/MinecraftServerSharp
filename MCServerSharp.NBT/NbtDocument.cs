@@ -15,7 +15,7 @@ namespace MCServerSharp.NBT
     public sealed partial class NbtDocument : IDisposable
     {
         private ReadOnlyMemory<byte> _data;
-        private MetadataDb _metaDb;
+        public MetadataDb _metaDb;
         private byte[]? _extraRentedBytes;
         private (int, string?) _lastIndexAndString = (-1, null);
 
@@ -77,8 +77,8 @@ namespace MCServerSharp.NBT
             CheckNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
-            if (!row.TagType.IsArrayLike())
-                throw new Exception("The tag is not an array-like type.");
+            if (!row.TagType.IsCollection())
+                throw new Exception("The tag is not a collection.");
 
             return row.ContainerLength;
         }

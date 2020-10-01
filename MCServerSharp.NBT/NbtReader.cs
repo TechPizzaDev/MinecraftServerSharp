@@ -60,7 +60,7 @@ namespace MCServerSharp.NBT
         public ReadOnlySpan<byte> ValueSpan { get; private set; }
 
         /// <summary>
-        /// Gets the prefixed length of an array-like type.
+        /// Gets the prefixed length of an array type.
         /// </summary>
         /// <remarks>
         /// <see cref="NbtType.Compound"/> does not provide a length.
@@ -77,6 +77,11 @@ namespace MCServerSharp.NBT
         public NbtOptions Options => _state.Options;
 
         /// <summary>
+        /// Gets the total number of bytes consumed so far by this instance.
+        /// </summary>
+        public long BytesConsumed => _consumed;
+
+        /// <summary>
         /// Gets the depth of the current element.
         /// </summary>
         public int CurrentDepth
@@ -90,10 +95,7 @@ namespace MCServerSharp.NBT
             }
         }
 
-        /// <summary>
-        /// Gets the total number of bytes consumed so far by this instance.
-        /// </summary>
-        public long BytesConsumed => _consumed;
+        public Utf8String NameString => new Utf8String(NameSpan);
 
         #region Cosntructors
 

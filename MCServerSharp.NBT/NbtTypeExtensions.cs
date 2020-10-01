@@ -40,20 +40,20 @@ namespace MCServerSharp.NBT
         /// <summary>
         /// Gets whether the type is a container or array.
         /// </summary>
-        public static bool IsArrayLike(this NbtType tagType)
+        public static bool IsCollection(this NbtType tagType)
         {
             return tagType.IsContainer() || tagType.IsArray();
         }
 
         /// <summary>
-        /// Gets whether the type is a data primitive (not array-like).
+        /// Gets whether the type is a data primitive (not collection).
         /// </summary>
         public static bool IsPrimitive(this NbtType tagType)
         {
             if (tagType == NbtType.Undefined)
                 return false;
 
-            return !tagType.IsArrayLike();
+            return !tagType.IsCollection();
         }
     }
 }

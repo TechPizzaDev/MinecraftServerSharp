@@ -63,10 +63,10 @@ namespace MCServerSharp.NBT
         }
 
         /// <summary>
-        /// Gets the number of elements contained within the current array-like element.
+        /// Gets the number of elements contained within the current collection element.
         /// </summary>
         /// <returns>The number of elements contained within the current element.</returns>
-        /// <exception cref="InvalidOperationException">This element is not an array-like.</exception>
+        /// <exception cref="InvalidOperationException">This element is not a collection.</exception>
         /// <exception cref="ObjectDisposedException">The parent <see cref="NbtDocument"/> has been disposed.</exception>
         public int GetLength()
         {

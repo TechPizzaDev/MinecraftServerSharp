@@ -1,11 +1,16 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.IO.Compression;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Threading;
 using MCServerSharp;
 using MCServerSharp.Data.IO;
+using MCServerSharp.IO.Compression;
 using MCServerSharp.NBT;
 using MCServerSharp.Utility;
 
@@ -77,10 +82,16 @@ namespace Tests
             int regionX = chunkX / 32;
             int regionZ = chunkZ / 32;
 
-            var reader = new NetBinaryReader(stream);
+            var reader = new NetBinaryReader(stream, NetBinaryOptions.JavaDefault);
 
             var locations = new ChunkLocation[1024];
-            var sectorsStatus = reader.Read(MemoryMarshal.Cast<ChunkLocation, int>(locations));
+            var locationsStatus = reader.Read(MemoryMarshal.AsBytes(locations.AsSpan()));
+
+            var locationIndices = new int[1024];
+            for (int i = 0; i < locationIndices.Length; i++)
+                locationIndices[i] = i;
+
+            Array.Sort(locations, locationIndices);
 
             var timestamps = new int[1024];
             var timestampsStatus = reader.Read(timestamps);
@@ -88,39 +99,90 @@ namespace Tests
             //var document = NbtDocument.Parse(buffer.AsMemory(0, totalRead), out int consumed);
             //Console.WriteLine(document.RootTag);
 
-            var chunkBuffer = new byte[locations.Length][];
-            for (int i = 0; i < 1024; i++)
+            int start = 0;
+            for (int i = 0; i < locations.Length; i++)
             {
-                var location = locations[i];
+                if (locations[i].SectorCount != 0)
+                {
+                    start = i;
+                    break;
+                }
+            }
+            int count = 1024 - start;
 
-                if (location.SectorOffset <= 0)
-                    continue;
+            var chunkList = new (int Index, NbtDocument)[count];
 
-                // sector offset will always start at 2
-                reader.Seek(location.SectorOffset * 4096, SeekOrigin.Begin);
+            for (int i = 0; i < chunkList.Length; i++)
+            {
+                int locationIndex = start + i;
+                var location = locations[locationIndex];
+                int chunkIndex = locationIndices[locationIndex];
+
+                int sectorCount = location.SectorCount;
+                int byteCount = sectorCount * 4096;
 
                 var lengthStatus = reader.Read(out int length);
                 var compressionTypeStatus = reader.Read(out byte compressionType);
 
-                chunkBuffer[i] = reader.ReadBytes(length);
+                var compressedData = reader.ReadBytes(byteCount);
+                var compressedStream = new MemoryStream(compressedData, 0, length - 1);
+
+                Stream dataStream = compressionType switch
+                {
+                    1 => new GZipStream(compressedStream, CompressionMode.Decompress, leaveOpen: true),
+                    2 => new ZlibStream(compressedStream, CompressionMode.Decompress, leaveOpen: true),
+                    3 => compressedStream,
+                    _ => throw new InvalidDataException("Unknown compression type.")
+                };
+
+                var decompressedData = new MemoryStream();
+                dataStream.CopyTo(decompressedData);
+                decompressedData.Position = 0;
+
+                var chunkData = decompressedData.GetBuffer().AsMemory(0, (int)decompressedData.Length);
+                var chunkDocument = NbtDocument.Parse(chunkData, out int bytesConsumed, NbtOptions.JavaDefault);
+                Console.WriteLine(chunkDocument);
+
+                for (int r = 0; r < chunkDocument._metaDb.ByteLength; r += NbtDocument.DbRow.Size)
+                {
+                    ref readonly var row = ref chunkDocument._metaDb.GetRow(r);
+
+                    Console.WriteLine(row.TagType + " : c" + row.NumberOfRows);
+                }
+
+                var root = chunkDocument.RootTag;
+                PrintContainer(root);
+
+                void PrintContainer(NbtElement container)
+                {
+                    foreach (var element in root.EnumerateContainer())
+                    {
+                        Console.WriteLine(element.Type + ": " );
+                        if (element.Type.IsContainer())
+                        {
+                            PrintContainer(element);
+                        }
+                        Console.WriteLine();
+                    }
+                }
             }
         }
 
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
         [DebuggerDisplay("{" + nameof(GetDebuggerDisplay) + "(),nq}")]
-        public readonly struct ChunkLocation : IEquatable<ChunkLocation>
+        public readonly struct ChunkLocation : IEquatable<ChunkLocation>, IComparable<ChunkLocation>
         {
-            public byte SectorCount { get; }
-
             private readonly byte _offset0;
             private readonly byte _offset1;
             private readonly byte _offset2;
 
-            public int SectorOffset => _offset0 | _offset1 >> 8 | _offset2 >> 16;
+            public byte SectorCount { get; }
 
-            private string GetDebuggerDisplay()
+            public int SectorOffset => _offset0 << 16 | _offset1 << 8 | _offset2;
+
+            public int CompareTo(ChunkLocation other)
             {
-                return ToString();
+                return SectorOffset.CompareTo(other.SectorOffset);
             }
 
             public bool Equals(ChunkLocation other)
@@ -129,6 +191,11 @@ namespace Tests
                     && _offset0 == other._offset0
                     && _offset1 == other._offset1
                     && _offset2 == other._offset2;
+            }
+
+            private string GetDebuggerDisplay()
+            {
+                return ToString();
             }
 
             public override int GetHashCode()

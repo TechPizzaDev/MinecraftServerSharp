@@ -62,7 +62,7 @@ namespace MCServerSharp.Data.IO
             while ((read = ReadBytes(buffer)) > 0)
                 buffer = buffer.Slice(read);
 
-            if (buffer.Length > 0)
+            if (!buffer.IsEmpty)
                 // this should not happen if everything else works correctly
                 return OperationStatus.NeedMoreData;
 
