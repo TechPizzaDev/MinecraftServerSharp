@@ -1,13 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Collections.Immutable;
+using System.Buffers;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.IO.Compression;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Threading;
 using MCServerSharp;
 using MCServerSharp.Data.IO;
 using MCServerSharp.IO.Compression;
@@ -16,7 +12,7 @@ using MCServerSharp.Utility;
 
 namespace Tests
 {
-    internal class Program
+    internal class Tests
     {
         private static void Main(string[] args)
         {
@@ -71,8 +67,6 @@ namespace Tests
 
         private static void TestNbtRegionFileRead()
         {
-            // code adapted from https://github.com/rantingmong/blocm/blob/master/blocm_core/RegionFile.cs
-
             int chunkX = 0;
             int chunkZ = 0;
 
@@ -96,73 +90,76 @@ namespace Tests
             var timestamps = new int[1024];
             var timestampsStatus = reader.Read(timestamps);
 
-            //var document = NbtDocument.Parse(buffer.AsMemory(0, totalRead), out int consumed);
-            //Console.WriteLine(document.RootTag);
-
-            int start = 0;
+            // Find the first valid chunk location.
+            int firstValidLocation = 0;
             for (int i = 0; i < locations.Length; i++)
             {
                 if (locations[i].SectorCount != 0)
                 {
-                    start = i;
+                    firstValidLocation = i;
                     break;
                 }
             }
-            int count = 1024 - start;
+            int chunkCount = 1024 - firstValidLocation;
 
-            var chunkList = new (int Index, NbtDocument)[count];
+            var chunkList = new (int Index, NbtDocument Chunk)[chunkCount];
+
+            var compressedData = new MemoryStream();
+            var decompressedData = new MemoryStream();
 
             for (int i = 0; i < chunkList.Length; i++)
             {
-                int locationIndex = start + i;
+                int locationIndex = firstValidLocation + i;
                 var location = locations[locationIndex];
                 int chunkIndex = locationIndices[locationIndex];
 
-                int sectorCount = location.SectorCount;
-                int byteCount = sectorCount * 4096;
+                var lengthStatus = reader.Read(out int actualDataLength);
+                if (lengthStatus != OperationStatus.Done)
+                    continue;
 
-                var lengthStatus = reader.Read(out int length);
                 var compressionTypeStatus = reader.Read(out byte compressionType);
+                if (compressionTypeStatus != OperationStatus.Done)
+                    continue;
 
-                var compressedData = reader.ReadBytes(byteCount);
-                var compressedStream = new MemoryStream(compressedData, 0, length - 1);
+                int remainingByteCount = location.SectorCount * 4096 - sizeof(int) - sizeof(byte);
+
+                compressedData.Position = 0;
+                var compressedDataStatus = reader.WriteTo(compressedData, remainingByteCount);
+                if (compressedDataStatus != OperationStatus.Done)
+                    continue;
+
+                compressedData.SetLength(actualDataLength - 1);
+                compressedData.Position = 0;
 
                 Stream dataStream = compressionType switch
                 {
-                    1 => new GZipStream(compressedStream, CompressionMode.Decompress, leaveOpen: true),
-                    2 => new ZlibStream(compressedStream, CompressionMode.Decompress, leaveOpen: true),
-                    3 => compressedStream,
+                    1 => new GZipStream(compressedData, CompressionMode.Decompress, leaveOpen: true),
+                    2 => new ZlibStream(compressedData, CompressionMode.Decompress, leaveOpen: true),
+                    3 => compressedData,
                     _ => throw new InvalidDataException("Unknown compression type.")
                 };
 
-                var decompressedData = new MemoryStream();
-                dataStream.CopyTo(decompressedData);
+                decompressedData.SetLength(0);
                 decompressedData.Position = 0;
+                dataStream.SCopyTo(decompressedData);
 
                 var chunkData = decompressedData.GetBuffer().AsMemory(0, (int)decompressedData.Length);
                 var chunkDocument = NbtDocument.Parse(chunkData, out int bytesConsumed, NbtOptions.JavaDefault);
-                Console.WriteLine(chunkDocument);
+                chunkList[i] = (i, chunkDocument);
 
-                for (int r = 0; r < chunkDocument._metaDb.ByteLength; r += NbtDocument.DbRow.Size)
-                {
-                    ref readonly var row = ref chunkDocument._metaDb.GetRow(r);
-
-                    Console.WriteLine(row.TagType + " : c" + row.NumberOfRows);
-                }
 
                 var root = chunkDocument.RootTag;
-                PrintContainer(root);
+                //PrintContainer(root);
 
                 void PrintContainer(NbtElement container)
                 {
-                    foreach (var element in root.EnumerateContainer())
+                    foreach (var element in container.EnumerateContainer())
                     {
-                        Console.WriteLine(element.Type + ": " );
+                        Console.WriteLine(element);
                         if (element.Type.IsContainer())
                         {
                             PrintContainer(element);
                         }
-                        Console.WriteLine();
                     }
                 }
             }

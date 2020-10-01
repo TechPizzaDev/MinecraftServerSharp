@@ -1,6 +1,7 @@
-﻿namespace MCServerSharp.NBT
+﻿
+namespace MCServerSharp.NBT
 {
-    public enum NbtType
+    public enum NbtType : byte
     {
         End = 0,
         Byte = 1,

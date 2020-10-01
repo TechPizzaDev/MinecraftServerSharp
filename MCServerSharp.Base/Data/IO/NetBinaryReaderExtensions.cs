@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Diagnostics.Tracing;
 using System.IO;
 using System.Runtime.InteropServices;
 
@@ -14,6 +15,32 @@ namespace MCServerSharp.Data.IO
             byte[] result = new byte[count];
             reader.Read(result);
             return result;
+        }
+
+        public static OperationStatus WriteTo(this NetBinaryReader reader, Stream output, int count)
+        {
+            if (output == null)
+                throw new ArgumentNullException(nameof(output));
+            if (count < 0)
+                throw new ArgumentOutOfRangeException(nameof(count));
+
+            Span<byte> buffer = stackalloc byte[4096];
+            do
+            {
+                int toRead = Math.Min(buffer.Length, count);
+                int read = reader.ReadBytes(buffer.Slice(0, toRead));
+                if (read == 0)
+                    break;
+
+                output.Write(buffer.Slice(0, read));
+                count -= read;
+            }
+            while (count > 0);
+
+            if(count > 0)
+                return OperationStatus.NeedMoreData;
+
+            return OperationStatus.Done;
         }
 
         public static OperationStatus Read(this NetBinaryReader reader, Span<int> destination)

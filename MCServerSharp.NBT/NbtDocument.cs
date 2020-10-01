@@ -77,10 +77,10 @@ namespace MCServerSharp.NBT
             CheckNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
-            if (!row.TagType.IsCollection())
+            if (!row.Type.IsCollection())
                 throw new Exception("The tag is not a collection.");
 
-            return row.ContainerLength;
+            return row.CollectionLength;
         }
 
         internal NbtType GetListType(int index)
@@ -88,7 +88,7 @@ namespace MCServerSharp.NBT
             CheckNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
-            if (row.TagType != NbtType.List)
+            if (row.Type != NbtType.List)
                 throw new Exception("The tag is not a list.");
 
             ReadOnlySpan<byte> payload = GetTagPayload(row);
@@ -108,7 +108,7 @@ namespace MCServerSharp.NBT
             if (!containerRow.IsContainerType)
                 throw new InvalidOperationException("The tag is not a container.");
 
-            int length = containerRow.ContainerLength;
+            int length = containerRow.CollectionLength;
             if ((uint)arrayIndex >= (uint)length)
                 throw new IndexOutOfRangeException();
 
@@ -136,9 +136,9 @@ namespace MCServerSharp.NBT
             if (row.IsPrimitiveType)
                 return baseIndex + DbRow.Size;
 
-            int endIndex = baseIndex + row.NumberOfRows * DbRow.Size;
+            int endIndex = baseIndex + row.RowCount * DbRow.Size;
 
-            if (!includeEndTag && row.TagType == NbtType.Compound)
+            if (!includeEndTag && row.Type == NbtType.Compound)
                 endIndex -= DbRow.Size;
 
             return endIndex;
@@ -159,7 +159,7 @@ namespace MCServerSharp.NBT
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
             if (row.IsPrimitiveType)
-                return _data.Slice(row.Location, row.ContainerLength);
+                return _data.Slice(row.Location, row.CollectionLength);
 
             int endIndex = GetEndIndex(index, row, includeEndTag);
             int start = row.Location;
@@ -213,7 +213,7 @@ namespace MCServerSharp.NBT
                 return lastString ?? string.Empty;
 
             ref readonly DbRow row = ref _metaDb.GetRow(index);
-            CheckExpectedType(NbtType.String, row.TagType);
+            CheckExpectedType(NbtType.String, row.Type);
 
             ReadOnlySpan<byte> payload = GetTagPayload(row);
 
@@ -263,7 +263,7 @@ namespace MCServerSharp.NBT
             CheckNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
-            tagType = row.TagType;
+            tagType = row.Type;
 
             ReadOnlySpan<byte> payload = GetTagPayload(row);
 
@@ -272,10 +272,10 @@ namespace MCServerSharp.NBT
             // TODO: return span with array length
             var segment = tagType switch
             {
-                NbtType.String => _data.Slice(row.Location, row.ContainerLength * sizeof(byte)),
-                NbtType.ByteArray => _data.Slice(row.Location, row.ContainerLength * sizeof(sbyte)),
-                NbtType.IntArray => _data.Slice(row.Location, row.ContainerLength * sizeof(int)),
-                NbtType.LongArray => _data.Slice(row.Location, row.ContainerLength * sizeof(long)),
+                NbtType.String => _data.Slice(row.Location, row.CollectionLength * sizeof(byte)),
+                NbtType.ByteArray => _data.Slice(row.Location, row.CollectionLength * sizeof(sbyte)),
+                NbtType.IntArray => _data.Slice(row.Location, row.CollectionLength * sizeof(int)),
+                NbtType.LongArray => _data.Slice(row.Location, row.CollectionLength * sizeof(long)),
                 _ => throw GetWrongTagTypeException(tagType),
             };
             return segment;
@@ -303,7 +303,7 @@ namespace MCServerSharp.NBT
         {
             CheckNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
-            CheckExpectedType(NbtType.Byte, row.TagType);
+            CheckExpectedType(NbtType.Byte, row.Type);
 
             ReadOnlySpan<byte> payload = GetTagPayload(row);
             return ReadByte(payload);
@@ -315,7 +315,7 @@ namespace MCServerSharp.NBT
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
             ReadOnlySpan<byte> payload = GetTagPayload(row);
-            var type = row.TagType;
+            var type = row.Type;
             return type switch
             {
                 NbtType.Short => ReadShort(payload, Options.IsBigEndian),
@@ -330,7 +330,7 @@ namespace MCServerSharp.NBT
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
             ReadOnlySpan<byte> payload = GetTagPayload(row);
-            var type = row.TagType;
+            var type = row.Type;
             return type switch
             {
                 NbtType.Int => ReadInt(payload, Options.IsBigEndian),
@@ -346,7 +346,7 @@ namespace MCServerSharp.NBT
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
             ReadOnlySpan<byte> payload = GetTagPayload(row);
-            var type = row.TagType;
+            var type = row.Type;
             return type switch
             {
                 NbtType.Long => ReadLong(payload, Options.IsBigEndian),
@@ -363,7 +363,7 @@ namespace MCServerSharp.NBT
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
             ReadOnlySpan<byte> payload = GetTagPayload(row);
-            var type = row.TagType;
+            var type = row.Type;
             return type switch
             {
                 NbtType.Float => ReadFloat(payload, Options.IsBigEndian),
@@ -382,7 +382,7 @@ namespace MCServerSharp.NBT
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
             ReadOnlySpan<byte> payload = GetTagPayload(row);
-            var type = row.TagType;
+            var type = row.Type;
             return type switch
             {
                 NbtType.Double => ReadDouble(payload, Options.IsBigEndian),
@@ -417,7 +417,7 @@ namespace MCServerSharp.NBT
 
             throw new NotImplementedException();
 
-            switch (row.TagType)
+            switch (row.Type)
             {
                 case NbtType.Compound:
                     writer.WriteCompoundStart();
@@ -428,7 +428,7 @@ namespace MCServerSharp.NBT
                     return;
 
                 case NbtType.Undefined:
-                    throw new Exception($"Unexpected {row.TagType} tag.");
+                    throw new Exception($"Unexpected {row.Type} tag.");
 
                 default:
                     return;

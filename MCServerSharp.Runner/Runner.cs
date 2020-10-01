@@ -15,7 +15,7 @@ using MCServerSharp.World;
 
 namespace MCServerSharp.Runner
 {
-    internal class Program
+    internal class Runner
     {
         // TODO: move these to a Game class
         public const string PongResource = "Minecraft/Net/Pong.json";

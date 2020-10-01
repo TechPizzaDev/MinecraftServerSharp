@@ -6,7 +6,7 @@ namespace MCServerSharp.NBT
 {
     public struct NbtReaderState : IDisposable
     {
-        internal ByteStack<ContainerInfo> _containerInfoStack;
+        internal ByteStack<ContainerFrame> _containerInfoStack;
 
         public NbtOptions Options { get; }
 
@@ -14,7 +14,7 @@ namespace MCServerSharp.NBT
         {
             Options = options ?? NbtOptions.JavaDefault;
 
-            _containerInfoStack = new ByteStack<ContainerInfo>(NbtOptions.DefaultMaxDepth, clearOnReturn: false);
+            _containerInfoStack = new ByteStack<ContainerFrame>(NbtOptions.DefaultMaxDepth, clearOnReturn: false);
         }
 
         public void Dispose()

@@ -3,7 +3,7 @@ namespace MCServerSharp.NBT
 {
     public struct NbtOptions
     {
-        public const int DefaultMaxDepth = 16;
+        public const int DefaultMaxDepth = 32;
 
         public static NbtOptions JavaDefault { get; } = new NbtOptions
         {

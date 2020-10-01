@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using MCServerSharp.Utility;
 
 namespace MCServerSharp.Collections
 {
@@ -72,6 +73,15 @@ namespace MCServerSharp.Collections
             return true;
         }
 
+        public bool TryPop()
+        {
+            if (TopOfStack > _rentedBuffer.Length - Unsafe.SizeOf<T>())
+                return false;
+
+            TopOfStack += Unsafe.SizeOf<T>();
+            return true;
+        }
+
         public bool TryPeek([MaybeNullWhen(false)] out T item)
         {
             if (TopOfStack > _rentedBuffer.Length - Unsafe.SizeOf<T>())
@@ -82,6 +92,14 @@ namespace MCServerSharp.Collections
 
             item = MemoryMarshal.Read<T>(_rentedBuffer.AsSpan(TopOfStack));
             return true;
+        }
+
+        public ref T TryPeek()
+        {
+            if (TopOfStack > _rentedBuffer.Length - Unsafe.SizeOf<T>())
+                return ref UnsafeR.NullRef<T>();
+
+            return ref MemoryMarshal.AsRef<T>(_rentedBuffer.AsSpan(TopOfStack));
         }
 
         private void Enlarge()

@@ -3,6 +3,7 @@ using System.Buffers.Binary;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using MCServerSharp.Utility;
 
 namespace MCServerSharp.NBT
 {
@@ -66,7 +67,7 @@ namespace MCServerSharp.NBT
         /// <see cref="NbtType.Compound"/> does not provide a length.
         /// <see cref="NbtType.List"/> may have negative length when it's of <see cref="NbtType.End"/>.
         /// </remarks>
-        public int TagArrayLength { get; private set; }
+        public int TagCollectionLength { get; private set; }
 
         /// <summary>
         /// Gets the current <see cref="NbtReader"/> state to pass to a <see cref="NbtReader"/>
@@ -186,7 +187,7 @@ namespace MCServerSharp.NBT
             NameSpan = default;
             ValueSpan = default;
             TagFlags = default;
-            TagArrayLength = default;
+            TagCollectionLength = default;
 
             if (!HasMoreData())
                 return false;
@@ -198,25 +199,32 @@ namespace MCServerSharp.NBT
             var slice = _data.Slice(_consumed);
             int read = 0;
 
-            // TODO: optimize stack usage between here and TagType switch
-
-            _state._containerInfoStack.TryPeek(out ContainerInfo containerInfo);
-            if (containerInfo.InList && containerInfo.Length == 0)
-                containerInfo = _state._containerInfoStack.Pop();
-
-            TagType = containerInfo.Length > 0 ? containerInfo.Type : (NbtType)slice[read++];
-
-            if (containerInfo.InList)
+            PeekStack:
+            bool inList = false;
+            ref ContainerFrame frame = ref _state._containerInfoStack.TryPeek();
+            if (!UnsafeR.IsNullRef(ref frame))
             {
-                containerInfo = _state._containerInfoStack.Pop();
-                containerInfo.Length--;
-                _state._containerInfoStack.Push(containerInfo);
+                if (frame.ListEntriesRemaining == 0)
+                {
+                    _state._containerInfoStack.TryPop();
+                    goto PeekStack;
+                }
+                else if(frame.ListEntriesRemaining != -1)
+                {
+                    inList = true;
+                    frame.ListEntriesRemaining--;
+                }
             }
 
             TagFlags |= Options.IsBigEndian ? NbtFlags.BigEndian : NbtFlags.LittleEndian;
 
-            if (!containerInfo.InList)
+            if (inList)
             {
+                TagType = frame.ElementType;
+            }
+            else
+            {
+                TagType = (NbtType)slice[read++];
                 TagFlags |= NbtFlags.Typed;
 
                 // Tags in lists don't have a name.
@@ -236,7 +244,10 @@ namespace MCServerSharp.NBT
             switch (TagType)
             {
                 case NbtType.Compound:
-                    _state._containerInfoStack.Push(default);
+                    _state._containerInfoStack.Push(new ContainerFrame
+                    {
+                        ListEntriesRemaining = -1
+                    });
                     break;
 
                 case NbtType.End:
@@ -252,21 +263,20 @@ namespace MCServerSharp.NBT
                 {
                     var listType = (NbtType)slice[read];
 
-                    TagArrayLength = ReadListLength(
+                    TagCollectionLength = ReadListLength(
                         slice.Slice(sizeof(byte) + read), Options, out int listLengthBytes);
 
-                    if (TagArrayLength <= 0 && listType != NbtType.End)
+                    if (TagCollectionLength <= 0 && listType != NbtType.End)
                     {
                         throw new NbtReadException(
                             $"{NbtType.List} length was less than or equal to zero " +
                             $"but the type was not {NbtType.End}.");
                     }
 
-                    _state._containerInfoStack.Push(new ContainerInfo
+                    _state._containerInfoStack.Push(new ContainerFrame
                     {
-                        Type = listType,
-                        Length = Math.Max(TagArrayLength, 0), // clamp in case of negative length
-                        InList = true
+                        ElementType = listType,
+                        ListEntriesRemaining = Math.Max(TagCollectionLength, 0), // clamp in case of negative length,
                     });
                     ValueSpan = slice.Slice(read, sizeof(byte) + listLengthBytes);
                     break;
@@ -274,36 +284,36 @@ namespace MCServerSharp.NBT
 
                 case NbtType.ByteArray:
                 {
-                    TagArrayLength = ReadArrayLength(slice.Slice(read), Options, out int arrayLengthBytes);
+                    TagCollectionLength = ReadArrayLength(slice.Slice(read), Options, out int arrayLengthBytes);
                     read += arrayLengthBytes;
 
-                    ValueSpan = slice.Slice(read, TagArrayLength * sizeof(sbyte));
+                    ValueSpan = slice.Slice(read, TagCollectionLength * sizeof(sbyte));
                     break;
                 }
 
                 case NbtType.IntArray:
                 {
-                    TagArrayLength = ReadArrayLength(slice.Slice(read), Options, out int arrayLengthBytes);
+                    TagCollectionLength = ReadArrayLength(slice.Slice(read), Options, out int arrayLengthBytes);
                     read += arrayLengthBytes;
 
-                    ValueSpan = slice.Slice(read, TagArrayLength * sizeof(int));
+                    ValueSpan = slice.Slice(read, TagCollectionLength * sizeof(int));
                     break;
                 }
 
                 case NbtType.LongArray:
                 {
-                    TagArrayLength = ReadArrayLength(slice.Slice(read), Options, out int arrayLengthBytes);
+                    TagCollectionLength = ReadArrayLength(slice.Slice(read), Options, out int arrayLengthBytes);
                     read += arrayLengthBytes;
 
-                    ValueSpan = slice.Slice(read, TagArrayLength * sizeof(long));
+                    ValueSpan = slice.Slice(read, TagCollectionLength * sizeof(long));
                     break;
                 }
 
                 case NbtType.String:
-                    TagArrayLength = ReadStringLength(slice.Slice(read), Options, out int stringLengthBytes);
+                    TagCollectionLength = ReadStringLength(slice.Slice(read), Options, out int stringLengthBytes);
                     read += stringLengthBytes;
 
-                    ValueSpan = slice.Slice(read, TagArrayLength);
+                    ValueSpan = slice.Slice(read, TagCollectionLength);
                     break;
 
                 case NbtType.Byte:
@@ -566,11 +576,10 @@ namespace MCServerSharp.NBT
         #endregion
 
         [StructLayout(LayoutKind.Sequential)]
-        internal struct ContainerInfo
+        internal struct ContainerFrame
         {
-            public int Length;
-            public NbtType Type;
-            public bool InList;
+            public int ListEntriesRemaining;
+            public NbtType ElementType;
         }
     }
 }

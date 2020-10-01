@@ -1,7 +1,7 @@
 ﻿using System;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using MCServerSharp.Collections;
+using MCServerSharp.Utility;
 
 namespace MCServerSharp.NBT
 {
@@ -25,20 +25,18 @@ namespace MCServerSharp.NBT
                 Parse(ref reader, ref database, ref stack);
                 bytesConsumed = (int)reader.BytesConsumed;
             }
-#if !DEBUG
             catch
             {
                 database.Dispose();
                 throw;
             }
-#endif
             finally
             {
                 readerState.Dispose();
                 stack.Dispose();
             }
 
-            return new NbtDocument(data, options, database, extraRentedBytes);
+            return new NbtDocument(data, options, database, extraRentedBytes, isDisposable: true);
         }
 
         // TODO:
@@ -67,71 +65,83 @@ namespace MCServerSharp.NBT
         //{
         //}
 
-        /// <summary>
-        /// Length on Compound frames decrementally counts children.
-        /// Length on List frames starts with the List's length end decrements towards zero.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void UpdateLength(
-            int numberOfRows, ref ByteStack<ContainerFrame> stack, ref MetadataDb database)
-        {
-            // TODO: optimize stack usage (maybe by using ref?)
-            if (stack.TryPop(out ContainerFrame frame))
-            {
-                frame.Length--;
-
-                if (frame.Length == 0 && database.GetTagType(frame.ContainerIndex) == NbtType.List)
-                    database.SetNumberOfRows(frame.ContainerIndex, numberOfRows - frame.NumberOfRows + 1);
-                else
-                    stack.Push(frame);
-            }
-        }
-
         private static void Parse(
             ref NbtReader reader,
             ref MetadataDb database,
             ref ByteStack<ContainerFrame> stack)
         {
-            int numberOfRows = 0;
+            int rowCount = 0;
 
             while (reader.Read())
             {
-                numberOfRows++;
+                rowCount++;
 
                 int location = reader.TagLocation;
                 NbtFlags flags = reader.TagFlags;
                 NbtType type = reader.TagType;
-                int arrayLength = reader.TagArrayLength;
+
+                PeekStack:
+                ref ContainerFrame frame = ref stack.TryPeek();
+                if (!UnsafeR.IsNullRef(ref frame))
+                {
+                    if (frame.ListEntriesRemaining == 0)
+                    {
+                        stack.TryPop();
+
+                        int accumulatedRowCount = rowCount - frame.InitialRowCount + 1; // +1 to include self
+                        database.SetRowCount(frame.ContainerRow, accumulatedRowCount);
+                        goto PeekStack;
+                    }
+                    else if (frame.ListEntriesRemaining != -1)
+                    {
+                        frame.ListEntriesRemaining--;
+                    }
+                    else
+                    {
+                        frame.CompoundEntryCounter++;
+                    }
+                }
 
                 switch (type)
                 {
                     case NbtType.Compound:
                     {
-                        int index = database.Append(location, containerLength: 0, numberOfRows: 0, type, flags);
-                        stack.Push(new ContainerFrame(index, length: 0, numberOfRows));
+                        int containerRow = database.Append(
+                            location, collectionLength: 0, rowCount: 1, type, flags);
+
+                        stack.Push(new ContainerFrame(containerRow, rowCount)
+                        {
+                            ListEntriesRemaining = -1
+                        });
                         break;
                     }
 
                     case NbtType.End:
                     {
-                        database.Append(location, reader.TagSpan.Length, numberOfRows: 1, type, flags);
+                        database.Append(location, reader.TagSpan.Length, rowCount: 1, type, flags);
 
-                        // Documents with a single End tag are valid.
-                        var compoundFrame = stack.IsEmpty ? default : stack.Pop();
+                        // Documents with a single End tag (no Compound root) are valid.
+                        if (stack.TryPop(out var compoundFrame))
+                        {
+                            int accumulatedRowCount = rowCount - compoundFrame.InitialRowCount;
+                            int compoundLength = compoundFrame.CompoundEntryCounter - 1; // -1 to exclude End
 
-                        database.SetNumberOfRows(
-                            compoundFrame.ContainerIndex, numberOfRows - compoundFrame.NumberOfRows + 1); // +1 for End
-
-                        database.SetLength(compoundFrame.ContainerIndex, -compoundFrame.Length - 1); // -1 for End
+                            database.SetRowCount(compoundFrame.ContainerRow, accumulatedRowCount);
+                            database.SetLength(compoundFrame.ContainerRow, compoundLength);
+                        }
                         break;
                     }
 
                     case NbtType.List:
                     {
-                        UpdateLength(numberOfRows, ref stack, ref database);
+                        int listLength = reader.TagCollectionLength;
+                        int containerRow = database.Append(
+                            location, listLength, rowCount: 0, type, flags);
 
-                        int index = database.Append(location, arrayLength, numberOfRows: 0, type, flags);
-                        stack.Push(new ContainerFrame(index, arrayLength, numberOfRows));
+                        stack.Push(new ContainerFrame(containerRow, rowCount)
+                        {
+                            ListEntriesRemaining = listLength
+                        });
                         continue;
                     }
 
@@ -139,15 +149,13 @@ namespace MCServerSharp.NBT
                     case NbtType.ByteArray:
                     case NbtType.IntArray:
                     case NbtType.LongArray:
-                        database.Append(location, arrayLength, numberOfRows: 1, type, flags);
+                        database.Append(location, reader.TagCollectionLength, rowCount: 1, type, flags);
                         break;
 
                     default:
-                        database.Append(location, 0, numberOfRows: 1, type, flags);
+                        database.Append(location, 0, rowCount: 1, type, flags);
                         break;
                 }
-
-                UpdateLength(numberOfRows, ref stack, ref database);
             }
 
             database.TrimExcess();
@@ -156,15 +164,19 @@ namespace MCServerSharp.NBT
         [StructLayout(LayoutKind.Sequential)]
         private struct ContainerFrame
         {
-            public int ContainerIndex;
-            public int NumberOfRows;
-            public int Length;
+            public int ContainerRow { get; }
+            public int InitialRowCount { get; }
 
-            public ContainerFrame(int containerIndex, int length, int numberOfRows)
+            public int ListEntriesRemaining;
+            public int CompoundEntryCounter;
+
+            public ContainerFrame(int containerRow, int initialRowCount)
             {
-                ContainerIndex = containerIndex;
-                NumberOfRows = numberOfRows;
-                Length = length;
+                ContainerRow = containerRow;
+                InitialRowCount = initialRowCount;
+
+                ListEntriesRemaining = default;
+                CompoundEntryCounter = default;
             }
         }
     }

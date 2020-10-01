@@ -95,13 +95,14 @@ namespace MCServerSharp.NBT
                 }
             }
 
-            public int Append(int location, int containerLength, int numberOfRows, NbtType tagType, NbtFlags flags)
+            public int Append(int location, int collectionLength, int rowCount, NbtType type, NbtFlags flags)
             {
                 if (ByteLength >= _data.Length - DbRow.Size)
                     Enlarge();
 
-                var row = new DbRow(location, containerLength, numberOfRows, tagType, flags);
+                var row = new DbRow(location, collectionLength, rowCount, type, flags);
                 MemoryMarshal.Write(_data.AsSpan(ByteLength), ref row);
+
                 int index = ByteLength;
                 ByteLength += DbRow.Size;
                 return index;
@@ -163,7 +164,7 @@ namespace MCServerSharp.NBT
                 return MemoryMarshal.Read<NbtFlags>(_data.AsSpan(index + DbRow.FlagsOffset));
             }
 
-            public void SetNumberOfRows(int index, int numberOfRows)
+            public void SetRowCount(int index, int numberOfRows)
             {
                 AssertValidIndex(index);
                 Span<byte> dataPos = _data.AsSpan(index + DbRow.NumberOfRowsOffset);

@@ -22,25 +22,25 @@ namespace MCServerSharp.NBT
             /// <summary>
             /// The amount of elements in a container tag.
             /// </summary>
-            public int ContainerLength { get; }
+            public int CollectionLength { get; }
 
-            public int NumberOfRows { get; }
+            public int RowCount { get; }
 
             public NbtFlags Flags { get; }
-            public NbtType TagType { get; }
+            public NbtType Type { get; }
 
-            public bool IsContainerType => TagType.IsContainer();
-            public bool IsPrimitiveType => TagType.IsPrimitive();
+            public bool IsContainerType => Type.IsContainer();
+            public bool IsPrimitiveType => Type.IsPrimitive();
 
-            public DbRow(int location, int containerLength, int numberOfRows, NbtType tagType, NbtFlags flags)
+            public DbRow(int location, int collectionLength, int rowCount, NbtType type, NbtFlags flags)
             {
                 Debug.Assert(location >= 0);
-                Debug.Assert(tagType >= NbtType.End && tagType <= NbtType.LongArray);
+                Debug.Assert(type >= NbtType.End && type <= NbtType.LongArray);
 
                 Location = location;
-                ContainerLength = containerLength;
-                NumberOfRows = numberOfRows;
-                TagType = tagType;
+                CollectionLength = collectionLength;
+                RowCount = rowCount;
+                Type = type;
                 Flags = flags;
             }
         }
