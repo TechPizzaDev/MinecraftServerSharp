@@ -50,11 +50,10 @@ namespace MCServerSharp.Utility
         /// Reads the bytes from the current stream and writes them to another stream
         /// using a stack-allocated buffer.
         /// </summary>
-        public static void SCopyTo(this Stream source, Stream destination)
+        public static void SpanCopyTo(this Stream source, Stream destination)
         {
             if (source == null)
                 throw new ArgumentNullException(nameof(source));
-
             if (destination == null)
                 throw new ArgumentNullException(nameof(destination));
 
@@ -66,20 +65,19 @@ namespace MCServerSharp.Utility
 
         /// <summary>
         /// Reads the bytes from the current stream and writes them to another stream
-        ///  using a stack-allocated buffer and reporting every write.
+        /// using a stack-allocated buffer and reporting every write.
         /// </summary>
-        public static void SCopyTo(
+        public static void SpanCopyTo(
             this Stream source, Stream destination, Action<int>? onWrite)
         {
             if (onWrite == null)
             {
-                SCopyTo(source, destination);
+                SpanCopyTo(source, destination);
                 return;
             }
 
             if (source == null)
                 throw new ArgumentNullException(nameof(source));
-
             if (destination == null)
                 throw new ArgumentNullException(nameof(destination));
 

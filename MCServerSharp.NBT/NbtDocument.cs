@@ -91,8 +91,8 @@ namespace MCServerSharp.NBT
             if (row.Type != NbtType.List)
                 throw new Exception("The tag is not a list.");
 
-            ReadOnlySpan<byte> payload = GetTagPayload(row);
-            return (NbtType)payload[0];
+            ReadOnlyMemory<byte> payload = GetTagPayload(row);
+            return (NbtType)payload.Span[0];
         }
 
         internal NbtFlags GetFlags(int index)
@@ -120,7 +120,7 @@ namespace MCServerSharp.NBT
                 if (arrayIndex == elementCount)
                     return new NbtElement(this, objectOffset);
 
-                objectOffset += _metaDb.GetNumberOfRows(objectOffset) * DbRow.Size;
+                objectOffset += _metaDb.GetRowCount(objectOffset) * DbRow.Size;
                 elementCount++;
             }
 
@@ -131,29 +131,25 @@ namespace MCServerSharp.NBT
             throw new IndexOutOfRangeException();
         }
 
-        internal static int GetEndIndex(int baseIndex, in DbRow row, bool includeEndTag)
+        internal static int GetEndIndex(int baseIndex, in DbRow row)
         {
             if (row.IsPrimitiveType)
                 return baseIndex + DbRow.Size;
 
             int endIndex = baseIndex + row.RowCount * DbRow.Size;
-
-            if (!includeEndTag && row.Type == NbtType.Compound)
-                endIndex -= DbRow.Size;
-
             return endIndex;
         }
 
-        internal int GetEndIndex(int index, bool includeEndTag)
+        internal int GetEndIndex(int index)
         {
             CheckNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
-            int endIndex = GetEndIndex(index, row, includeEndTag);
+            int endIndex = GetEndIndex(index, row);
             return endIndex;
         }
 
-        private ReadOnlyMemory<byte> GetRawData(int index, bool includeEndTag)
+        private ReadOnlyMemory<byte> GetRawData(int index)
         {
             CheckNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
@@ -161,28 +157,27 @@ namespace MCServerSharp.NBT
             if (row.IsPrimitiveType)
                 return _data.Slice(row.Location, row.CollectionLength);
 
-            int endIndex = GetEndIndex(index, row, includeEndTag);
+            int endIndex = GetEndIndex(index, row);
             int start = row.Location;
             int end = _metaDb.GetLocation(endIndex);
             return _data[start..end];
         }
 
-        internal ReadOnlySpan<byte> GetTagName(in DbRow row)
+        internal ReadOnlyMemory<byte> GetTagName(in DbRow row)
         {
             if (!row.Flags.HasFlag(NbtFlags.Named))
-                return ReadOnlySpan<byte>.Empty;
+                return ReadOnlyMemory<byte>.Empty;
 
-            ReadOnlySpan<byte> data = _data.Span;
-            ReadOnlySpan<byte> segment = data.Slice(row.Location);
+            ReadOnlyMemory<byte> segment = _data.Slice(row.Location);
 
             if (row.Flags.HasFlag(NbtFlags.Typed))
                 segment = SkipTagType(segment);
 
-            int nameLength = ReadStringLength(segment, Options, out int lengthBytes);
+            int nameLength = ReadStringLength(segment.Span, Options, out int lengthBytes);
             return segment.Slice(lengthBytes, nameLength);
         }
 
-        internal ReadOnlySpan<byte> GetTagName(int index)
+        internal ReadOnlyMemory<byte> GetTagName(int index)
         {
             CheckNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
@@ -190,10 +185,9 @@ namespace MCServerSharp.NBT
             return GetTagName(row);
         }
 
-        internal ReadOnlySpan<byte> GetTagPayload(in DbRow row)
+        internal ReadOnlyMemory<byte> GetTagPayload(in DbRow row)
         {
-            ReadOnlySpan<byte> data = _data.Span;
-            ReadOnlySpan<byte> segment = data.Slice(row.Location);
+            ReadOnlyMemory<byte> segment = _data.Slice(row.Location);
 
             if (row.Flags.HasFlag(NbtFlags.Typed))
                 segment = SkipTagType(segment);
@@ -215,10 +209,11 @@ namespace MCServerSharp.NBT
             ref readonly DbRow row = ref _metaDb.GetRow(index);
             CheckExpectedType(NbtType.String, row.Type);
 
-            ReadOnlySpan<byte> payload = GetTagPayload(row);
+            ReadOnlyMemory<byte> payload = GetTagPayload(row);
+            ReadOnlySpan<byte> payloadSpan = payload.Span;
 
-            int stringLength = ReadStringLength(payload, Options, out int lengthBytes);
-            lastString = Encoding.UTF8.GetString(payload.Slice(lengthBytes, stringLength));
+            int stringLength = ReadStringLength(payloadSpan, Options, out int lengthBytes);
+            lastString = Encoding.UTF8.GetString(payloadSpan.Slice(lengthBytes, stringLength));
 
             _lastIndexAndString = (index, lastString);
             return lastString;
@@ -258,26 +253,28 @@ namespace MCServerSharp.NBT
             //return result;
         }
 
+        internal int GetArrayElementSize(in DbRow row)
+        {
+            int elementSize = row.Type switch
+            {
+                NbtType.String => (sizeof(byte)),
+                NbtType.ByteArray => (sizeof(sbyte)),
+                NbtType.IntArray => (sizeof(int)),
+                NbtType.LongArray => (sizeof(long)),
+                _ => throw GetWrongTagTypeException(row.Type),
+            };
+            return elementSize;
+        }
+
         internal ReadOnlyMemory<byte> GetArrayData(int index, out NbtType tagType)
         {
             CheckNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
             tagType = row.Type;
-
-            ReadOnlySpan<byte> payload = GetTagPayload(row);
-
-            throw new NotImplementedException();
-
-            // TODO: return span with array length
-            var segment = tagType switch
-            {
-                NbtType.String => _data.Slice(row.Location, row.CollectionLength * sizeof(byte)),
-                NbtType.ByteArray => _data.Slice(row.Location, row.CollectionLength * sizeof(sbyte)),
-                NbtType.IntArray => _data.Slice(row.Location, row.CollectionLength * sizeof(int)),
-                NbtType.LongArray => _data.Slice(row.Location, row.CollectionLength * sizeof(long)),
-                _ => throw GetWrongTagTypeException(tagType),
-            };
+            int elementSize = GetArrayElementSize(row);
+            ReadOnlyMemory<byte> payload = GetTagPayload(row);
+            var segment = payload.Slice(0, row.CollectionLength * elementSize);
             return segment;
         }
 
@@ -305,7 +302,7 @@ namespace MCServerSharp.NBT
             ref readonly DbRow row = ref _metaDb.GetRow(index);
             CheckExpectedType(NbtType.Byte, row.Type);
 
-            ReadOnlySpan<byte> payload = GetTagPayload(row);
+            ReadOnlySpan<byte> payload = GetTagPayload(row).Span;
             return ReadByte(payload);
         }
 
@@ -314,7 +311,7 @@ namespace MCServerSharp.NBT
             CheckNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
-            ReadOnlySpan<byte> payload = GetTagPayload(row);
+            ReadOnlySpan<byte> payload = GetTagPayload(row).Span;
             var type = row.Type;
             return type switch
             {
@@ -329,7 +326,7 @@ namespace MCServerSharp.NBT
             CheckNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
-            ReadOnlySpan<byte> payload = GetTagPayload(row);
+            ReadOnlySpan<byte> payload = GetTagPayload(row).Span;
             var type = row.Type;
             return type switch
             {
@@ -345,7 +342,7 @@ namespace MCServerSharp.NBT
             CheckNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
-            ReadOnlySpan<byte> payload = GetTagPayload(row);
+            ReadOnlySpan<byte> payload = GetTagPayload(row).Span;
             var type = row.Type;
             return type switch
             {
@@ -362,7 +359,7 @@ namespace MCServerSharp.NBT
             CheckNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
-            ReadOnlySpan<byte> payload = GetTagPayload(row);
+            ReadOnlySpan<byte> payload = GetTagPayload(row).Span;
             var type = row.Type;
             return type switch
             {
@@ -381,7 +378,7 @@ namespace MCServerSharp.NBT
             CheckNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
-            ReadOnlySpan<byte> payload = GetTagPayload(row);
+            ReadOnlySpan<byte> payload = GetTagPayload(row).Span;
             var type = row.Type;
             return type switch
             {
@@ -397,10 +394,10 @@ namespace MCServerSharp.NBT
 
         internal NbtElement CloneTag(int index)
         {
-            int endIndex = GetEndIndex(index, includeEndTag: true);
+            int endIndex = GetEndIndex(index);
             MetadataDb newDb = _metaDb.CopySegment(index, endIndex);
 
-            var segment = GetRawData(index, includeEndTag: true);
+            var segment = GetRawData(index);
             var segmentCopy = new byte[segment.Length];
             segment.CopyTo(segmentCopy);
 
@@ -437,7 +434,7 @@ namespace MCServerSharp.NBT
 
         private void WriteContainer(int index, NbtWriter writer)
         {
-            int endIndex = GetEndIndex(index, includeEndTag: true);
+            int endIndex = GetEndIndex(index);
 
             ReadOnlySpan<byte> data = _data.Span;
             for (int i = index + DbRow.Size; i < endIndex; i += DbRow.Size)

@@ -8,6 +8,11 @@ namespace MCServerSharp.NBT
 {
     public sealed partial class NbtDocument
     {
+        /// <summary>
+        /// The <see cref="MetadataDb"/> stores metadata about document tags
+        /// in the form of one <see cref="DbRow"/> per tag,
+        /// excluding <see cref="NbtType.End"/> tags.
+        /// </summary>
         public struct MetadataDb : IDisposable
         {
             private byte[] _data;
@@ -22,11 +27,6 @@ namespace MCServerSharp.NBT
 
             public MetadataDb(int payloadLength)
             {
-                // Assume that a tag happens approximately every 12 bytes.
-                // int estimatedTags = payloadLength / 12
-                // now acknowledge that the number of bytes we need per tag is 12.
-                // So that's just the payload length.
-                //
                 // Add one tag's worth of data just because.
                 int initialSize = DbRow.Size + payloadLength;
 
@@ -95,14 +95,14 @@ namespace MCServerSharp.NBT
                 }
             }
 
-            public int Append(int location, int collectionLength, int rowCount, NbtType type, NbtFlags flags)
+            public int Append(
+                int location, int collectionLength, int rowCount, NbtType type, NbtFlags flags)
             {
                 if (ByteLength >= _data.Length - DbRow.Size)
                     Enlarge();
 
                 var row = new DbRow(location, collectionLength, rowCount, type, flags);
                 MemoryMarshal.Write(_data.AsSpan(ByteLength), ref row);
-
                 int index = ByteLength;
                 ByteLength += DbRow.Size;
                 return index;
@@ -146,10 +146,10 @@ namespace MCServerSharp.NBT
                 return MemoryMarshal.Read<int>(_data.AsSpan(index + DbRow.LengthOffset));
             }
 
-            public int GetNumberOfRows(int index)
+            public int GetRowCount(int index)
             {
                 AssertValidIndex(index);
-                return MemoryMarshal.Read<int>(_data.AsSpan(index + DbRow.NumberOfRowsOffset));
+                return MemoryMarshal.Read<int>(_data.AsSpan(index + DbRow.RowCountOffset));
             }
 
             public NbtType GetTagType(int index)
@@ -164,11 +164,11 @@ namespace MCServerSharp.NBT
                 return MemoryMarshal.Read<NbtFlags>(_data.AsSpan(index + DbRow.FlagsOffset));
             }
 
-            public void SetRowCount(int index, int numberOfRows)
+            public void SetRowCount(int index, int rowCount)
             {
                 AssertValidIndex(index);
-                Span<byte> dataPos = _data.AsSpan(index + DbRow.NumberOfRowsOffset);
-                MemoryMarshal.Write(dataPos, ref numberOfRows);
+                Span<byte> dataPos = _data.AsSpan(index + DbRow.RowCountOffset);
+                MemoryMarshal.Write(dataPos, ref rowCount);
             }
 
             public void SetLength(int index, int length)

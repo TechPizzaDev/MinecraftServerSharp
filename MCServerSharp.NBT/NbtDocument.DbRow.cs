@@ -6,6 +6,10 @@ namespace MCServerSharp.NBT
 {
     public sealed partial class NbtDocument
     {
+        /// <summary>
+        /// One <see cref="DbRow"/> corresponds to one tag in a <see cref="MetadataDb"/>,
+        /// excluding <see cref="NbtType.End"/> tags.
+        /// </summary>
         [StructLayout(LayoutKind.Sequential)]
         public readonly struct DbRow
         {
@@ -13,8 +17,8 @@ namespace MCServerSharp.NBT
 
             public const int LocationOffset = 0;
             public const int LengthOffset = LocationOffset + sizeof(int);
-            public const int NumberOfRowsOffset = LengthOffset + sizeof(int);
-            public const int FlagsOffset = NumberOfRowsOffset + sizeof(int);
+            public const int RowCountOffset = LengthOffset + sizeof(int);
+            public const int FlagsOffset = RowCountOffset + sizeof(int);
             public const int TagTypeOffset = FlagsOffset + sizeof(NbtFlags);
 
             public int Location { get; }

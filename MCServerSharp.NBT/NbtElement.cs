@@ -32,7 +32,9 @@ namespace MCServerSharp.NBT
 
         public NbtFlags Flags => _parent?.GetFlags(_index) ?? NbtFlags.None;
 
-        public ReadOnlySpan<byte> Name => _parent != null ? _parent.GetTagName(_index) : ReadOnlySpan<byte>.Empty;
+        public ReadOnlyMemory<byte> Name => _parent != null 
+            ? _parent.GetTagName(_index) 
+            : ReadOnlyMemory<byte>.Empty;
 
         // TODO: add debug tree view
 
@@ -238,7 +240,7 @@ namespace MCServerSharp.NBT
         public override string ToString()
         {
             var name = Name.ToUtf8String();
-            var builder = new StringBuilder(name.Length + 10);
+            var builder = new StringBuilder(name.Length + 20);
 
             if (Flags.HasFlag(NbtFlags.Named))
                 builder.Append('"').Append(name).Append("\": ");

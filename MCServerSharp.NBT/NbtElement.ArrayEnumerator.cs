@@ -1,7 +1,11 @@
 ﻿using System;
+using System.Buffers.Binary;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using MCServerSharp.Utility;
 
 namespace MCServerSharp.NBT
 {
@@ -15,7 +19,7 @@ namespace MCServerSharp.NBT
             where T : unmanaged
         {
             private readonly NbtElement _array;
-            private readonly int _targetEndIndex;
+            private readonly ReadOnlyMemory<byte> _arrayData;
             private int _currentIndex;
 
             public T Current
@@ -25,7 +29,26 @@ namespace MCServerSharp.NBT
                     if (_currentIndex < 0)
                         return default;
 
-                    throw new NotImplementedException();
+                    var slice = _arrayData.Slice(_currentIndex).Span;
+
+                    if (typeof(T) == typeof(int))
+                    {
+                        if (_array.Flags.HasFlags(NbtFlags.BigEndian))
+                            return UnsafeR.As<int, T>(BinaryPrimitives.ReadInt32BigEndian(slice));
+                        else
+                            return UnsafeR.As<int, T>(BinaryPrimitives.ReadInt32LittleEndian(slice));
+                    }
+                    else if (typeof(T) == typeof(long))
+                    {
+                        if (_array.Flags.HasFlags(NbtFlags.BigEndian))
+                            return UnsafeR.As<long, T>(BinaryPrimitives.ReadInt64BigEndian(slice));
+                        else
+                            return UnsafeR.As<long, T>(BinaryPrimitives.ReadInt64LittleEndian(slice));
+                    }
+                    else
+                    {
+                        return MemoryMarshal.Read<T>(slice);
+                    }
                 }
             }
 
@@ -34,35 +57,39 @@ namespace MCServerSharp.NBT
             internal ArrayEnumerator(NbtElement array)
             {
                 _array = array;
-                _targetEndIndex = array._parent.GetEndIndex(_array._index, false);
+                _arrayData = array._parent.GetArrayData(_array._index, out _);
                 _currentIndex = -1;
             }
 
             public bool MoveNext()
             {
-                throw new NotImplementedException();
+                if (_currentIndex < 0)
+                    _currentIndex = 0;
+                else
+                    _currentIndex += Unsafe.SizeOf<T>();
+
+                return _currentIndex != _arrayData.Length;
             }
 
             public void Reset()
             {
-
+                _currentIndex = -1;
             }
 
             public void Dispose()
             {
-                _currentIndex = _targetEndIndex;
             }
 
             /// <summary>
             /// Returns an enumerator that iterates through an array.
             /// </summary>
             /// <returns>
-            /// A <see cref="ArrayEnumerator"/> that can be used to iterate through the array.
+            /// An <see cref="ArrayEnumerator{T}"/> that can be used to iterate through the array.
             /// </returns>
             public ArrayEnumerator<T> GetEnumerator()
             {
                 ArrayEnumerator<T> ator = this;
-                ator._currentIndex = -1;
+                ator.Reset();
                 return ator;
             }
 

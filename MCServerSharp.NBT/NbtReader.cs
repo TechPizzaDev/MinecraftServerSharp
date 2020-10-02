@@ -252,8 +252,7 @@ namespace MCServerSharp.NBT
 
                 case NbtType.End:
                     // Documents with a single End tag are valid.
-                    if (!_state._containerInfoStack.IsEmpty)
-                        _state._containerInfoStack.Pop();
+                    _state._containerInfoStack.TryPop();
 
                     if (_state._containerInfoStack.ByteCount == 0)
                         EndOfDocument = true;
@@ -276,7 +275,9 @@ namespace MCServerSharp.NBT
                     _state._containerInfoStack.Push(new ContainerFrame
                     {
                         ElementType = listType,
-                        ListEntriesRemaining = Math.Max(TagCollectionLength, 0), // clamp in case of negative length,
+
+                        // Clamp length in case of negative length
+                        ListEntriesRemaining = Math.Max(TagCollectionLength, 0)
                     });
                     ValueSpan = slice.Slice(read, sizeof(byte) + listLengthBytes);
                     break;
@@ -456,14 +457,15 @@ namespace MCServerSharp.NBT
         #region Read Helpers
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static ReadOnlySpan<byte> SkipTagName(ReadOnlySpan<byte> source, NbtOptions options)
+        internal static ReadOnlyMemory<byte> SkipTagName(
+            ReadOnlyMemory<byte> source, NbtOptions options)
         {
-            int nameLength = ReadStringLength(source, options, out int lengthBytes);
+            int nameLength = ReadStringLength(source.Span, options, out int lengthBytes);
             return source.Slice(lengthBytes + nameLength);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static ReadOnlySpan<byte> SkipTagType(ReadOnlySpan<byte> source)
+        internal static ReadOnlyMemory<byte> SkipTagType(ReadOnlyMemory<byte> source)
         {
             return source.Slice(sizeof(byte));
         }

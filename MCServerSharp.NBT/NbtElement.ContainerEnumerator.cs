@@ -31,7 +31,7 @@ namespace MCServerSharp.NBT
             internal ContainerEnumerator(NbtElement target)
             {
                 _container = target;
-                _targetEndIndex = target._parent.GetEndIndex(_container._index, false);
+                _targetEndIndex = target._parent.GetEndIndex(_container._index);
                 _currentIndex = -1;
             }
 
@@ -44,7 +44,7 @@ namespace MCServerSharp.NBT
             public ContainerEnumerator GetEnumerator()
             {
                 ContainerEnumerator ator = this;
-                ator._currentIndex = -1;
+                ator.Reset();
                 return ator;
             }
 
@@ -76,7 +76,7 @@ namespace MCServerSharp.NBT
                 if (_currentIndex < 0)
                     _currentIndex = _container._index + NbtDocument.DbRow.Size;
                 else
-                    _currentIndex = _container._parent.GetEndIndex(_currentIndex, true);
+                    _currentIndex = _container._parent.GetEndIndex(_currentIndex);
 
                 return _currentIndex < _targetEndIndex;
             }

@@ -127,7 +127,7 @@ namespace MCServerSharp.Net
             resultWriter.WriteVar(rawLength);
 
             bufferWriter.Position = 0;
-            bufferWriter.BaseStream.SCopyTo(resultWriter.BaseStream);
+            bufferWriter.BaseStream.SpanCopyTo(resultWriter.BaseStream);
 
             return new PacketWriteResult(compressed, rawLength, length);
         }

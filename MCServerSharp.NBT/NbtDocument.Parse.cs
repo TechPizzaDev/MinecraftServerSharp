@@ -73,12 +73,10 @@ namespace MCServerSharp.NBT
             int rowCount = 0;
 
             while (reader.Read())
-            {
-                rowCount++;
-
+            {  
                 int location = reader.TagLocation;
-                NbtFlags flags = reader.TagFlags;
                 NbtType type = reader.TagType;
+                NbtFlags flags = reader.TagFlags;
 
                 PeekStack:
                 ref ContainerFrame frame = ref stack.TryPeek();
@@ -88,8 +86,8 @@ namespace MCServerSharp.NBT
                     {
                         stack.TryPop();
 
-                        int accumulatedRowCount = rowCount - frame.InitialRowCount + 1; // +1 to include self
-                        database.SetRowCount(frame.ContainerRow, accumulatedRowCount);
+                        int totalRowCount = rowCount - frame.InitialRowCount;
+                        database.SetRowCount(frame.ContainerRow, totalRowCount);
                         goto PeekStack;
                     }
                     else if (frame.ListEntriesRemaining != -1)
@@ -104,6 +102,20 @@ namespace MCServerSharp.NBT
 
                 switch (type)
                 {
+                    case NbtType.End:
+                    {
+                        // Documents with a single End tag (no Compound root) are valid.
+                        if (stack.TryPop(out var compoundFrame))
+                        {
+                            int totalRowCount = rowCount - compoundFrame.InitialRowCount;
+                            int compoundLength = compoundFrame.CompoundEntryCounter - 1; // -1 to exclude End
+
+                            database.SetRowCount(compoundFrame.ContainerRow, totalRowCount);
+                            database.SetLength(compoundFrame.ContainerRow, compoundLength);
+                        }
+                        continue; // Continue to not increment row count
+                    }
+
                     case NbtType.Compound:
                     {
                         int containerRow = database.Append(
@@ -116,33 +128,17 @@ namespace MCServerSharp.NBT
                         break;
                     }
 
-                    case NbtType.End:
-                    {
-                        database.Append(location, reader.TagSpan.Length, rowCount: 1, type, flags);
-
-                        // Documents with a single End tag (no Compound root) are valid.
-                        if (stack.TryPop(out var compoundFrame))
-                        {
-                            int accumulatedRowCount = rowCount - compoundFrame.InitialRowCount;
-                            int compoundLength = compoundFrame.CompoundEntryCounter - 1; // -1 to exclude End
-
-                            database.SetRowCount(compoundFrame.ContainerRow, accumulatedRowCount);
-                            database.SetLength(compoundFrame.ContainerRow, compoundLength);
-                        }
-                        break;
-                    }
-
                     case NbtType.List:
                     {
                         int listLength = reader.TagCollectionLength;
                         int containerRow = database.Append(
-                            location, listLength, rowCount: 0, type, flags);
+                            location, listLength, rowCount: 1, type, flags);
 
                         stack.Push(new ContainerFrame(containerRow, rowCount)
                         {
                             ListEntriesRemaining = listLength
                         });
-                        continue;
+                        break;
                     }
 
                     case NbtType.String:
@@ -156,6 +152,8 @@ namespace MCServerSharp.NBT
                         database.Append(location, 0, rowCount: 1, type, flags);
                         break;
                 }
+
+                rowCount++;
             }
 
             database.TrimExcess();
