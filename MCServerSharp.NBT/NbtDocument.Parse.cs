@@ -141,15 +141,8 @@ namespace MCServerSharp.NBT
                         break;
                     }
 
-                    case NbtType.String:
-                    case NbtType.ByteArray:
-                    case NbtType.IntArray:
-                    case NbtType.LongArray:
-                        database.Append(location, reader.TagCollectionLength, rowCount: 1, type, flags);
-                        break;
-
                     default:
-                        database.Append(location, 0, rowCount: 1, type, flags);
+                        database.Append(location, reader.TagCollectionLength, rowCount: 1, type, flags);
                         break;
                 }
 

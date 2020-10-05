@@ -71,7 +71,8 @@ namespace Tests
             int chunkX = 0;
             int chunkZ = 0;
 
-            foreach (var file in Directory.GetFiles($@"..\..\..\..\MCJarServer\1.15.2\world\region"))
+            var files = Directory.GetFiles($@"..\..\..\..\MCJarServer\1.15.2\world\region");
+            foreach (var file in files)
             {
                 //using var stream = File.OpenRead(
                 //   $@"..\..\..\..\MCJarServer\1.15.2\world\region\r.{chunkX}.{chunkZ}.mca");
@@ -152,25 +153,50 @@ namespace Tests
                     chunkList[i] = (i, chunkDocument);
 
                     var root = chunkDocument.RootTag;
-                    //Console.WriteLine(root);
-                    PrintContainer(root, 1);
+                    var rootClone = root.Clone();
 
-                    void PrintContainer(NbtElement container, int depth)
+                    static void CompareContainers(NbtElement container1, NbtElement container2)
                     {
-                        string space = new string(' ', depth * 2);
-                        foreach (var element in container.EnumerateContainer())
+                        var enum1 = container1.EnumerateContainer();
+                        var enum2 = container2.EnumerateContainer();
+                        bool move;
+                        do
                         {
-                            //Console.WriteLine(space + element);
+                            move = enum1.MoveNext();
+                            if (move != enum2.MoveNext())
+                                throw new Exception("Not equal move");
 
-                            switch (element.Type)
+                            if (move)
                             {
-                                case NbtType.Compound:
-                                case NbtType.List:
-                                    PrintContainer(element, depth + 1);
-                                    break;
+                                var span1 = enum1.Current.GetRawData().Span;
+                                var span2 = enum2.Current.GetRawData().Span;
+                                if (!span1.SequenceEqual(span2))
+                                    throw new Exception("Not equal element");
                             }
                         }
+                        while (move);
                     }
+
+                    CompareContainers(root, rootClone);
+
+                    //PrintContainer(root, 1);
+                    //
+                    //void PrintContainer(NbtElement container, int depth)
+                    //{
+                    //    string space = new string(' ', depth * 2);
+                    //    foreach (var element in container.EnumerateContainer())
+                    //    {
+                    //        //Console.WriteLine(space + element);
+                    //
+                    //        switch (element.Type)
+                    //        {
+                    //            case NbtType.Compound:
+                    //            case NbtType.List:
+                    //                PrintContainer(element, depth + 1);
+                    //                break;
+                    //        }
+                    //    }
+                    //}
                 }
             }
         }

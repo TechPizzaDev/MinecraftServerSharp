@@ -68,13 +68,13 @@ namespace MCServerSharp.NBT
 
         internal NbtType GetTagType(int index)
         {
-            CheckNotDisposed();
+            AssertNotDisposed();
             return _metaDb.GetTagType(index);
         }
 
         internal int GetLength(int index)
         {
-            CheckNotDisposed();
+            AssertNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
             if (!row.Type.IsCollection())
@@ -85,7 +85,7 @@ namespace MCServerSharp.NBT
 
         internal NbtType GetListType(int index)
         {
-            CheckNotDisposed();
+            AssertNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
             if (row.Type != NbtType.List)
@@ -97,14 +97,15 @@ namespace MCServerSharp.NBT
 
         internal NbtFlags GetFlags(int index)
         {
-            CheckNotDisposed();
+            AssertNotDisposed();
             return _metaDb.GetFlags(index);
         }
 
         internal NbtElement GetContainerElement(int index, int arrayIndex)
         {
-            CheckNotDisposed();
+            AssertNotDisposed();
             ref readonly DbRow containerRow = ref _metaDb.GetRow(index);
+
             if (!containerRow.IsContainerType)
                 throw new InvalidOperationException("The tag is not a container.");
 
@@ -133,32 +134,29 @@ namespace MCServerSharp.NBT
 
         internal static int GetEndIndex(int baseIndex, in DbRow row)
         {
-            if (row.IsPrimitiveType)
-                return baseIndex + DbRow.Size;
-
             int endIndex = baseIndex + row.RowCount * DbRow.Size;
             return endIndex;
         }
 
         internal int GetEndIndex(int index)
         {
-            CheckNotDisposed();
+            AssertNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
             int endIndex = GetEndIndex(index, row);
             return endIndex;
         }
 
-        private ReadOnlyMemory<byte> GetRawData(int index)
+        internal ReadOnlyMemory<byte> GetRawData(int index)
         {
-            CheckNotDisposed();
+            AssertNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
-            if (row.IsPrimitiveType)
-                return _data.Slice(row.Location, row.CollectionLength);
-
-            int endIndex = GetEndIndex(index, row);
             int start = row.Location;
+            int endIndex = GetEndIndex(index, row);
+            if (endIndex == _metaDb.ByteLength)
+                return _data.Slice(start);
+
             int end = _metaDb.GetLocation(endIndex);
             return _data[start..end];
         }
@@ -179,7 +177,7 @@ namespace MCServerSharp.NBT
 
         internal ReadOnlyMemory<byte> GetTagName(int index)
         {
-            CheckNotDisposed();
+            AssertNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
             return GetTagName(row);
@@ -200,7 +198,7 @@ namespace MCServerSharp.NBT
 
         internal string GetString(int index)
         {
-            CheckNotDisposed();
+            AssertNotDisposed();
 
             (int lastIndex, string? lastString) = _lastIndexAndString;
             if (lastIndex == index)
@@ -268,7 +266,7 @@ namespace MCServerSharp.NBT
 
         internal ReadOnlyMemory<byte> GetArrayData(int index, out NbtType tagType)
         {
-            CheckNotDisposed();
+            AssertNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
             tagType = row.Type;
@@ -298,7 +296,7 @@ namespace MCServerSharp.NBT
 
         internal sbyte GetByte(int index)
         {
-            CheckNotDisposed();
+            AssertNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
             CheckExpectedType(NbtType.Byte, row.Type);
 
@@ -308,7 +306,7 @@ namespace MCServerSharp.NBT
 
         internal short GetShort(int index)
         {
-            CheckNotDisposed();
+            AssertNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
             ReadOnlySpan<byte> payload = GetTagPayload(row).Span;
@@ -323,7 +321,7 @@ namespace MCServerSharp.NBT
 
         internal int GetInt(int index)
         {
-            CheckNotDisposed();
+            AssertNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
             ReadOnlySpan<byte> payload = GetTagPayload(row).Span;
@@ -339,7 +337,7 @@ namespace MCServerSharp.NBT
 
         internal long GetLong(int index)
         {
-            CheckNotDisposed();
+            AssertNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
             ReadOnlySpan<byte> payload = GetTagPayload(row).Span;
@@ -356,7 +354,7 @@ namespace MCServerSharp.NBT
 
         internal float GetFloat(int index)
         {
-            CheckNotDisposed();
+            AssertNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
             ReadOnlySpan<byte> payload = GetTagPayload(row).Span;
@@ -375,7 +373,7 @@ namespace MCServerSharp.NBT
 
         internal double GetDouble(int index)
         {
-            CheckNotDisposed();
+            AssertNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
             ReadOnlySpan<byte> payload = GetTagPayload(row).Span;
@@ -409,7 +407,7 @@ namespace MCServerSharp.NBT
 
         internal void WriteTagTo(int index, NbtWriter writer)
         {
-            CheckNotDisposed();
+            AssertNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
             throw new NotImplementedException();
@@ -456,7 +454,7 @@ namespace MCServerSharp.NBT
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void CheckNotDisposed()
+        private void AssertNotDisposed()
         {
             if (_data.IsEmpty)
                 throw new ObjectDisposedException(nameof(NbtDocument));

@@ -16,14 +16,12 @@ namespace MCServerSharp.NBT
         /// <summary>
         /// Gets an element within this container.
         /// </summary>
-        /// <param name="index"></param>
-        /// <returns></returns>
         /// <exception cref="InvalidOperationException">This element is not a container.</exception>
         public NbtElement this[int index]
         {
             get
             {
-                CheckValidInstance();
+                AssertValidInstance();
                 return _parent.GetContainerElement(_index, index);
             }
         }
@@ -32,8 +30,8 @@ namespace MCServerSharp.NBT
 
         public NbtFlags Flags => _parent?.GetFlags(_index) ?? NbtFlags.None;
 
-        public ReadOnlyMemory<byte> Name => _parent != null 
-            ? _parent.GetTagName(_index) 
+        public ReadOnlyMemory<byte> Name => _parent != null
+            ? _parent.GetTagName(_index)
             : ReadOnlyMemory<byte>.Empty;
 
         // TODO: add debug tree view
@@ -51,7 +49,7 @@ namespace MCServerSharp.NBT
 
         public NbtType GetBaseType()
         {
-            CheckValidInstance();
+            AssertValidInstance();
 
             var type = Type;
             return type switch
@@ -64,6 +62,12 @@ namespace MCServerSharp.NBT
             };
         }
 
+        public ReadOnlyMemory<byte> GetRawData()
+        {
+            AssertValidInstance();
+            return _parent.GetRawData(_index);
+        }
+
         /// <summary>
         /// Gets the number of elements contained within the current collection element.
         /// </summary>
@@ -72,55 +76,55 @@ namespace MCServerSharp.NBT
         /// <exception cref="ObjectDisposedException">The parent <see cref="NbtDocument"/> has been disposed.</exception>
         public int GetLength()
         {
-            CheckValidInstance();
+            AssertValidInstance();
             return _parent.GetLength(_index);
         }
 
         public sbyte GetByte()
         {
-            CheckValidInstance();
+            AssertValidInstance();
             return _parent.GetByte(_index);
         }
 
         public short GetShort()
         {
-            CheckValidInstance();
+            AssertValidInstance();
             return _parent.GetShort(_index);
         }
 
         public int GetInt()
         {
-            CheckValidInstance();
+            AssertValidInstance();
             return _parent.GetInt(_index);
         }
 
         public long GetLong()
         {
-            CheckValidInstance();
+            AssertValidInstance();
             return _parent.GetLong(_index);
         }
 
         public float GetFloat()
         {
-            CheckValidInstance();
+            AssertValidInstance();
             return _parent.GetFloat(_index);
         }
 
         public double GetDouble()
         {
-            CheckValidInstance();
+            AssertValidInstance();
             return _parent.GetDouble(_index);
         }
 
         public string GetString()
         {
-            CheckValidInstance();
+            AssertValidInstance();
             return _parent.GetString(_index);
         }
 
         public ContainerEnumerator EnumerateContainer()
         {
-            CheckValidInstance();
+            AssertValidInstance();
 
             if (!Type.IsContainer())
                 throw new InvalidOperationException("This element is not a container.");
@@ -131,7 +135,7 @@ namespace MCServerSharp.NBT
         public ArrayEnumerator<T> EnumerateArray<T>()
             where T : unmanaged
         {
-            CheckValidInstance();
+            AssertValidInstance();
 
             if (!Type.IsArray())
                 throw new InvalidOperationException("This element is not an array.");
@@ -141,7 +145,7 @@ namespace MCServerSharp.NBT
 
         public void WriteTo(NbtWriter writer)
         {
-            CheckValidInstance();
+            AssertValidInstance();
 
             _parent.WriteTagTo(_index, writer);
         }
@@ -163,7 +167,7 @@ namespace MCServerSharp.NBT
         /// </remarks>
         public NbtElement Clone()
         {
-            CheckValidInstance();
+            AssertValidInstance();
 
             if (!_parent.IsDisposable)
                 return this;
@@ -206,7 +210,7 @@ namespace MCServerSharp.NBT
         /// </remarks>
         public bool SequenceEqual(ReadOnlySpan<byte> data)
         {
-            CheckValidInstance();
+            AssertValidInstance();
 
             return _parent.ArraySequenceEqual(_index, data);
         }
@@ -226,12 +230,12 @@ namespace MCServerSharp.NBT
         /// </remarks>
         public bool StringEquals(ReadOnlySpan<char> text)
         {
-            CheckValidInstance();
+            AssertValidInstance();
 
             return _parent.StringEquals(_index, text);
         }
 
-        private void CheckValidInstance()
+        private void AssertValidInstance()
         {
             if (_parent == null)
                 throw new InvalidOperationException();
