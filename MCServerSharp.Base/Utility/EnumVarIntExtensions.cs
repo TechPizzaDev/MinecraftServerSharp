@@ -2,7 +2,7 @@
 
 namespace MCServerSharp
 {
-    public static partial class EnumExtensions
+    public static class EnumVarIntExtensions
     {
         public static VarInt ToVarInt<TEnum>(this TEnum value)
             where TEnum : Enum

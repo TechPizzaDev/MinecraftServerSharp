@@ -6,14 +6,14 @@ namespace MCServerSharp
     public static partial class EnumConverter<TEnum>
         where TEnum : Enum
     {
-        private static readonly Func<long, TEnum> _convertTo = GenerateToConverter();
-        private static readonly Func<TEnum, long> _convertFrom = GenerateFromConverter();
+        private static Func<long, TEnum> ConvertTo { get; } = GenerateToConverter();
+        private static Func<TEnum, long> ConvertFrom { get; } = GenerateFromConverter();
 
-        public static TEnum Convert(long value) => _convertTo.Invoke(value);
+        public static TEnum Convert(long value) => ConvertTo.Invoke(value);
 
         public static TEnum Convert(ulong value) => Convert((long)value);
 
-        public static long Convert(TEnum value) => _convertFrom.Invoke(value);
+        public static long Convert(TEnum value) => ConvertFrom.Invoke(value);
 
         private static Func<long, TEnum> GenerateToConverter()
         {
