@@ -22,9 +22,7 @@ namespace MCServerSharp.Net
     public partial class NetOrchestratorWorker : IDisposable
     {
         public delegate PacketWriteResult WritePacketDelegate(
-            PacketHolder packetHolder,
-            PacketSerializationMode mode,
-            Stream destination);
+            PacketHolder packetHolder, Stream outputStream, Stream? compressorStream);
 
         private static MethodInfo? WritePacketMethod { get; } =
             typeof(NetOrchestratorWorker).GetMethod(
@@ -34,6 +32,7 @@ namespace MCServerSharp.Net
             new ConcurrentDictionary<Type, WritePacketDelegate>();
 
         private ChunkedMemoryStream _packetWriteBuffer;
+        private ChunkedMemoryStream _compressorBuffer;
         private AutoResetEvent _flushRequestEvent;
 
         public NetOrchestrator Orchestrator { get; }
@@ -47,6 +46,7 @@ namespace MCServerSharp.Net
             Orchestrator = orchestrator ?? throw new ArgumentNullException(nameof(orchestrator));
 
             _packetWriteBuffer = Orchestrator.Codec.MemoryManager.GetStream();
+            _compressorBuffer = Orchestrator.Codec.MemoryManager.GetStream();
             _flushRequestEvent = new AutoResetEvent(false);
 
             Thread = new Thread(ThreadRunner);
@@ -79,7 +79,7 @@ namespace MCServerSharp.Net
         }
 
         public static PacketWriteResult WritePacket<TPacket>(
-            PacketHolder packetHolder, PacketSerializationMode mode, Stream bufferStream)
+            PacketHolder packetHolder, Stream outputStream, Stream? compressorStream)
         {
             if (packetHolder == null)
                 throw new ArgumentNullException(nameof(packetHolder));
@@ -89,47 +89,48 @@ namespace MCServerSharp.Net
                 throw new Exception("Packet holder has no target connection.");
 
             var holder = (PacketHolder<TPacket>)packetHolder;
-            var bufferWriter = new NetBinaryWriter(bufferStream)
+
+            if (!connection.Orchestrator.Codec.Encoder.TryGetPacketIdDefinition(
+                holder.State, holder.PacketType, out var idDefinition))
             {
-                Position = 0,
-                Length = 0
+                // We don't really want to continue if we don't even know what we're sending.
+                throw new Exception(
+                    $"Failed to get server packet ID defintion " +
+                    $"(State: {holder.State}, Type: {holder.PacketType}).");
+            }
+
+            // Reserve enough room for compressed packet header.
+            const int InitialBufferPosition = VarInt.MaxEncodedSize * 2;
+            
+            var bufferWriter = new NetBinaryWriter(outputStream)
+            {
+                Length = 0,
+                Position = InitialBufferPosition
             };
-
-            if (mode != PacketSerializationMode.NoHeader)
-            {
-                if (!connection.Orchestrator.Codec.Encoder.TryGetPacketIdDefinition(
-                    holder.State, holder.PacketType, out var idDefinition))
-                {
-                    Console.WriteLine("why: " + holder.State + ": " + idDefinition.Id);
-
-                    // We don't really want to continue if we don't even know what we're sending.
-                    throw new Exception(
-                        $"Failed to get server packet ID defintion " +
-                        $"(State: {holder.State}, Type: {holder.PacketType}).");
-                }
-                bufferWriter.WriteVar(idDefinition.RawId);
-            }
-
+            bufferWriter.WriteVar(idDefinition.RawId);
             holder.Writer.Invoke(bufferWriter, holder.Packet);
-
-            int rawLength = (int)bufferWriter.Length;
-            int length = rawLength;
-            bool compressed = false;
-
-            if (mode == PacketSerializationMode.Compressed)
-            {
-                throw new NotImplementedException();
-                // TODO: compress packet buffer and reassign "length" variable
-                compressed = true;
-            }
+            int dataLength = (int)(bufferWriter.Position - InitialBufferPosition);
 
             var resultWriter = new NetBinaryWriter(connection.SendBuffer);
-            resultWriter.WriteVar(rawLength);
+            long initialResultPosition = resultWriter.Position;
+            bool compressed = compressorStream != null;
+            if (compressed)
+            {
+                bufferWriter.Position = 0;
 
-            bufferWriter.Position = 0;
-            bufferWriter.BaseStream.SpanCopyTo(resultWriter.BaseStream);
+                throw new NotImplementedException();
+                // TODO: compress packet buffer and reassign "datalength" variable
+            }
+            else
+            {
+                resultWriter.WriteVar(dataLength);
 
-            return new PacketWriteResult(compressed, rawLength, length);
+                bufferWriter.Position = InitialBufferPosition;
+                bufferWriter.BaseStream.SpanCopyTo(resultWriter.BaseStream);
+            }
+
+            long totalLength = resultWriter.Position - initialResultPosition;
+            return new PacketWriteResult(compressed, dataLength, (int)totalLength);
         }
 
         private void ThreadRunner()
@@ -160,12 +161,10 @@ namespace MCServerSharp.Net
                         {
                             var structAttrib = packetHolder.PacketType.GetCustomAttribute<PacketStructAttribute>();
 
-                            var mode = PacketSerializationMode.Uncompressed;
-
                             var writePacketDelegate = GetWritePacketDelegate(packetHolder.PacketType);
 
                             // TODO: compression
-                            var result = writePacketDelegate.Invoke(packetHolder, mode, _packetWriteBuffer);
+                            var result = writePacketDelegate.Invoke(packetHolder, _packetWriteBuffer, null);
                         }
 
                         Orchestrator.ReturnPacketHolder(packetHolder);
@@ -200,6 +199,7 @@ namespace MCServerSharp.Net
                 {
                     _flushRequestEvent.Dispose();
                     _packetWriteBuffer.Dispose();
+                    _compressorBuffer.Dispose();
                 }
 
                 IsDisposed = true;
