@@ -1,12 +1,9 @@
 ﻿using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.IO.Compression;
 using System.Reflection;
-using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using MCServerSharp.Data.IO;
@@ -119,7 +116,7 @@ namespace MCServerSharp.Net
             var resultWriter = new NetBinaryWriter(connection.SendBuffer);
             long initialResultPosition = resultWriter.Position;
             int? compressedLength = null;
-
+            
             if (holder.CompressionThreshold.HasValue)
             {
                 bool compressed = dataLength >= holder.CompressionThreshold;
@@ -151,7 +148,8 @@ namespace MCServerSharp.Net
             }
             else
             {
-                resultWriter.WriteVar(dataLength);
+                int packetLength = dataLength;
+                resultWriter.WriteVar(packetLength);
                 packetWriter.Position = 0;
                 packetWriter.BaseStream.SpanCopyTo(resultWriter.BaseStream);
             }
@@ -186,8 +184,6 @@ namespace MCServerSharp.Net
 
                         if (packetHolder.Connection.ProtocolState != ProtocolState.Disconnected)
                         {
-                            var structAttrib = packetHolder.PacketType.GetCustomAttribute<PacketStructAttribute>();
-
                             var writePacketDelegate = GetWritePacketDelegate(packetHolder.PacketType);
 
                             var result = writePacketDelegate.Invoke(
@@ -198,17 +194,18 @@ namespace MCServerSharp.Net
                     }
 
                     var flushTask = connection.FlushSendBuffer();
-                    flushTask.ContinueWith((task) =>
+                    flushTask.ContinueWith((task, state) =>
                     {
-                        lock (orchestratorQueue.EngageMutex)
+                        var queue = (NetPacketSendQueue)state!;
+                        lock (queue.EngageMutex)
                         {
-                            if (orchestratorQueue.SendQueue.IsEmpty)
-                                orchestratorQueue.IsEngaged = false;
+                            if (queue.SendQueue.IsEmpty)
+                                queue.IsEngaged = false;
                             else
-                                Orchestrator.QueuesToFlush.Enqueue(orchestratorQueue);
+                                queue.Connection.Orchestrator.QueuesToFlush.Enqueue(queue);
                         }
 
-                    }, TaskContinuationOptions.ExecuteSynchronously);
+                    }, orchestratorQueue, TaskContinuationOptions.ExecuteSynchronously);
 
                 }
                 catch (Exception ex)

@@ -9,6 +9,7 @@ namespace MCServerSharp
     [DebuggerDisplay("{Value, nq}")]
     public readonly struct VarInt
     {
+        public const int MinEncodedSize = 1;
         public const int MaxEncodedSize = 5;
 
         public int Value { get; }

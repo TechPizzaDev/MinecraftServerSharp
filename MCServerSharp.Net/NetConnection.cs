@@ -20,17 +20,17 @@ namespace MCServerSharp.Net
 
         // TODO: make better use of the streams (recycle them better or something)
         public ChunkedMemoryStream ReceiveBuffer { get; }
+        public ChunkedMemoryStream DecompressionBuffer { get; }
         public ChunkedMemoryStream SendBuffer { get; }
 
         public object CloseMutex { get; } = new object();
 
+        // TODO: add thread-safe property propagation
         public int? CompressionThreshold { get; set; }
-
-        public long BytesSent { get; set; }
-        public long BytesReceived { get; set; }
-
-        // TODO: add thread-safe protocol state propagation
         public ProtocolState ProtocolState { get; set; }
+
+        public long BytesReceived { get; set; }
+        public long BytesSent { get; set; }
 
         public string? UserName { get; set; }
 
@@ -49,6 +49,7 @@ namespace MCServerSharp.Net
             RemoteEndPoint = (IPEndPoint)socket.RemoteEndPoint;
 
             ReceiveBuffer = Orchestrator.MemoryManager.GetStream();
+            DecompressionBuffer = Orchestrator.MemoryManager.GetStream();
             SendBuffer = Orchestrator.MemoryManager.GetStream();
 
             ProtocolState = ProtocolState.Handshaking;
@@ -56,13 +57,12 @@ namespace MCServerSharp.Net
 
         #endregion
 
-        public OperationStatus ReadPacket<TPacket>(out TPacket packet, out int length)
+        public OperationStatus ReadPacket<TPacket>(NetBinaryReader reader, out TPacket packet, out int length)
         {
-            var packetReader = Orchestrator.Codec.Decoder.GetPacketReader<TPacket>();
-            var reader = new NetBinaryReader(ReceiveBuffer);
-
+            var readerDelegate = Orchestrator.Codec.Decoder.GetPacketReader<TPacket>();
+            
             long startPosition = reader.Position;
-            var status = packetReader.Invoke(reader, out packet);
+            var status = readerDelegate.Invoke(reader, out packet);
 
             length = (int)(reader.Position - startPosition);
             return status;

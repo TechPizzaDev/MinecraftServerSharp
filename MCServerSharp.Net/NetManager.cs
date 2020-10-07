@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Net;
 using System.Reflection;
 using MCServerSharp.Collections;
+using MCServerSharp.Data.IO;
 using MCServerSharp.Net.Packets;
 using MCServerSharp.Utility;
 
@@ -82,10 +83,11 @@ namespace MCServerSharp.Net
 
             Codec.SetPacketHandler(id, delegate (
                 NetConnection connection,
+                NetBinaryReader packetReader,
                 NetPacketDecoder.PacketIdDefinition packetIdDefinition,
                 out int messageLength)
             {
-                var status = connection.ReadPacket<TPacket>(out var packet, out messageLength);
+                var status = connection.ReadPacket<TPacket>(packetReader, out var packet, out messageLength);
                 if (status != OperationStatus.Done)
                     return status;
 

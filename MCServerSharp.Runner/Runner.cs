@@ -147,6 +147,19 @@ namespace MCServerSharp.Runner
                 //if (updateCount > 0)
                 //    Console.WriteLine(activeCount + " connections");
 
+                lock (_manager.ConnectionMutex)
+                {
+                    foreach (var connection in _manager.Connections)
+                    {
+                        if (connection.ProtocolState != ProtocolState.Play)
+                            continue;
+
+                        var chat = Chat.Text($"S:{connection.BytesSent / 1000}k | R:{connection.BytesReceived / 100 / 10d}k");
+
+                        connection.EnqueuePacket(new ServerChat(chat, 2));
+                    }
+                }
+
                 Console.WriteLine(
                     "Tick Time: " +
                     ticker.ElapsedTime.TotalMilliseconds.ToString("00.00") +
@@ -221,9 +234,9 @@ namespace MCServerSharp.Runner
             manager.SetPacketHandler(delegate
                 (NetConnection connection, ClientLoginStart loginStart)
             {
-                var setCompression = new ServerSetCompression(16);
+                var setCompression = new ServerSetCompression(128);
                 connection.EnqueuePacket(setCompression);
-                connection.CompressionThreshold = 128;
+                connection.CompressionThreshold = setCompression.Threshold;
 
                 var uuid = new UUID(0, 1);
                 var name = loginStart.Name;
