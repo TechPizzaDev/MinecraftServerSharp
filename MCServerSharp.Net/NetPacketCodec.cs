@@ -114,7 +114,7 @@ namespace MCServerSharp.Net
             {
                 int read;
                 while ((read = await socket.ReceiveAsync(
-                    readMemory, SocketFlags.None, state.CancellationToken)) != 0)
+                    readMemory, SocketFlags.None, state.CancellationToken).ConfigureAwait(false)) != 0)
                 {
                     // TODO: this only reads uncompressed packets for now, 
                     //  this will require slight change when compressed packets are implemented
@@ -171,6 +171,9 @@ namespace MCServerSharp.Net
         public OperationStatus HandlePacket(
             NetConnection connection, ref ReceiveState state, out VarInt totalMessageLength)
         {
+            if (connection == null)
+                throw new ArgumentNullException(nameof(connection));
+
             totalMessageLength = default;
 
             if (state.Reader.PeekByte() == LegacyServerListPingPacketDefinition.RawId)
@@ -221,40 +224,6 @@ namespace MCServerSharp.Net
                 throw new Exception("Packet handler read too much bytes.");
 
             return OperationStatus.Done;
-        }
-
-        public async Task<NetSendState> FlushSendBuffer(NetConnection connection)
-        {
-            if (connection == null)
-                throw new ArgumentNullException(nameof(connection));
-
-            var sendBuffer = connection.SendBuffer;
-            int length = (int)sendBuffer.Length;
-            if (length > 0 && connection.ProtocolState != ProtocolState.Disconnected)
-            {
-                int left = length;
-                int block = 0;
-                while (left > 0)
-                {
-                    var buffer = sendBuffer.GetBlock(block);
-                    int blockLength = Math.Min(sendBuffer.BlockSize, left);
-
-                    var data = buffer.Slice(0, blockLength);
-                    int write = await connection.Socket.SendAsync(data, SocketFlags.None);
-                    if (write == 0)
-                    {
-                        connection.Close(immediate: false);
-                        return NetSendState.Closing;
-                    }
-
-                    connection.BytesSent += write;
-                    left -= write;
-                    block++;
-                }
-
-                connection.SendBuffer.TrimStart(length);
-            }
-            return NetSendState.FullSend;
         }
 
         private OperationStatus ReadLegacyServerListPing(NetConnection connection, NetBinaryReader reader)

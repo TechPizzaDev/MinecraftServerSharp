@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
+using System.Threading.Tasks;
 using MCServerSharp.Data.IO;
 using MCServerSharp.Net.Packets;
 using MCServerSharp.Utility;
@@ -22,6 +23,8 @@ namespace MCServerSharp.Net
         public ChunkedMemoryStream SendBuffer { get; }
 
         public object CloseMutex { get; } = new object();
+
+        public int? CompressionThreshold { get; set; }
 
         public long BytesSent { get; set; }
         public long BytesReceived { get; set; }
@@ -68,6 +71,37 @@ namespace MCServerSharp.Net
         public void EnqueuePacket<TPacket>(TPacket packet)
         {
             Orchestrator.EnqueuePacket(this, packet);
+        }
+
+        public async Task<NetSendState> FlushSendBuffer()
+        {
+            var sendBuffer = SendBuffer;
+            int length = (int)sendBuffer.Length;
+            if (length > 0 && ProtocolState != ProtocolState.Disconnected)
+            {
+                int left = length;
+                int block = 0;
+                while (left > 0)
+                {
+                    var buffer = sendBuffer.GetBlock(block);
+                    int blockLength = Math.Min(sendBuffer.BlockSize, left);
+
+                    var data = buffer.Slice(0, blockLength);
+                    int write = await Socket.SendAsync(data, SocketFlags.None).ConfigureAwait(false);
+                    if (write == 0)
+                    {
+                        Close(immediate: false);
+                        return NetSendState.Closing;
+                    }
+
+                    BytesSent += write;
+                    left -= write;
+                    block++;
+                }
+
+                SendBuffer.TrimStart(length);
+            }
+            return NetSendState.FullSend;
         }
 
         public void Kick(Exception? exception)

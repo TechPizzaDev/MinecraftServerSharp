@@ -221,12 +221,15 @@ namespace MCServerSharp.Runner
             manager.SetPacketHandler(delegate
                 (NetConnection connection, ClientLoginStart loginStart)
             {
+                var setCompression = new ServerSetCompression(16);
+                connection.EnqueuePacket(setCompression);
+                connection.CompressionThreshold = 128;
+
                 var uuid = new UUID(0, 1);
-
                 var name = loginStart.Name;
-                var answer = new ServerLoginSuccess(uuid.ToUtf8String(), name);
+                var loginSuccess = new ServerLoginSuccess(uuid.ToUtf8String(), name);
 
-                connection.EnqueuePacket(answer);
+                connection.EnqueuePacket(loginSuccess);
 
                 connection.UserName = name.ToString();
                 connection.ProtocolState = ProtocolState.Play;

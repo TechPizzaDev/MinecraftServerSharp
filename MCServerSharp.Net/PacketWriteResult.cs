@@ -3,14 +3,15 @@ namespace MCServerSharp.Net
 {
     public readonly struct PacketWriteResult
     {
-        public bool Compressed { get; }
         public int DataLength { get; }
+        public int? CompressedLength { get; }
         public int TotalLength { get; }
 
-        public PacketWriteResult(bool compressed, int dataLength, int totalLength)
+        public PacketWriteResult(
+            int dataLength, int? compressedLength, int totalLength)
         {
-            Compressed = compressed;
             DataLength = dataLength;
+            CompressedLength = compressedLength;
             TotalLength = totalLength;
         }
     }

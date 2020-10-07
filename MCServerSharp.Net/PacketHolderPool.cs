@@ -54,12 +54,16 @@ namespace MCServerSharp.Net
             packetHolder.Writer = writer;
             packetHolder.Connection = connection;
             packetHolder.State = connection.ProtocolState;
+            packetHolder.CompressionThreshold = connection.CompressionThreshold;
             packetHolder.Packet = packet;
             return packetHolder;
         }
 
         public void Return(PacketHolder holder)
         {
+            if (holder == null)
+                throw new ArgumentNullException(nameof(holder));
+
             if (!_items.TryGetValue(holder.PacketType, out var stack))
             {
                 stack = new Stack<PacketHolder>();

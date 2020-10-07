@@ -21,13 +21,13 @@ namespace MCServerSharp
         public static int GetEncodedSize(long value)
         {
             ulong v = (ulong)value;
-            int index = 0;
+            int index = 1;
             while (v >= 0x80)
             {
                 v >>= 7;
                 index++;
             }
-            return index + 1;
+            return index;
         }
 
         public int Encode(Span<byte> destination)
@@ -69,7 +69,8 @@ namespace MCServerSharp
                 count |= (b & 0x7F) << (bytes * 7);
                 bytes++;
 
-            } while ((b & 0x80) != 0);
+            } 
+            while ((b & 0x80) != 0);
 
             result = (VarLong)count;
             return OperationStatus.Done;
