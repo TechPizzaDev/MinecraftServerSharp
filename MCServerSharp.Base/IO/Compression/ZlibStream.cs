@@ -9,6 +9,7 @@ namespace MCServerSharp.IO.Compression
     {
         private DeflateStream _deflate;
         private bool _leaveOpen;
+        private CompressionMode _mode;
         private uint _adlerChecksum = 1;
 
         public ZlibHeader Header { get; }
@@ -28,6 +29,7 @@ namespace MCServerSharp.IO.Compression
         public ZlibStream(Stream stream, CompressionMode mode, bool leaveOpen)
         {
             _deflate = new DeflateStream(stream, mode, leaveOpen: true);
+            _mode = mode;
             _leaveOpen = leaveOpen;
 
             if (mode == CompressionMode.Decompress)
@@ -126,9 +128,12 @@ namespace MCServerSharp.IO.Compression
                 _deflate.Dispose();
                 _deflate = null!;
 
-                Span<byte> checksumBytes = stackalloc byte[sizeof(uint)];
-                BinaryPrimitives.WriteUInt32BigEndian(checksumBytes, _adlerChecksum);
-                baseStream.Write(checksumBytes);
+                if (_mode == CompressionMode.Compress)
+                {
+                    Span<byte> checksumBytes = stackalloc byte[sizeof(uint)];
+                    BinaryPrimitives.WriteUInt32BigEndian(checksumBytes, _adlerChecksum);
+                    baseStream.Write(checksumBytes);
+                }
 
                 if (!_leaveOpen)
                     baseStream.Dispose();
