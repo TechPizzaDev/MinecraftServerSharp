@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data.Common;
 using System.Globalization;
 using System.Net;
 using System.Reflection;
@@ -136,14 +137,19 @@ namespace MCServerSharp.Runner
             return;
         }
 
+        private static List<NetConnection> _connectionsBuffer = new List<NetConnection>();
+
         private static void Game_Tick(Ticker ticker)
         {
             _tickCount++;
             if (_tickCount % 20 == 0) // Every second
             {
-                _manager.TickAlive(_tickCount);
+                _connectionsBuffer.Clear();
+                _manager.UpdateConnections(_connectionsBuffer, out int activeCount);
 
-                int updateCount = _manager.UpdateConnections(out int activeCount);
+                foreach (var conn in _connectionsBuffer)
+                    _manager.TickAlive(conn, _tickCount);
+
                 //if (updateCount > 0)
                 //    Console.WriteLine(activeCount + " connections");
 
@@ -170,7 +176,6 @@ namespace MCServerSharp.Runner
             }
 
             //world.Tick();
-            _manager.Orchestrator.RequestFlush();
         }
 
         private static void SetPacketHandlers(NetManager manager)
@@ -360,7 +365,7 @@ namespace MCServerSharp.Runner
                     connection.EnqueuePacket(new ServerWindowProperty(windowID, 3, 100));
 
                     float x = 0;
-                    while(x < 20)
+                    while (x < 20)
                     {
                         short value = (short)((Math.Sin(x) + 1) * 50);
                         connection.EnqueuePacket(new ServerWindowProperty(windowID, 2, value));
@@ -370,7 +375,7 @@ namespace MCServerSharp.Runner
                     }
                 });
             });
-            
+
             manager.SetPacketHandler(delegate
                 (NetConnection connection, ClientTeleportConfirm teleportConfirm)
             {

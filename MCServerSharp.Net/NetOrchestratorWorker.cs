@@ -25,6 +25,8 @@ namespace MCServerSharp.Net
             Stream packetBuffer,
             Stream compressionBuffer);
 
+        private static Action<Task<NetSendState>, object?> FinishSendQueueAction { get; } = FinishSendQueue;
+
         private static MethodInfo? WritePacketMethod { get; } =
             typeof(NetOrchestratorWorker).GetMethod(
                 nameof(WritePacket), BindingFlags.Public | BindingFlags.Static);
@@ -41,6 +43,7 @@ namespace MCServerSharp.Net
 
         public bool IsDisposed { get; private set; }
         public bool IsRunning { get; private set; }
+        public bool IsBusy { get; private set; }
 
         public NetOrchestratorWorker(NetOrchestrator orchestrator)
         {
@@ -66,7 +69,8 @@ namespace MCServerSharp.Net
 
         public void RequestFlush()
         {
-            _flushRequestEvent.Set();
+            if (!IsBusy)
+                _flushRequestEvent.Set();
         }
 
         public static WritePacketDelegate GetWritePacketDelegate(Type packetType)
@@ -116,7 +120,7 @@ namespace MCServerSharp.Net
             var resultWriter = new NetBinaryWriter(connection.SendBuffer);
             long initialResultPosition = resultWriter.Position;
             int? compressedLength = null;
-            
+
             if (holder.CompressionThreshold.HasValue)
             {
                 bool compressed = dataLength >= holder.CompressionThreshold;
@@ -163,30 +167,33 @@ namespace MCServerSharp.Net
             if (WritePacketMethod == null)
                 throw new Exception($"{nameof(WritePacketMethod)} is null.");
 
-            int timeoutMillis = 100;
+            const int TimeoutMillis = 50;
 
             while (IsRunning)
             {
                 try
                 {
                     // Wait to not waste time on repeating loop.
-                    _flushRequestEvent.WaitOne(timeoutMillis);
+                    IsBusy = false;
+                    _flushRequestEvent.WaitOne(TimeoutMillis);
 
                     if (!Orchestrator.QueuesToFlush.TryDequeue(out var orchestratorQueue))
                         continue;
 
+                    IsBusy = true;
                     var connection = orchestratorQueue.Connection;
 
                     while (orchestratorQueue.SendQueue.TryDequeue(out var packetHolder))
                     {
                         Debug.Assert(
-                            packetHolder.Connection != null, "Packet holder has no attached connection.");
+                            packetHolder.Connection != null,
+                            "Packet holder has no attached connection.");
 
                         if (packetHolder.Connection.ProtocolState != ProtocolState.Disconnected)
                         {
                             var writePacketDelegate = GetWritePacketDelegate(packetHolder.PacketType);
 
-                            var result = writePacketDelegate.Invoke(
+                            var writeResult = writePacketDelegate.Invoke(
                                 packetHolder, _packetWriteBuffer, _packetCompressionBuffer);
                         }
 
@@ -194,24 +201,32 @@ namespace MCServerSharp.Net
                     }
 
                     var flushTask = connection.FlushSendBuffer();
-                    flushTask.ContinueWith((task, state) =>
+                    if (flushTask.IsCompleted)
                     {
-                        var queue = (NetPacketSendQueue)state!;
-                        lock (queue.EngageMutex)
-                        {
-                            if (queue.SendQueue.IsEmpty)
-                                queue.IsEngaged = false;
-                            else
-                                queue.Connection.Orchestrator.QueuesToFlush.Enqueue(queue);
-                        }
-
-                    }, orchestratorQueue, TaskContinuationOptions.ExecuteSynchronously);
-
+                        FinishSendQueue(null, orchestratorQueue);
+                    }
+                    else
+                    {
+                        flushTask.AsTask().ContinueWith(
+                            FinishSendQueueAction, orchestratorQueue, TaskContinuationOptions.ExecuteSynchronously);
+                    }
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"Exception on thread \"{Thread.CurrentThread.Name}\": {ex}");
                 }
+            }
+        }
+
+        private static void FinishSendQueue(Task<NetSendState>? task, object? state)
+        {
+            var queue = (NetPacketSendQueue)state!;
+            lock (queue.EngageMutex)
+            {
+                if (queue.SendQueue.IsEmpty)
+                    queue.IsEngaged = false;
+                else
+                    queue.Connection.Orchestrator.QueuesToFlush.Enqueue(queue);
             }
         }
 

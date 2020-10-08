@@ -73,7 +73,7 @@ namespace MCServerSharp.Net
             Orchestrator.EnqueuePacket(this, packet);
         }
 
-        public async Task<NetSendState> FlushSendBuffer()
+        public async ValueTask<NetSendState> FlushSendBuffer()
         {
             var sendBuffer = SendBuffer;
             int length = (int)sendBuffer.Length;
@@ -153,7 +153,6 @@ namespace MCServerSharp.Net
                     var packet = new ServerLoginDisconnect(reason.Value);
                     EnqueuePacket(packet);
                 }
-                Orchestrator.RequestFlush();
             }
 
             Close(immediate: false);

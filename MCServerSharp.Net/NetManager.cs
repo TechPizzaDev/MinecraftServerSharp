@@ -119,7 +119,7 @@ namespace MCServerSharp.Net
         }
 
         private void Listener_Connection(NetListener sender, NetConnection connection)
-        {   
+        {
             lock (ConnectionMutex)
             {
                 if (!_connections.Add(connection))
@@ -147,18 +147,20 @@ namespace MCServerSharp.Net
             }
         }
 
-        public int UpdateConnections(out int activeConnectionCount)
+        public void UpdateConnections(List<NetConnection> buffer, out int activeConnectionCount)
         {
-            var list = new List<NetConnection>(_connections.Count);
+            if (buffer == null)
+                throw new ArgumentNullException(nameof(buffer));
+
             lock (ConnectionMutex)
             {
-                list.AddRange(_connections);
+                buffer.AddRange(_connections);
             }
 
-            int activeCount = 0;
-            for (int i = 0; i < list.Count; i++)
+            activeConnectionCount = 0;
+            for (int i = 0; i < buffer.Count; i++)
             {
-                var connection = list[i];
+                var connection = buffer[i];
                 if (connection.ProtocolState == ProtocolState.Closing)
                 {
                     if (Orchestrator.PacketSendQueues.TryGetValue(connection, out var queue) &&
@@ -166,30 +168,19 @@ namespace MCServerSharp.Net
                     {
                         if (connection.SendBuffer.Length == 0 || !connection.Socket.Connected)
                             connection.Close(immediate: true);
-                        else
-                            Console.WriteLine("Delaying close");
                     }
                 }
                 else
                 {
-                    activeCount++;
+                    activeConnectionCount++;
                 }
             }
-
-            activeConnectionCount = activeCount;
-            return list.Count;
         }
 
-        public void TickAlive(long keepAliveId)
+        public void TickAlive(NetConnection connection, long keepAliveId)
         {
-            lock (ConnectionMutex)
-            {
-                foreach (NetConnection connection in Connections)
-                {
-                    if (connection.ProtocolState == ProtocolState.Play)
-                        connection.EnqueuePacket(new ServerKeepAlive(keepAliveId));
-                }
-            }
+            if (connection.ProtocolState == ProtocolState.Play)
+                connection.EnqueuePacket(new ServerKeepAlive(keepAliveId));
         }
     }
 }

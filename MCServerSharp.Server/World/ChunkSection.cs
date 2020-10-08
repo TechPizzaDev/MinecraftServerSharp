@@ -58,10 +58,6 @@ namespace MCServerSharp.World
         /// <remarks>
         /// Blocks and block states are stored in YZX order.
         /// </remarks>
-        /// <param name="x"></param>
-        /// <param name="y"></param>
-        /// <param name="z"></param>
-        /// <returns></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int GetBlockIndex(int x, int y, int z)
         {
