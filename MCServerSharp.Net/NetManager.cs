@@ -176,11 +176,5 @@ namespace MCServerSharp.Net
                 }
             }
         }
-
-        public void TickAlive(NetConnection connection, long keepAliveId)
-        {
-            if (connection.ProtocolState == ProtocolState.Play)
-                connection.EnqueuePacket(new ServerKeepAlive(keepAliveId));
-        }
     }
 }

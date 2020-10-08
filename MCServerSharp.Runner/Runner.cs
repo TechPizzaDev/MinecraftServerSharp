@@ -148,7 +148,7 @@ namespace MCServerSharp.Runner
                 _manager.UpdateConnections(_connectionsBuffer, out int activeCount);
 
                 foreach (var conn in _connectionsBuffer)
-                    _manager.TickAlive(conn, _tickCount);
+                    TickAlive(conn, _tickCount);
 
                 //if (updateCount > 0)
                 //    Console.WriteLine(activeCount + " connections");
@@ -176,6 +176,15 @@ namespace MCServerSharp.Runner
             }
 
             //world.Tick();
+        }
+
+        public static void TickAlive(NetConnection connection, long keepAliveId)
+        {
+            if (connection == null)
+                throw new ArgumentNullException(nameof(connection));
+
+            if (connection.ProtocolState == ProtocolState.Play)
+                connection.EnqueuePacket(new ServerKeepAlive(keepAliveId));
         }
 
         private static void SetPacketHandlers(NetManager manager)

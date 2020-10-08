@@ -183,7 +183,7 @@ namespace MCServerSharp.Net
                     IsBusy = true;
                     var connection = orchestratorQueue.Connection;
 
-                    while (orchestratorQueue.SendQueue.TryDequeue(out var packetHolder))
+                    while (orchestratorQueue.PacketQueue.TryDequeue(out var packetHolder))
                     {
                         Debug.Assert(
                             packetHolder.Connection != null,
@@ -203,7 +203,7 @@ namespace MCServerSharp.Net
                     var flushTask = connection.FlushSendBuffer();
                     if (flushTask.IsCompleted)
                     {
-                        FinishSendQueue(null, orchestratorQueue);
+                        FinishSendQueue(flushTask.Result, orchestratorQueue);
                     }
                     else
                     {
@@ -218,12 +218,17 @@ namespace MCServerSharp.Net
             }
         }
 
-        private static void FinishSendQueue(Task<NetSendState>? task, object? state)
+        private static void FinishSendQueue(Task<NetSendState> task, object? state)
         {
             var queue = (NetPacketSendQueue)state!;
+            FinishSendQueue(task.Result, queue);
+        }
+
+        private static void FinishSendQueue(NetSendState state, NetPacketSendQueue queue)
+        {
             lock (queue.EngageMutex)
             {
-                if (queue.SendQueue.IsEmpty)
+                if (queue.PacketQueue.IsEmpty)
                     queue.IsEngaged = false;
                 else
                     queue.Connection.Orchestrator.QueuesToFlush.Enqueue(queue);

@@ -116,7 +116,7 @@ namespace MCServerSharp.Net
                 queue = new NetPacketSendQueue(packetHolder.Connection);
                 PacketSendQueues.TryAdd(queue.Connection, queue);
             }
-            queue.SendQueue.Enqueue(packetHolder);
+            queue.PacketQueue.Enqueue(packetHolder);
 
             // We can safely return here without locking the queue.
             // Workers will requeue the queue for flushing if 
