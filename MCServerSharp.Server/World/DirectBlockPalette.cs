@@ -10,6 +10,8 @@ namespace MCServerSharp.World
 
         public int BitsPerBlock { get; } = 14;
 
+        public int Count => _idToState.Count;
+
         private uint GetGlobalPaletteIdFromState(BlockState state)
         {
             _stateToId.TryGetValue(state, out uint id);
@@ -21,7 +23,7 @@ namespace MCServerSharp.World
         private BlockState GetStateFromGlobalPaletteId(uint id)
         {
             _idToState.TryGetValue(id, out var state);
-            return state;
+            return state ?? BlockState.Empty;
 
             // Implementation left to the user; see Data Generators for more info on the values
             return BlockState.Empty;

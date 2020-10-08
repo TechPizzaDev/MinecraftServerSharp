@@ -5,6 +5,7 @@ namespace MCServerSharp.World
     public interface IBlockPalette
     {
         int BitsPerBlock { get; }
+        int Count { get; }
 
         uint IdForState(BlockState state);
         BlockState StateForId(uint id);
