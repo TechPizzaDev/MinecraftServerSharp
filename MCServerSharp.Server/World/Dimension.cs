@@ -49,7 +49,7 @@ namespace MCServerSharp.World
                     var palette = section.BlockPalette;
                     var state = palette.StateForId((uint)(i++));
 
-                    section.Fill(state);
+                    section.FillState(state);
 
                     i = (i + 1) % palette.Count;
                 }

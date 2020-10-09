@@ -287,9 +287,9 @@ namespace MCServerSharp.Runner
                 {
                     try
                     {
-                        for (int z = 0; z < 8; z++)
+                        for (int z = 0; z < 16; z++)
                         {
-                            for (int x = 0; x < 8; x++)
+                            for (int x = 0; x < 16; x++)
                             {
                                 if (connection.ProtocolState != ProtocolState.Play)
                                     goto End;
@@ -303,7 +303,7 @@ namespace MCServerSharp.Runner
                         End:
                         return;
                     }
-                    catch(Exception ex)
+                    catch (Exception ex)
                     {
                         Console.WriteLine(ex);
                     }

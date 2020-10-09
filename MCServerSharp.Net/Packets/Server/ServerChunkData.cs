@@ -123,7 +123,7 @@ namespace MCServerSharp.Net.Packets
             return length;
         }
 
-        // TODO: optimize
+        // TODO: optimize (vectorize?)
         public static void WriteChunkSection(NetBinaryWriter writer, ChunkSection section)
         {
             if (section == null)
@@ -142,29 +142,22 @@ namespace MCServerSharp.Net.Packets
             // A bitmask that contains bitsPerBlock set bits
             uint individualValueMask = (uint)((1 << bitsPerBlock) - 1);
 
-            // TODO: better allocation management, 8k on stack is not great
+            // TODO: better/smarter allocations management, 8k on stack is not great (should not be larger though)
             Span<ulong> data = dataLength <= 1024 ? stackalloc ulong[dataLength] : new ulong[dataLength];
 
-            int blockIndex = 0;
-            for (int y = 0; y < ChunkSection.Height; y++)
+            ReadOnlySpan<BlockState> blocks = section.Blocks.Span;
+
+            for (int i = 0; i < blocks.Length; i++)
             {
-                for (int z = 0; z < ChunkSection.Width; z++)
-                {
-                    for (int x = 0; x < ChunkSection.Width; x++, blockIndex++)
-                    {
-                        int startLong = blockIndex * bitsPerBlock / 64;
-                        int startOffset = blockIndex * bitsPerBlock % 64;
-                        int endLong = ((blockIndex + 1) * bitsPerBlock - 1) / 64;
+                int startLong = i * bitsPerBlock / 64;
+                int startOffset = i * bitsPerBlock % 64;
+                int endLong = ((i + 1) * bitsPerBlock - 1) / 64;
 
-                        BlockState state = section.GetBlockState(blockIndex);
-                        ulong value = palette.IdForState(state);
-                        value &= individualValueMask;
+                ulong value = palette.IdForState(blocks[i]) & individualValueMask;
 
-                        data[startLong] |= value << startOffset;
-                        if (startLong != endLong)
-                            data[endLong] = value >> (64 - startOffset);
-                    }
-                }
+                data[startLong] |= value << startOffset;
+                if (startLong != endLong)
+                    data[endLong] = value >> (64 - startOffset);
             }
 
             writer.WriteVar(dataLength);

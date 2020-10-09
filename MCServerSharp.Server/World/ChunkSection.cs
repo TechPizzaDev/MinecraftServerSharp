@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
 namespace MCServerSharp.World
@@ -9,7 +10,6 @@ namespace MCServerSharp.World
         public const int Height = 16;
         public const int BlockCount = Width * Width * Height;
 
-        private Block[] _blocks;
         private BlockState[] _blockStates;
 
         public Chunk Parent { get; }
@@ -25,16 +25,9 @@ namespace MCServerSharp.World
         /// <summary>
         /// </summary>
         /// <remarks>
-        /// Blocks are stored in YZX order.
-        /// </remarks>
-        public ReadOnlyMemory<Block> Blocks => _blocks;
-
-        /// <summary>
-        /// </summary>
-        /// <remarks>
         /// Block states are stored in YZX order.
         /// </remarks>
-        public ReadOnlyMemory<BlockState> BlockStates => _blockStates;
+        public ReadOnlyMemory<BlockState> Blocks => _blockStates;
 
         public ChunkSection(Chunk parent, int sectionY, IBlockPalette blockPalette)
         {
@@ -45,11 +38,9 @@ namespace MCServerSharp.World
             Parent = parent ?? throw new ArgumentNullException(nameof(parent));
             BlockPalette = blockPalette ?? throw new ArgumentNullException(nameof(blockPalette));
 
-            _blocks = new Block[BlockCount];
             _blockStates = new BlockState[BlockCount];
 
-            _blocks.AsSpan().Fill(new Block(0));
-            _blockStates.AsSpan().Fill(BlockState.Empty);
+            FillState(BlockState.Empty);
         }
 
         /// <summary>
@@ -61,47 +52,39 @@ namespace MCServerSharp.World
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int GetBlockIndex(int x, int y, int z)
         {
+            Debug.Assert((uint)x < 16);
+            Debug.Assert((uint)y < 16);
+            Debug.Assert((uint)z < 16);
             return x + Width * (y + Width * z);
         }
 
-        public BlockState GetBlockState(int index)
+        public BlockState GetBlock(int index)
         {
             return _blockStates[index];
         }
 
-        public BlockState GetBlockState(int x, int y, int z)
+        public BlockState GetBlock(int x, int y, int z)
         {
-            return GetBlockState(GetBlockIndex(x, y, z));
+            int blockIndex = GetBlockIndex(x, y, z);
+            return GetBlock(blockIndex);
         }
 
-        public Block GetBlock(int index)
+        public void SetBlock(BlockState block, int index)
         {
-            return _blocks[index];
+            _blockStates[index] = block ?? throw new ArgumentNullException(nameof(block));
         }
 
-        public Block GetBlock(int x, int y, int z)
+        public void SetBlock(BlockState block, int x, int y, int z)
         {
-            return GetBlock(GetBlockIndex(x, y, z));
+            int blockIndex = GetBlockIndex(x, y, z);
+            SetBlock(block, blockIndex);
         }
 
-        public void SetBlock(Block block, int index)
+        public void FillState(BlockState block)
         {
-            _blocks[index] = block;
-        }
-
-        public void SetBlock(Block block, int x, int y, int z)
-        {
-            SetBlock(block, GetBlockIndex(x, y, z));
-        }
-
-        public void Fill(Block block)
-        {
-            _blocks.AsSpan().Fill(block);
-        }
-        
-        public void Fill(BlockState blockState)
-        {
-            _blockStates.AsSpan().Fill(blockState);
+            if (block == null)
+                throw new ArgumentNullException(nameof(block));
+            _blockStates.AsSpan().Fill(block);
         }
 
         public int GetSkyLight(int x, int y, int z)
