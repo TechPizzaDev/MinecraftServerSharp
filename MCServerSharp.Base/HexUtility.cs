@@ -14,21 +14,19 @@ namespace MCServerSharp
 
         public static void ToHexString(ReadOnlySpan<byte> source, Span<char> destination)
         {
-            destination = destination.Slice(0, Math.Min(destination.Length, GetHexCharCount(source.Length)));
-            source = source.Slice(0, Math.Min(source.Length, destination.Length / 2));
+            destination = destination.Slice(0, GetHexCharCount(source.Length));
+            source = source.Slice(0, destination.Length / 2);
 
             if (source.IsEmpty || destination.IsEmpty)
                 return;
 
+            char format = 'x';
+            string hexValues = format == 'x' ? "0123456789abcdef" : "0123456789ABCDEF";
             for (int i = 0; i < destination.Length / 2; i++)
             {
-                int value = source[i];
-
-                int a = value >> 4;
-                destination[i * 2 + 0] = (char)(a > 9 ? a + 0x37 : a + 0x30);
-
-                int b = value & 0xF;
-                destination[i * 2 + 1] = (char)(b > 9 ? b + 0x37 : b + 0x30);
+                byte value = source[i];
+                destination[i * 2 + 0] = hexValues[value >> 4];
+                destination[i * 2 + 1] = hexValues[value & 0xF];
             }
         }
 
