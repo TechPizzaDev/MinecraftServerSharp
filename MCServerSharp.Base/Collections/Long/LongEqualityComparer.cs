@@ -24,7 +24,8 @@ namespace MCServerSharp.Collections
 
         private static ILongEqualityComparer<T> CreateComparer()
         {
-            if (typeof(T).GetGenericTypeDefinition() == typeof(Nullable<>))
+            if (typeof(T).IsGenericTypeDefinition &&
+                typeof(T).GetGenericTypeDefinition() == typeof(Nullable<>))
             {
                 Type underlyingType = Nullable.GetUnderlyingType(typeof(T))!;
                 Type comparerType = typeof(LongNullableComparer<>).MakeGenericType(underlyingType);

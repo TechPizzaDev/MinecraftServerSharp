@@ -150,20 +150,22 @@ namespace MCServerSharp.Collections
             Add(keyValuePair.Key, keyValuePair.Value);
         }
 
+
         public bool Contains(KeyValuePair<TKey, TValue> keyValuePair)
         {
             ref TValue value = ref FindValue(keyValuePair.Key);
+
             if (!UnsafeR.IsNullRef(ref value) &&
                 LongEqualityComparer<TValue>.Default.Equals(value, keyValuePair.Value))
-            {
                 return true;
-            }
+
             return false;
         }
 
         public bool Remove(KeyValuePair<TKey, TValue> keyValuePair)
         {
             ref TValue value = ref FindValue(keyValuePair.Key);
+
             if (!UnsafeR.IsNullRef(ref value) &&
                 LongEqualityComparer<TValue>.Default.Equals(value, keyValuePair.Value))
             {
@@ -206,24 +208,17 @@ namespace MCServerSharp.Collections
                         return true;
                 }
             }
-            else if (typeof(TValue).IsValueType)
-            {
-                var defaultComparer = LongEqualityComparer<TValue>.Default;
-                for (int i = 0; i < _count; i++)
-                {
-                    if (entries![i].Next >= -1 && defaultComparer.Equals(entries[i].Value, value))
-                        return true;
-                }
-            }
             else
             {
                 var defaultComparer = LongEqualityComparer<TValue>.Default;
                 for (int i = 0; i < _count; i++)
                 {
-                    if (entries![i].Next >= -1 && defaultComparer.Equals(entries[i].Value, value))
+                    if (entries![i].Next >= -1 &&
+                        defaultComparer.Equals(entries[i].Value, value))
                         return true;
                 }
             }
+
             return false;
         }
 
@@ -272,8 +267,7 @@ namespace MCServerSharp.Collections
             {
                 Debug.Assert(_entries != null, "expected entries to be != null");
                 ILongEqualityComparer<TKey> comparer = Comparer;
-
-                long hashCode = comparer.GetLongHashCode(key);
+                ulong hashCode = (ulong)comparer.GetLongHashCode(key);
                 int i = GetBucket(hashCode);
                 Entry[]? entries = _entries;
                 uint collisionCount = 0;
@@ -326,20 +320,26 @@ namespace MCServerSharp.Collections
 
             if (_buckets == null)
                 Initialize(0);
+
             Debug.Assert(_buckets != null);
 
             Entry[]? entries = _entries;
             Debug.Assert(entries != null, "expected entries to be non-null");
 
             ILongEqualityComparer<TKey> comparer = Comparer;
-            long hashCode = comparer.GetHashCode(key);
+            ulong hashCode = (ulong)comparer.GetLongHashCode(key);
 
             uint collisionCount = 0;
             ref int bucket = ref GetBucket(hashCode);
             int i = bucket - 1; // Value in _buckets is 1-based
 
-            while ((uint)i >= (uint)entries.Length)
+            while (true)
             {
+                // Should be a while loop https://github.com/dotnet/runtime/issues/9422
+                // Test uint in if rather than loop condition to drop range check for following array access
+                if ((uint)i >= (uint)entries.Length)
+                    break;
+
                 if (entries[i].HashCode == hashCode && comparer.Equals(entries[i].Key, key))
                 {
                     if (behavior == LongInsertionBehavior.OverwriteExisting)
@@ -433,7 +433,7 @@ namespace MCServerSharp.Collections
                 for (int i = 0; i < count; i++)
                 {
                     if (entries[i].Next >= -1)
-                        entries[i].HashCode = Comparer.GetLongHashCode(entries[i].Key);
+                        entries[i].HashCode = (ulong)Comparer.GetLongHashCode(entries[i].Key);
                 }
             }
 
@@ -454,8 +454,12 @@ namespace MCServerSharp.Collections
             _entries = entries;
         }
 
-        public bool Remove(TKey key, [MaybeNullWhen(false)] out TValue value)
+        public bool Remove(TKey key)
         {
+            // The overload Remove(TKey key, out TValue value) is a copy of this method with one additional
+            // statement to copy the value for entry being removed into the output parameter.
+            // Code has been intentionally duplicated for performance reasons.
+
             if (key == null)
                 throw new ArgumentNullException(nameof(key));
 
@@ -463,7 +467,8 @@ namespace MCServerSharp.Collections
             {
                 Debug.Assert(_entries != null, "entries should be non-null");
                 uint collisionCount = 0;
-                long hashCode = Comparer.GetLongHashCode(key);
+                ILongEqualityComparer<TKey> comparer = Comparer;
+                ulong hashCode = (ulong)comparer.GetLongHashCode(key);
                 ref int bucket = ref GetBucket(hashCode);
                 Entry[]? entries = _entries;
                 int last = -1;
@@ -472,7 +477,71 @@ namespace MCServerSharp.Collections
                 {
                     ref Entry entry = ref entries[i];
 
-                    if (entry.HashCode == hashCode && Comparer.Equals(entry.Key, key))
+                    if (entry.HashCode == hashCode && comparer.Equals(entry.Key, key))
+                    {
+                        if (last < 0)
+                            bucket = entry.Next + 1; // Value in buckets is 1-based
+                        else
+                            entries[last].Next = entry.Next;
+
+                        Debug.Assert(
+                            (StartOfFreeList - _freeList) < 0,
+                            "shouldn't underflow because max hashtable length is " +
+                            "MaxPrimeArrayLength = 0x7FEFFFFD(2146435069) " +
+                            "_freelist underflow threshold 2147483646");
+
+                        entry.Next = StartOfFreeList - _freeList;
+
+                        if (RuntimeHelpers.IsReferenceOrContainsReferences<TKey>())
+                            entry.Key = default!;
+
+                        if (RuntimeHelpers.IsReferenceOrContainsReferences<TValue>())
+                            entry.Value = default!;
+
+                        _freeList = i;
+                        _freeCount++;
+                        return true;
+                    }
+
+                    last = i;
+                    i = entry.Next;
+
+                    collisionCount++;
+                    if (collisionCount > (uint)entries.Length)
+                    {
+                        // The chain of entries forms a loop; which means a concurrent update has happened.
+                        // Break out of the loop and throw, rather than looping forever.
+                        throw CollectionExceptions.InvalidOperation_ConcurrentOperations();
+                    }
+                }
+            }
+            return false;
+        }
+
+        public bool Remove(TKey key, [MaybeNullWhen(false)] out TValue value)
+        {
+            // This overload is a copy of the overload Remove(TKey key) with one additional
+            // statement to copy the value for entry being removed into the output parameter.
+            // Code has been intentionally duplicated for performance reasons.
+
+            if (key == null)
+                throw new ArgumentNullException(nameof(key));
+
+            if (_buckets != null)
+            {
+                Debug.Assert(_entries != null, "entries should be non-null");
+                uint collisionCount = 0;
+                ILongEqualityComparer<TKey> comparer = Comparer;
+                ulong hashCode = (ulong)comparer.GetLongHashCode(key);
+                ref int bucket = ref GetBucket(hashCode);
+                Entry[]? entries = _entries;
+                int last = -1;
+                int i = bucket - 1; // Value in buckets is 1-based
+                while (i >= 0)
+                {
+                    ref Entry entry = ref entries[i];
+
+                    if (entry.HashCode == hashCode && comparer.Equals(entry.Key, key))
                     {
                         if (last < 0)
                             bucket = entry.Next + 1; // Value in buckets is 1-based
@@ -484,7 +553,8 @@ namespace MCServerSharp.Collections
                         Debug.Assert(
                             (StartOfFreeList - _freeList) < 0,
                             "shouldn't underflow because max hashtable length is " +
-                            "MaxPrimeArrayLength = 0x7FEFFFFD(2146435069) _freelist underflow threshold 2147483646");
+                            "MaxPrimeArrayLength = 0x7FEFFFFD(2146435069) " +
+                            "_freelist underflow threshold 2147483646");
 
                         entry.Next = StartOfFreeList - _freeList;
 
@@ -514,11 +584,6 @@ namespace MCServerSharp.Collections
 
             value = default;
             return false;
-        }
-
-        public bool Remove(TKey key)
-        {
-            return Remove(key, out _);
         }
 
         public bool TryGetValue(TKey key, [MaybeNullWhen(false)] out TValue value)
@@ -657,7 +722,7 @@ namespace MCServerSharp.Collections
                     ref Entry entry = ref entries![count];
                     entry = oldEntries[i];
 
-                    long hashCode = oldEntries![i].HashCode;
+                    ulong hashCode = oldEntries![i].HashCode;
                     ref int bucket = ref GetBucket(hashCode);
                     entry.Next = bucket - 1; // Value in _buckets is 1-based
                     bucket = count + 1;
@@ -670,15 +735,15 @@ namespace MCServerSharp.Collections
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private ref int GetBucket(long hashCode)
+        private ref int GetBucket(ulong hashCode)
         {
             int[] buckets = _buckets!;
-            return ref buckets[hashCode % buckets.LongLength];
+            return ref buckets[hashCode % (ulong)buckets.LongLength];
         }
 
         private struct Entry
         {
-            public long HashCode;
+            public ulong HashCode;
 
             /// <summary>
             /// 0-based index of next entry in chain: -1 means end of chain
@@ -686,7 +751,6 @@ namespace MCServerSharp.Collections
             /// so -2 means end of free list, -3 means index 0 but on free list, -4 means index 1 but on free list, etc.
             /// </summary>
             public int Next;
-
             public TKey Key;
             public TValue Value;
         }

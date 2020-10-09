@@ -16,7 +16,7 @@ using MCServerSharp.World;
 
 namespace MCServerSharp.Runner
 {
-    internal class Runner
+    internal static class Runner
     {
         // TODO: move these to a Game class
         public const string PongResource = "Minecraft/Net/Pong.json";
@@ -24,6 +24,10 @@ namespace MCServerSharp.Runner
         private static long _tickCount;
         private static NetManager _manager;
         private static string? _requestPongBase;
+
+        private static Dimension _dimension = new Dimension();
+
+        private static List<NetConnection> _connectionsBuffer = new List<NetConnection>();
 
         private static void Main(string[] args)
         {
@@ -137,8 +141,6 @@ namespace MCServerSharp.Runner
             return;
         }
 
-        private static List<NetConnection> _connectionsBuffer = new List<NetConnection>();
-
         private static void Game_Tick(Ticker ticker)
         {
             _tickCount++;
@@ -168,14 +170,14 @@ namespace MCServerSharp.Runner
 
                 Console.WriteLine(
                     "Tick Time: " +
-                    ticker.ElapsedTime.TotalMilliseconds.ToString("00.00") +
+                    ticker.ElapsedTime.TotalMilliseconds.ToString("00.0") +
                     "/" +
                     ticker.TargetTime.TotalMilliseconds.ToString("00") + " ms" +
                     " | " +
-                    (ticker.ElapsedTime.Ticks / (float)ticker.TargetTime.Ticks * 100f).ToString("00.0") + "%");
+                    (ticker.ElapsedTime.Ticks / (float)ticker.TargetTime.Ticks * 100f).ToString("00") + "%");
             }
 
-            //world.Tick();
+            _dimension.Tick();
         }
 
         public static void TickAlive(NetConnection connection, long keepAliveId)
@@ -271,50 +273,41 @@ namespace MCServerSharp.Runner
                     (Utf8String)"MinecraftServerSharp"));
 
                 connection.EnqueuePacket(new ServerSpawnPosition(
-                    new Position(0, 128, 0)));
+                    new Position(64, 260, 64)));
 
                 connection.EnqueuePacket(new ServerPlayerPositionLook(
-                    0, 128, 0, 0, 0, ServerPlayerPositionLook.PositionRelatives.None, 1337));
+                    64, 260, 64, 0, 0, ServerPlayerPositionLook.PositionRelatives.None, 1337));
 
                 connection.EnqueuePacket(new ServerPlayerAbilities(
                     ServerAbilityFlags.AllowFlying | ServerAbilityFlags.Flying,
-                    0.15f,
+                    0.2f,
                     0.1f));
 
-                var palette = new DirectBlockPalette();
-                uint num = 100;
-                for (uint j = 0; j < num; j++)
+                System.Threading.Tasks.Task.Run(() =>
                 {
-                    //if (j == 6)
-                    //    continue;
-
-                    var state = new BlockState();
-                    palette._stateToId.Add(state, j);
-                    palette._idToState.Add(j, state);
-                }
-
-                uint i = 0;
-                var dimension = new Dimension();
-                for (int z = 0; z < 8; z++)
-                {
-                    for (int x = 0; x < 8; x++)
+                    try
                     {
-                        var chunk = new Chunk(x, z, dimension, palette);
-
-                        foreach (var section in chunk.Sections.Span)
+                        for (int z = 0; z < 8; z++)
                         {
-                            if (palette._idToState.ContainsKey(i))
+                            for (int x = 0; x < 8; x++)
                             {
-                                section.Fill(palette._idToState[i]);
+                                if (connection.ProtocolState != ProtocolState.Play)
+                                    goto End;
 
-                                i = (i + 1) % num;
+                                var chunk = _dimension.GetChunk(x, z);
+                                var chunkData = new ServerChunkData(chunk, fullChunk: true);
+                                connection.EnqueuePacket(chunkData);
                             }
                         }
 
-                        var chunkData = new ServerChunkData(chunk, fullChunk: true);
-                        connection.EnqueuePacket(chunkData);
+                        End:
+                        return;
                     }
-                }
+                    catch(Exception ex)
+                    {
+                        Console.WriteLine(ex);
+                    }
+                });
             });
 
 

@@ -183,32 +183,37 @@ namespace MCServerSharp.Net
                     IsBusy = true;
                     var connection = orchestratorQueue.Connection;
 
-                    while (orchestratorQueue.PacketQueue.TryDequeue(out var packetHolder))
+                    try
                     {
-                        Debug.Assert(
-                            packetHolder.Connection != null,
-                            "Packet holder has no attached connection.");
-
-                        if (packetHolder.Connection.ProtocolState != ProtocolState.Disconnected)
+                        while (orchestratorQueue.PacketQueue.TryDequeue(out var packetHolder))
                         {
-                            var writePacketDelegate = GetWritePacketDelegate(packetHolder.PacketType);
+                            Debug.Assert(
+                                packetHolder.Connection != null,
+                                "Packet holder has no attached connection.");
 
-                            var writeResult = writePacketDelegate.Invoke(
-                                packetHolder, _packetWriteBuffer, _packetCompressionBuffer);
+                            if (packetHolder.Connection.ProtocolState != ProtocolState.Disconnected)
+                            {
+                                var writePacketDelegate = GetWritePacketDelegate(packetHolder.PacketType);
+
+                                var writeResult = writePacketDelegate.Invoke(
+                                    packetHolder, _packetWriteBuffer, _packetCompressionBuffer);
+                            }
+
+                            Orchestrator.ReturnPacketHolder(packetHolder);
                         }
-
-                        Orchestrator.ReturnPacketHolder(packetHolder);
                     }
-
-                    var flushTask = connection.FlushSendBuffer();
-                    if (flushTask.IsCompleted)
+                    finally
                     {
-                        FinishSendQueue(flushTask.Result, orchestratorQueue);
-                    }
-                    else
-                    {
-                        flushTask.AsTask().ContinueWith(
-                            FinishSendQueueAction, orchestratorQueue, TaskContinuationOptions.ExecuteSynchronously);
+                        var flushTask = connection.FlushSendBuffer();
+                        if (flushTask.IsCompleted)
+                        {
+                            FinishSendQueue(flushTask.Result, orchestratorQueue);
+                        }
+                        else
+                        {
+                            flushTask.AsTask().ContinueWith(
+                                FinishSendQueueAction, orchestratorQueue, TaskContinuationOptions.ExecuteSynchronously);
+                        }
                     }
                 }
                 catch (Exception ex)
