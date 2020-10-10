@@ -4,10 +4,12 @@ using System.Diagnostics;
 
 namespace MCServerSharp
 {
-    public readonly struct Identifier
+    public readonly struct Identifier :
+        IEquatable<Identifier>, IComparable<Identifier>,
+        IEquatable<string>, IComparable<string>
     {
-        private static HashSet<char> _validLocationCharacters = new HashSet<char>(ValidLocationCharacters.ToArray());
-        private static HashSet<char> _validNamespaceCharacters = new HashSet<char>(ValidNamespaceCharacters.ToArray());
+        private static HashSet<char> _validLocationCharacters;
+        private static HashSet<char> _validNamespaceCharacters;
 
         public static ReadOnlyMemory<char> ValidLocationCharacters { get; } = new char[]
         {
@@ -27,14 +29,22 @@ namespace MCServerSharp
         public string Namespace { get; }
         public string Location { get; }
 
+        public bool IsValid => Value != null;
+
         #region Constructors
+
+        static Identifier()
+        {
+            _validLocationCharacters = new HashSet<char>(ValidLocationCharacters.ToArray());
+            _validNamespaceCharacters = new HashSet<char>(ValidNamespaceCharacters.ToArray());
+        }
 
         public Identifier(string value)
         {
             Value = value ?? throw new ArgumentNullException(nameof(value));
 
             string[] parts = Value.Split(Separator, StringSplitOptions.None);
-            if (parts.Length != 0)
+            if (parts.Length != 2)
                 throw new ArgumentException(
                     "Could not separate identifier into a namespace and location.", nameof(value));
 
@@ -54,6 +64,26 @@ namespace MCServerSharp
         }
 
         #endregion
+        
+        public bool Equals(Identifier other)
+        {
+            return Equals(other.Value);
+        }
+
+        public bool Equals(string? other)
+        {
+            return Value.Equals(other, StringComparison.Ordinal);
+        }
+
+        public int CompareTo(Identifier other)
+        {
+            return CompareTo(other.Value);
+        }
+
+        public int CompareTo(string? other)
+        {
+            return string.CompareOrdinal(Value, other);
+        }
 
         [DebuggerHidden]
         private static void ValidateParts(string @namespace, string location)
@@ -86,6 +116,11 @@ namespace MCServerSharp
                     return false;
             }
             return true;
+        }
+
+        public override string ToString()
+        {
+            return Value;
         }
     }
 }
