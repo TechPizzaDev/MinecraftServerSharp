@@ -10,7 +10,7 @@ namespace MCServerSharp.World
         public const int Height = 16;
         public const int BlockCount = Width * Width * Height;
 
-        private BlockState[] _blockStates;
+        private BlockState[] _blocks;
 
         public Chunk Parent { get; }
         public int SectionY { get; }
@@ -25,9 +25,9 @@ namespace MCServerSharp.World
         /// <summary>
         /// </summary>
         /// <remarks>
-        /// Block states are stored in YZX order.
+        /// Blocks are stored in YZX order.
         /// </remarks>
-        public ReadOnlyMemory<BlockState> Blocks => _blockStates;
+        public ReadOnlyMemory<BlockState> Blocks => _blocks;
 
         public ChunkSection(Chunk parent, int sectionY, IBlockPalette blockPalette)
         {
@@ -38,9 +38,9 @@ namespace MCServerSharp.World
             Parent = parent ?? throw new ArgumentNullException(nameof(parent));
             BlockPalette = blockPalette ?? throw new ArgumentNullException(nameof(blockPalette));
 
-            _blockStates = new BlockState[BlockCount];
+            _blocks = new BlockState[BlockCount];
 
-            FillState(BlockState.Empty);
+            FillState(BlockState.Air);
         }
 
         /// <summary>
@@ -60,7 +60,7 @@ namespace MCServerSharp.World
 
         public BlockState GetBlock(int index)
         {
-            return _blockStates[index];
+            return _blocks[index];
         }
 
         public BlockState GetBlock(int x, int y, int z)
@@ -71,7 +71,7 @@ namespace MCServerSharp.World
 
         public void SetBlock(BlockState block, int index)
         {
-            _blockStates[index] = block ?? throw new ArgumentNullException(nameof(block));
+            _blocks[index] = block ?? throw new ArgumentNullException(nameof(block));
         }
 
         public void SetBlock(BlockState block, int x, int y, int z)
@@ -84,7 +84,7 @@ namespace MCServerSharp.World
         {
             if (block == null)
                 throw new ArgumentNullException(nameof(block));
-            _blockStates.AsSpan().Fill(block);
+            _blocks.AsSpan().Fill(block);
         }
 
         public int GetSkyLight(int x, int y, int z)

@@ -270,7 +270,7 @@ namespace MCServerSharp.Runner
 
                 connection.EnqueuePacket(new ServerPluginMessage(
                     (Utf8String)"minecraft:brand",
-                    (Utf8String)"MinecraftServerSharp"));
+                    (Utf8String)"MCServerSharp"));
 
                 connection.EnqueuePacket(new ServerSpawnPosition(
                     new Position(64, 260, 64)));
@@ -287,9 +287,9 @@ namespace MCServerSharp.Runner
                 {
                     try
                     {
-                        for (int z = 0; z < 16; z++)
+                        for (int z = 0; z < 64; z++)
                         {
-                            for (int x = 0; x < 16; x++)
+                            for (int x = 0; x < 64; x++)
                             {
                                 if (connection.ProtocolState != ProtocolState.Play)
                                     goto End;
@@ -367,7 +367,7 @@ namespace MCServerSharp.Runner
                     connection.EnqueuePacket(new ServerWindowProperty(windowID, 3, 100));
 
                     float x = 0;
-                    while (x < 20)
+                    while (x < 40)
                     {
                         short value = (short)((Math.Sin(x) + 1) * 50);
                         connection.EnqueuePacket(new ServerWindowProperty(windowID, 2, value));

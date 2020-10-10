@@ -262,7 +262,6 @@ namespace MCServerSharp.Collections
             if (key == null)
                 throw new ArgumentNullException(nameof(key));
 
-            ref Entry entry = ref UnsafeR.NullRef<Entry>();
             if (_buckets != null)
             {
                 Debug.Assert(_entries != null, "expected entries to be != null");
@@ -280,14 +279,15 @@ namespace MCServerSharp.Collections
                     if ((uint)i >= (uint)entries.Length)
                         return ref UnsafeR.NullRef<TValue>();
 
-                    entry = ref entries[i];
+                    ref Entry entry = ref entries[i];
                     if (entry.HashCode == hashCode && comparer.Equals(entry.Key, key))
                         return ref entry.Value;
 
                     i = entry.Next;
 
                     collisionCount++;
-                } while (collisionCount <= (uint)entries.Length);
+                }
+                while (collisionCount <= (uint)entries.Length);
 
                 // The chain of entries forms a loop; which means a concurrent update has happened.
                 // Break out of the loop and throw, rather than looping forever.

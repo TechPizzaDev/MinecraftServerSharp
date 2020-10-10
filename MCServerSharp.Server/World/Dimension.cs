@@ -6,7 +6,7 @@ namespace MCServerSharp.World
     {
         private LongDictionary<long, Chunk> _chunks;
         private DirectBlockPalette _directPalette;
-        private int i = 0;
+        private int i;
 
         public bool HasSkylight => true;
 
@@ -16,14 +16,14 @@ namespace MCServerSharp.World
 
             _directPalette = new DirectBlockPalette();
             uint num = 100;
+            _directPalette._states = new BlockState[num];
             for (uint j = 0; j < num; j++)
             {
                 //if (j == 6)
                 //    continue;
 
-                var state = new BlockState();
-                _directPalette._stateToId.Add(state, j);
-                _directPalette._idToState.Add(j, state);
+                var state = new BlockState(j);
+                _directPalette._states[j] = state;
             }
         }
 

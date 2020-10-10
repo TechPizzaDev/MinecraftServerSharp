@@ -3,30 +3,28 @@ using MCServerSharp.Data.IO;
 
 namespace MCServerSharp.World
 {
+    // TODO:
     public class DirectBlockPalette : IBlockPalette
     {
-        public Dictionary<BlockState, uint> _stateToId = new Dictionary<BlockState, uint>();
-        public Dictionary<uint, BlockState> _idToState = new Dictionary<uint, BlockState>();
-
+        public BlockState[] _states;
+        
         public int BitsPerBlock { get; } = 14;
 
-        public int Count => _idToState.Count;
+        public int Count => _states.Length;
 
         private uint GetGlobalPaletteIdFromState(BlockState state)
         {
-            _stateToId.TryGetValue(state, out uint id);
-            return id;
+            return state.Id;
 
             // Implementation left to the user; see Data Generators for more info on the values
         }
 
         private BlockState GetStateFromGlobalPaletteId(uint id)
         {
-            _idToState.TryGetValue(id, out var state);
-            return state ?? BlockState.Empty;
+            return _states[id] ?? BlockState.Air;
 
             // Implementation left to the user; see Data Generators for more info on the values
-            return BlockState.Empty;
+            return BlockState.Air;
         }
 
         public uint IdForState(BlockState state)
