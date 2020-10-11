@@ -122,5 +122,10 @@ namespace MCServerSharp
         {
             return Value;
         }
+
+        public static implicit operator Identifier(string value)
+        {
+            return new Identifier(value);
+        }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using System;
+using MCServerSharp.Blocks;
 using MCServerSharp.Data.IO;
 using MCServerSharp.NBT;
 using MCServerSharp.World;
@@ -153,7 +154,7 @@ namespace MCServerSharp.Net.Packets
                 int startOffset = i * bitsPerBlock % 64;
                 int endLong = ((i + 1) * bitsPerBlock - 1) / 64;
 
-                ulong value = palette.IdForState(blocks[i]) & individualValueMask;
+                ulong value = palette.IdForBlock(blocks[i]) & individualValueMask;
 
                 data[startLong] |= value << startOffset;
                 if (startLong != endLong)

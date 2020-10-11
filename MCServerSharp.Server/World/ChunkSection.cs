@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using MCServerSharp.Blocks;
 
 namespace MCServerSharp.World
 {
@@ -14,6 +15,8 @@ namespace MCServerSharp.World
 
         public Chunk Parent { get; }
         public int SectionY { get; }
+
+        // TODO: add dynamic palette that gets trimmed on serialize?
         public IBlockPalette BlockPalette { get; }
 
         public int X => Parent.X;
@@ -39,8 +42,6 @@ namespace MCServerSharp.World
             BlockPalette = blockPalette ?? throw new ArgumentNullException(nameof(blockPalette));
 
             _blocks = new BlockState[BlockCount];
-
-            FillState(BlockState.Air);
         }
 
         /// <summary>
@@ -80,7 +81,7 @@ namespace MCServerSharp.World
             SetBlock(block, blockIndex);
         }
 
-        public void FillState(BlockState block)
+        public void FillBlock(BlockState block)
         {
             if (block == null)
                 throw new ArgumentNullException(nameof(block));

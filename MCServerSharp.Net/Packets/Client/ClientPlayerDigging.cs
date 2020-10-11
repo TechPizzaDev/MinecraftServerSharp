@@ -7,14 +7,14 @@ namespace MCServerSharp.Net.Packets
     {
         public DiggingStatus Status { get; }
         public Position Location { get; }
-        public BlockFace Face { get; }
+        public FaceDirection Face { get; }
 
         [PacketConstructor]
         public ClientPlayerDigging(VarInt status, Position location, byte face)
         {
             Status = status.AsEnum<DiggingStatus>();
             Location = location;
-            Face = (BlockFace)face;
+            Face = (FaceDirection)face;
         }
     }
 }

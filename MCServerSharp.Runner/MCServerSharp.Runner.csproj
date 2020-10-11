@@ -6,13 +6,13 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
-
-  <ItemGroup>
-    <None Remove="Templates\pingConfig.json" />
-  </ItemGroup>
-
+  
   <ItemGroup>
     <EmbeddedResource Include="Templates\**" />
+    
+    <None Update="GameData\reports\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
   <ItemGroup>

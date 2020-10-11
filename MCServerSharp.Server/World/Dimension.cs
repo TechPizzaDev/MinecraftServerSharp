@@ -1,30 +1,22 @@
-﻿using MCServerSharp.Collections;
+﻿using MCServerSharp.Blocks;
+using MCServerSharp.Collections;
 
 namespace MCServerSharp.World
 {
     public class Dimension : ITickable
     {
+        private DirectBlockPalette _directBlockPalette;
+
         private LongDictionary<long, Chunk> _chunks;
-        private DirectBlockPalette _directPalette;
         private int i;
 
         public bool HasSkylight => true;
 
-        public Dimension()
+        public Dimension(DirectBlockPalette directBlockPalette)
         {
+            _directBlockPalette = directBlockPalette ?? throw new System.ArgumentNullException(nameof(directBlockPalette));
+
             _chunks = new LongDictionary<long, Chunk>();
-
-            _directPalette = new DirectBlockPalette();
-            uint num = 100;
-            _directPalette._states = new BlockState[num];
-            for (uint j = 0; j < num; j++)
-            {
-                //if (j == 6)
-                //    continue;
-
-                var state = new BlockState(j);
-                _directPalette._states[j] = state;
-            }
         }
 
         public void Tick()
@@ -42,14 +34,14 @@ namespace MCServerSharp.World
             long key = GetChunkKey(x, z);
             if (!_chunks.TryGetValue(key, out var chunk))
             {
-                chunk = new Chunk(x, z, this, _directPalette);
+                chunk = new Chunk(x, z, this, _directBlockPalette);
 
                 foreach (var section in chunk.Sections.Span)
                 {
                     var palette = section.BlockPalette;
-                    var state = palette.StateForId((uint)(i++));
+                    var state = palette.BlockForId((uint)(i++));
 
-                    section.FillState(state);
+                    section.FillBlock(state);
 
                     i = (i + 1) % palette.Count;
                 }

@@ -7,7 +7,7 @@ namespace MCServerSharp.Net.Packets
     {
         public HandId Hand { get; }
         public Position Location { get; }
-        public BlockFace Face { get; }
+        public FaceDirection Face { get; }
         public float CursorPositionX { get; }
         public float CursorPositionY { get; }
         public float CursorPositionZ { get; }
@@ -25,7 +25,7 @@ namespace MCServerSharp.Net.Packets
         {
             Hand = hand.AsEnum<HandId>();
             Location = location;
-            Face = face.AsEnum<BlockFace>();
+            Face = face.AsEnum<FaceDirection>();
             CursorPositionX = cursorPositionX;
             CursorPositionY = cursorPositionY;
             CursorPositionZ = cursorPositionZ;

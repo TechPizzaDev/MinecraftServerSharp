@@ -1,16 +1,16 @@
-﻿using MCServerSharp.Data.IO;
+﻿using System.Buffers;
+using MCServerSharp.Data.IO;
 
-namespace MCServerSharp.World
+namespace MCServerSharp.Blocks
 {
     public interface IBlockPalette
     {
         int BitsPerBlock { get; }
         int Count { get; }
 
-        uint IdForState(BlockState state);
-        BlockState StateForId(uint id);
+        uint IdForBlock(BlockState state);
+        BlockState BlockForId(uint id);
 
-        void Read(NetBinaryReader reader);
         void Write(NetBinaryWriter writer);
         int GetEncodedSize();
     }

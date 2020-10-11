@@ -1,14 +1,17 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
-using System.Data.Common;
 using System.Globalization;
+using System.IO;
+using System.Linq;
 using System.Net;
 using System.Reflection;
-using System.Runtime.CompilerServices;
-using System.Security.Cryptography.X509Certificates;
+using System.Runtime;
 using System.Text.Json;
 using System.Threading;
+using MCServerSharp.Blocks;
 using MCServerSharp.Data;
+using MCServerSharp.Enums;
 using MCServerSharp.Net;
 using MCServerSharp.Net.Packets;
 using MCServerSharp.Utility;
@@ -25,9 +28,42 @@ namespace MCServerSharp.Runner
         private static NetManager _manager;
         private static string? _requestPongBase;
 
-        private static Dimension _dimension = new Dimension();
+        private static Dictionary<Identifier, BlockDescription> _blockLookup;
+        private static Dictionary<uint, BlockState> _stateLookup;
+        private static BlockState[] _blockStates;
+        private static DirectBlockPalette _directBlockPalette;
+
+        private static Dimension _dimension;
 
         private static List<NetConnection> _connectionsBuffer = new List<NetConnection>();
+
+        private static (Type, HashSet<string>)[] _stateEnumSets = new (Type, HashSet<string>)[]
+        {
+            GetEnumSet<Axis>(),
+            GetEnumSet<HorizontalAxis>(),
+            GetEnumSet<FacingDirection>(),
+            GetEnumSet<FaceDirection>(),
+            GetEnumSet<NoteInstrument>(),
+            GetEnumSet<BedPartType>(),
+            GetEnumSet<RailShape>(),
+            GetEnumSet<RestrictedRailShape>(),
+            GetEnumSet<TallGrassHalf>(),
+            GetEnumSet<TallGrassType>(),
+            GetEnumSet<DoubleFlowerType>(),
+            GetEnumSet<PistonType>(),
+            GetEnumSet<SlabType>(),
+            GetEnumSet<StairHalf>(),
+            GetEnumSet<StairShape>(),
+            GetEnumSet<FaceType>(),
+            GetEnumSet<SpecificFaceType>(),
+            GetEnumSet<ChestType>(),
+            GetEnumSet<DustConnection>(),
+            GetEnumSet<Side>(),
+            GetEnumSet<ComparatorMode>(),
+            GetEnumSet<DownFaceDirection>(),
+            GetEnumSet<BambooLeavesType>(),
+            GetEnumSet<StructureBlockMode>(),
+        };
 
         private static void Main(string[] args)
         {
@@ -107,12 +143,15 @@ namespace MCServerSharp.Runner
                 new AssemblyResourceProvider(
                     Assembly.GetExecutingAssembly(), "MCServerSharp.Runner.Templates.Config"));
 
+            LoadGameData();
+
+            _directBlockPalette = new DirectBlockPalette(_blockStates);
+            _dimension = new Dimension(_directBlockPalette);
+
             using var pong = configProvider.OpenResourceReader(PongResource);
             if (pong == null)
                 throw new KeyNotFoundException(PongResource);
             _requestPongBase = pong.ReadToEnd();
-
-            var ticker = new Ticker(targetTickTime: TimeSpan.FromMilliseconds(50));
 
             _manager = new NetManager();
             _manager.Listener.Connection += Manager_Connection;
@@ -133,12 +172,178 @@ namespace MCServerSharp.Runner
             _manager.Listen(backlog);
             Console.WriteLine("Listening for connections...");
 
+            var ticker = new Ticker(targetTickTime: TimeSpan.FromMilliseconds(50));
             ticker.Tick += Game_Tick;
-
             ticker.Run();
 
             Console.ReadKey();
-            return;
+        }
+
+        private static void LoadGameData()
+        {
+            // TODO: create data generator tool (that runs before project build?) 
+            // TODO: NET5 source generator for trivial access to blocks
+
+            {
+                Console.WriteLine("Loading blocks...");
+                _blockLookup = LoadBlocks();
+                _stateLookup = new Dictionary<uint, BlockState>();
+                int stateCount = 0;
+                uint maxStateId = 0;
+                foreach (var block in _blockLookup.Values)
+                {
+                    stateCount += block.StateCount;
+                    foreach (var state in block.GetStateSpan())
+                    {
+                        _stateLookup.Add(state.Id, state);
+                        maxStateId = Math.Max(maxStateId, state.Id);
+                    }
+                }
+                Console.WriteLine($"Loaded {_blockLookup.Count} blocks, {stateCount} states");
+
+                _blockStates = new BlockState[maxStateId + 1];
+                for (uint stateId = 0; stateId < _blockStates.Length; stateId++)
+                {
+                    if (!_stateLookup.TryGetValue(stateId, out var state))
+                        throw new Exception("Missing state for Id " + stateId);
+                    _blockStates[stateId] = state;
+                }
+            }
+        }
+
+        static (Type, HashSet<string>) GetEnumSet<TEnum>()
+            where TEnum : struct, Enum
+        {
+            return (
+                typeof(EnumStateProperty<TEnum>),
+                new HashSet<string>(typeof(TEnum).GetEnumNames(), StringComparer.OrdinalIgnoreCase)
+                );
+        }
+
+        private static IStateProperty ParseStateProperty(string name, string[] values)
+        {
+            if (values.Length == 0)
+                throw new ArgumentException("The enumerable may not be empty.", nameof(values));
+
+            if (values.Length == 2)
+                if (values.Contains("true") && values.Contains("false"))
+                    return new BooleanStateProperty(name);
+
+            bool intProperty = true;
+            int min = int.MaxValue;
+            int max = int.MinValue;
+            foreach (string value in values)
+            {
+                if (!int.TryParse(value, out int intValue))
+                {
+                    intProperty = false;
+                    break;
+                }
+                min = Math.Min(min, intValue);
+                max = Math.Max(max, intValue);
+            }
+            if (intProperty)
+                return new IntegerStateProperty(name, min, max);
+
+            foreach (var (propertyType, enumValues) in _stateEnumSets)
+            {
+                if (enumValues.SetEquals(values))
+                {
+                    var enumProperty = Activator.CreateInstance(propertyType, name);
+                    if (enumProperty == null)
+                        throw new Exception("Failed to create enum property.");
+                    return (IStateProperty)enumProperty;
+                }
+            }
+
+            throw new Exception($"Missing enum for values \"{name}\": {{{values.ToListString()}}}");
+        }
+
+        private static Dictionary<Identifier, BlockDescription> LoadBlocks()
+        {
+            JsonDocument blocksDocument;
+            using (var blocksFile = File.OpenRead("GameData/reports/blocks.json"))
+                blocksDocument = JsonDocument.Parse(blocksFile);
+
+            using (blocksDocument)
+            {
+                var blocksDictionary = new Dictionary<Identifier, BlockDescription>();
+                var blockStatePropertyBuilder = new List<IStateProperty>();
+
+                uint blockId = 0;
+                foreach (var blockProperty in blocksDocument.RootElement.EnumerateObject())
+                {
+                    var blockName = new Identifier(blockProperty.Name);
+                    var blockObject = blockProperty.Value;
+
+                    var stateArray = blockObject.GetProperty("states");
+                    int stateCount = stateArray.GetArrayLength();
+                    int? defaultStateIndex = null;
+                    for (int i = 0; i < stateCount; i++)
+                    {
+                        if (stateArray[i].TryGetProperty("default", out var defaultElement) &&
+                            defaultElement.GetBoolean())
+                        {
+                            defaultStateIndex = i;
+                            break;
+                        }
+                    }
+                    if (defaultStateIndex == null)
+                        Console.WriteLine(blockName + " is missing default state"); // TODO: print warning
+
+                    static string GetEnumString(JsonElement element)
+                    {
+                        // TODO: improve by converting to snake_case to PascalCase
+                        return element.GetString().Replace("_", "", StringComparison.Ordinal);
+                    }
+
+                    var blockProperties = Array.Empty<IStateProperty>();
+                    if (blockObject.TryGetProperty("properties", out var blockPropertiesObject))
+                    {
+                        blockStatePropertyBuilder.Clear();
+                        foreach (var blockPropertyProperty in blockPropertiesObject.EnumerateObject())
+                        {
+                            string[] stringValues = blockPropertyProperty.Value.EnumerateArray()
+                                .Select(x => GetEnumString(x))
+                                .ToArray();
+
+                            blockStatePropertyBuilder.Add(
+                                ParseStateProperty(blockPropertyProperty.Name, stringValues));
+                        }
+                        blockProperties = blockStatePropertyBuilder.ToArray();
+                    }
+
+                    var blockStates = new BlockState[stateCount];
+                    var block = new BlockDescription(
+                        blockStates, blockProperties,
+                        blockName, blockId, defaultStateIndex.GetValueOrDefault());
+
+                    for (int i = 0; i < blockStates.Length; i++)
+                    {
+                        var stateObject = stateArray[i];
+                        var idProperty = stateObject.GetProperty("id");
+                        var propertyValues = Array.Empty<StatePropertyValue>();
+
+                        if (blockProperties.Length != 0)
+                        {
+                            propertyValues = new StatePropertyValue[blockProperties.Length];
+                            var statePropertiesObject = stateObject.GetProperty("properties");
+                            int propertyIndex = 0;
+                            foreach (var statePropertyProperty in statePropertiesObject.EnumerateObject())
+                            {
+                                var blockStateProperty = blockProperties.First(x => statePropertyProperty.NameEquals(x.Name));
+                                int valueIndex = blockStateProperty.ParseIndex(GetEnumString(statePropertyProperty.Value));
+                                propertyValues[propertyIndex++] = StatePropertyValue.Create(blockStateProperty, valueIndex);
+                            }
+                        }
+                        blockStates[i] = new BlockState(block, propertyValues, idProperty.GetUInt32());
+                    }
+
+                    blocksDictionary.Add(blockName, block);
+                    blockId++;
+                }
+                return blocksDictionary;
+            }
         }
 
         private static void Game_Tick(Ticker ticker)
@@ -287,9 +492,9 @@ namespace MCServerSharp.Runner
                 {
                     try
                     {
-                        for (int z = 0; z < 64; z++)
+                        for (int z = 0; z < 8; z++)
                         {
-                            for (int x = 0; x < 64; x++)
+                            for (int x = 0; x < 8; x++)
                             {
                                 if (connection.ProtocolState != ProtocolState.Play)
                                     goto End;
