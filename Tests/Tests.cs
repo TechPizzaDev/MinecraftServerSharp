@@ -156,7 +156,9 @@ namespace Tests
                     var rootCompound = chunkDocument.RootTag;
                     var rootClone = rootCompound.Clone();
 
-                    var levelCompound = rootCompound[StringHelper.Utf8.GetBytes("Level")];
+                    // TODO: add some kind of NbtDocument-to-(generic)object helper and NbtSerializer
+
+                    var levelCompound = rootCompound["Level"];
                     var sectionsList = levelCompound["Sections"];
 
                     foreach (var sectionCompound in sectionsList.EnumerateContainer())
