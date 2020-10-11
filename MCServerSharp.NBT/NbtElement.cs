@@ -1,12 +1,14 @@
 ﻿using System;
+using System.Buffers;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
-using System.Text.Json;
+using System.Text.Unicode;
 
 namespace MCServerSharp.NBT
 {
-    // TODO: ArrayEnumerator<T>
-
     [DebuggerDisplay("{ToString(), nq}")]
     public readonly partial struct NbtElement
     {
@@ -17,14 +19,13 @@ namespace MCServerSharp.NBT
         /// Gets an element within this container.
         /// </summary>
         /// <exception cref="InvalidOperationException">This element is not a container.</exception>
-        public NbtElement this[int index]
-        {
-            get
-            {
-                AssertValidInstance();
-                return _parent.GetContainerElement(_index, index);
-            }
-        }
+        public NbtElement this[int index] => GetContainerElement(index);
+
+        public NbtElement this[ReadOnlySpan<byte> utf8Name] => GetCompoundElement(utf8Name);
+
+        public NbtElement this[ReadOnlySpan<char> name] => GetCompoundElement(name);
+
+        public NbtElement this[string name] => this[name.AsSpan()];
 
         public NbtType Type => _parent?.GetTagType(_index) ?? NbtType.Undefined;
 
@@ -33,6 +34,16 @@ namespace MCServerSharp.NBT
         public ReadOnlyMemory<byte> Name => _parent != null
             ? _parent.GetTagName(_index)
             : ReadOnlyMemory<byte>.Empty;
+
+        internal NbtElement[]? Children
+        {
+            get
+            {
+                if (Type.IsContainer())
+                    return EnumerateContainer().ToArray();
+                return null;
+            }
+        }
 
         // TODO: add debug tree view
 
@@ -62,10 +73,102 @@ namespace MCServerSharp.NBT
             };
         }
 
+        /// <summary>
+        /// Gets an element within this container.
+        /// </summary>
+        /// <exception cref="InvalidOperationException">This element is not a container.</exception>
+        public NbtElement GetContainerElement(int index)
+        {
+            AssertValidInstance();
+            return _parent.GetContainerElement(_index, index);
+        }
+
+        public NbtElement GetCompoundElement(
+            ReadOnlySpan<byte> utf8Name, StringComparison comparison = StringComparison.OrdinalIgnoreCase)
+        {
+            // Shortcut for ordinal comparison. 
+            if (comparison == StringComparison.Ordinal)
+            {
+                AssertValidInstance();
+                if (Type != NbtType.Compound)
+                    throw new InvalidOperationException("The tag is not a compound.");
+
+                foreach (var element in EnumerateContainer())
+                {
+                    if (utf8Name.SequenceEqual(element.Name.Span))
+                        return element;
+                }
+                throw new KeyNotFoundException();
+            }
+
+            // Other comparisons are easy after conversion to Utf16.
+            int maxCharBytes = StringHelper.Utf8.GetMaxCharCount(utf8Name.Length) * sizeof(char);
+            byte[]? nameRented = maxCharBytes > 2048 ? ArrayPool<byte>.Shared.Rent(maxCharBytes) : null;
+            Span<byte> nameByteBuffer = nameRented ?? (stackalloc byte[maxCharBytes]);
+            try
+            {
+                Span<char> nameBuffer = MemoryMarshal.Cast<byte, char>(nameByteBuffer);
+                int charCount = StringHelper.Utf8.GetChars(utf8Name, nameBuffer);
+                return GetCompoundElement(nameBuffer.Slice(0, charCount), comparison);
+            }
+            finally
+            {
+                if (nameRented != null)
+                    ArrayPool<byte>.Shared.Return(nameRented);
+            }
+        }
+
+        public NbtElement GetCompoundElement(
+            ReadOnlySpan<char> name, StringComparison comparison = StringComparison.OrdinalIgnoreCase)
+        {
+            AssertValidInstance();
+            if (Type != NbtType.Compound)
+                throw new InvalidOperationException("The tag is not a compound.");
+
+            Span<char> elementNameBuffer = stackalloc char[64]; // TODO: increase after applying SkipLocalsInit?
+            foreach (var element in EnumerateContainer())
+            {
+                ReadOnlySpan<char> query = name;
+                ReadOnlySpan<byte> elementName = element.Name.Span;
+                do
+                {
+                    var status = Utf8.ToUtf16(elementName, elementNameBuffer, out int read, out int written);
+                    if (status != OperationStatus.Done &&
+                        status != OperationStatus.DestinationTooSmall)
+                        throw new Exception("Failed to convert UTF-8 to UTF-16.");
+
+                    if (written > query.Length)
+                        break;
+
+                    if (!query.Slice(0, written).Equals(elementNameBuffer.Slice(0, written), comparison))
+                        break;
+
+                    query = query.Slice(written);
+                    elementName = elementName.Slice(read);
+                }
+                while (elementName.Length > 0);
+
+                if (elementName.IsEmpty)
+                    return element;
+            }
+            throw new KeyNotFoundException();
+        }
+
         public ReadOnlyMemory<byte> GetRawData()
         {
             AssertValidInstance();
             return _parent.GetRawData(_index);
+        }
+
+        public ReadOnlyMemory<byte> GetArrayData(out NbtType tagType)
+        {
+            AssertValidInstance();
+            return _parent.GetArrayData(_index, out tagType);
+        }
+
+        public int GetArrayElementSize()
+        {
+            return _parent.GetArrayElementSize(_index);
         }
 
         /// <summary>

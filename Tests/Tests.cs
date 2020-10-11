@@ -10,6 +10,7 @@ using MCServerSharp.Data.IO;
 using MCServerSharp.IO.Compression;
 using MCServerSharp.NBT;
 using MCServerSharp.Utility;
+using MCServerSharp.World;
 
 namespace Tests
 {
@@ -152,8 +153,26 @@ namespace Tests
                     var chunkDocument = NbtDocument.Parse(chunkData, out int bytesConsumed, NbtOptions.JavaDefault);
                     chunkList[i] = (i, chunkDocument);
 
-                    var root = chunkDocument.RootTag;
-                    var rootClone = root.Clone();
+                    var rootCompound = chunkDocument.RootTag;
+                    var rootClone = rootCompound.Clone();
+
+                    var levelCompound = rootCompound[StringHelper.Utf8.GetBytes("Level")];
+                    var sectionsList = levelCompound["Sections"];
+
+                    foreach (var sectionCompound in sectionsList.EnumerateContainer())
+                    {
+                        var yInt = sectionCompound["Y"].GetInt();
+                        if (yInt == -1)
+                            continue;
+
+                        var paletteList = sectionCompound["Palette"];
+                        var blockList = sectionCompound["BlockStates"];
+                        var blockData = blockList.GetArrayData(out var tagType);
+                        if (tagType != NbtType.LongArray)
+                            throw new InvalidDataException();
+
+
+                    }
 
                     static void CompareContainers(NbtElement container1, NbtElement container2)
                     {
@@ -177,7 +196,7 @@ namespace Tests
                         while (move);
                     }
 
-                    CompareContainers(root, rootClone);
+                    CompareContainers(rootCompound, rootClone);
 
                     //PrintContainer(root, 1);
                     //

@@ -251,7 +251,7 @@ namespace MCServerSharp.NBT
             //return result;
         }
 
-        internal int GetArrayElementSize(in DbRow row)
+        internal static int GetArrayElementSize(in DbRow row)
         {
             int elementSize = row.Type switch
             {
@@ -262,6 +262,14 @@ namespace MCServerSharp.NBT
                 _ => throw GetWrongTagTypeException(row.Type),
             };
             return elementSize;
+        }
+
+        internal int GetArrayElementSize(int index)
+        {
+            AssertNotDisposed();
+            ref readonly DbRow row = ref _metaDb.GetRow(index);
+
+            return GetArrayElementSize(row);
         }
 
         internal ReadOnlyMemory<byte> GetArrayData(int index, out NbtType tagType)
