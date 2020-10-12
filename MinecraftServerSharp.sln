@@ -18,7 +18,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MCServerSharp.World", "MCSe
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MCServerSharp.Base", "MCServerSharp.Base\MCServerSharp.Base.csproj", "{8FB3C106-65FF-4987-A860-6616E4B269C3}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MCServerSharp.Runner", "MCServerSharp.Runner\MCServerSharp.Runner.csproj", "{F882822D-F2D4-4DC2-91C0-FE0439D41BDB}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MCServerSharp.Server", "MCServerSharp.Runner\MCServerSharp.Server.csproj", "{F882822D-F2D4-4DC2-91C0-FE0439D41BDB}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MCServerSharp.Net", "MCServerSharp.Net\MCServerSharp.Net.csproj", "{9A147149-BD48-43EB-9AEB-CB80FEA24D30}"
 EndProject

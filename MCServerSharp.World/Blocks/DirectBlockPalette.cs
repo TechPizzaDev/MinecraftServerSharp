@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using MCServerSharp.Data.IO;
 
 namespace MCServerSharp.Blocks
@@ -10,6 +11,8 @@ namespace MCServerSharp.Blocks
         public int BitsPerBlock { get; }
 
         public int Count => _blocks.Length;
+
+        public Dictionary<Identifier, BlockDescription> blockLookup;
 
         public DirectBlockPalette(BlockState[] blocks)
         {

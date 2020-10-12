@@ -6,7 +6,6 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Reflection;
-using System.Runtime;
 using System.Text.Json;
 using System.Threading;
 using MCServerSharp.Blocks;
@@ -19,7 +18,7 @@ using MCServerSharp.World;
 
 namespace MCServerSharp.Runner
 {
-    internal static class Runner
+    public static class ServerMain
     {
         // TODO: move these to a Game class
         public const string PongResource = "Minecraft/Net/Pong.json";
@@ -141,11 +140,12 @@ namespace MCServerSharp.Runner
             var configProvider = new FallbackResourceProvider(
                 new FileResourceProvider("Config", includeDirectoryName: false),
                 new AssemblyResourceProvider(
-                    Assembly.GetExecutingAssembly(), "MCServerSharp.Runner.Templates.Config"));
+                    Assembly.GetExecutingAssembly(), "MCServerSharp.Server.Templates.Config"));
 
             LoadGameData();
 
             _directBlockPalette = new DirectBlockPalette(_blockStates);
+            _directBlockPalette.blockLookup = _blockLookup;
             _dimension = new Dimension(_directBlockPalette);
 
             using var pong = configProvider.OpenResourceReader(PongResource);

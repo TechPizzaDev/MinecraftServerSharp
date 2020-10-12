@@ -39,11 +39,14 @@ namespace MCServerSharp.World
                 foreach (var section in chunk.Sections.Span)
                 {
                     var palette = section.BlockPalette;
-                    var state = palette.BlockForId((uint)(i++));
+                    
+                    for (int j = 0; j < ChunkSection.BlockCount; j++)
+                    {
+                        var state = palette.BlockForId((uint)(i++));
+                        i = (i + 1) % palette.Count;
 
-                    section.FillBlock(state);
-
-                    i = (i + 1) % palette.Count;
+                        section.SetBlock(state, j);
+                    }
                 }
 
                 _chunks.Add(key, chunk);
