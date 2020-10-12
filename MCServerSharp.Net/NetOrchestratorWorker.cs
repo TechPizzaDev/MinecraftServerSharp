@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
+using System.Net.Sockets;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -191,21 +192,26 @@ namespace MCServerSharp.Net
                                 packetHolder.Connection != null,
                                 "Packet holder has no attached connection.");
 
-                            if (packetHolder.Connection.ProtocolState != ProtocolState.Disconnected)
+                            try
                             {
+                                if (!packetHolder.Connection.IsAlive)
+                                    break;
+
                                 var writePacketDelegate = GetWritePacketDelegate(packetHolder.PacketType);
 
                                 var writeResult = writePacketDelegate.Invoke(
                                     packetHolder, _packetWriteBuffer, _packetCompressionBuffer);
                             }
-
-                            Orchestrator.ReturnPacketHolder(packetHolder);
+                            finally
+                            {
+                                Orchestrator.ReturnPacketHolder(packetHolder);
+                            }
                         }
                     }
                     finally
                     {
                         var flushTask = connection.FlushSendBuffer();
-                        if (flushTask.IsCompleted)
+                        if (flushTask.IsCompleted) // Many flushes complete synchronously
                         {
                             FinishSendQueue(flushTask.Result, orchestratorQueue);
                         }
@@ -215,6 +221,10 @@ namespace MCServerSharp.Net
                                 FinishSendQueueAction, orchestratorQueue, TaskContinuationOptions.ExecuteSynchronously);
                         }
                     }
+                }
+                catch (SocketException sockEx) when (sockEx.SocketErrorCode == SocketError.ConnectionReset)
+                {
+                    // TODO: increment statistic?
                 }
                 catch (Exception ex)
                 {
@@ -235,7 +245,7 @@ namespace MCServerSharp.Net
             {
                 if (queue.PacketQueue.IsEmpty)
                     queue.IsEngaged = false;
-                else
+                else if(state != NetSendState.Closed)
                     queue.Connection.Orchestrator.QueuesToFlush.Enqueue(queue);
             }
         }

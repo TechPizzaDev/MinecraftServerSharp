@@ -34,6 +34,15 @@ namespace MCServerSharp.Net
 
         public string? UserName { get; set; }
 
+        public bool IsAlive
+        {
+            get
+            {
+                return ProtocolState != ProtocolState.Closing
+                    && ProtocolState != ProtocolState.Disconnected;
+            }
+        }
+
         #region Constructors
 
         public NetConnection(
@@ -60,7 +69,7 @@ namespace MCServerSharp.Net
         public OperationStatus ReadPacket<TPacket>(NetBinaryReader reader, out TPacket packet, out int length)
         {
             var readerDelegate = Orchestrator.Codec.Decoder.GetPacketReader<TPacket>();
-            
+
             long startPosition = reader.Position;
             var status = readerDelegate.Invoke(reader, out packet);
 
@@ -75,9 +84,12 @@ namespace MCServerSharp.Net
 
         public async ValueTask<NetSendState> FlushSendBuffer()
         {
+            if (!IsAlive)
+                return NetSendState.Closed;
+
             var sendBuffer = SendBuffer;
             int length = (int)sendBuffer.Length;
-            if (length > 0 && ProtocolState != ProtocolState.Disconnected)
+            if (length > 0)
             {
                 int left = length;
                 int block = 0;
@@ -107,11 +119,11 @@ namespace MCServerSharp.Net
         public void Kick(Exception? exception)
         {
             bool detailed = false;
-            
+
             Chat? chat = null;
             if (exception != null)
             {
-                string errorMessage = 
+                string errorMessage =
                     (detailed ? exception.ToString() : exception.Message).Replace("\r", "");
 
                 var dyn = new[]
@@ -175,6 +187,7 @@ namespace MCServerSharp.Net
                 _closeAction.Invoke(this);
                 _closeAction = null;
 
+                // TODO: finalize metrics and use them somehow
                 //Console.WriteLine("Connection metrics; Sent: " + BytesSent + ", Received: " + BytesReceived);
             }
         }

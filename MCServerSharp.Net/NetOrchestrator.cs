@@ -108,12 +108,16 @@ namespace MCServerSharp.Net
         {
             if (packetHolder == null)
                 throw new ArgumentNullException(nameof(packetHolder));
-            if (packetHolder.Connection == null)
+            var holderConnection = packetHolder.Connection;
+            if (holderConnection == null)
                 throw new ArgumentException("No assigned connection.");
 
-            if (!PacketSendQueues.TryGetValue(packetHolder.Connection, out var queue))
+            if (!PacketSendQueues.TryGetValue(holderConnection, out var queue))
             {
-                queue = new NetPacketSendQueue(packetHolder.Connection);
+                if (!holderConnection.IsAlive)
+                    throw new ArgumentException("The assigned connection is not alive.");
+
+                queue = new NetPacketSendQueue(holderConnection);
                 PacketSendQueues.TryAdd(queue.Connection, queue);
             }
             queue.PacketQueue.Enqueue(packetHolder);

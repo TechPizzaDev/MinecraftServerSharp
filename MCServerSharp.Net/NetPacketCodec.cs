@@ -121,9 +121,6 @@ namespace MCServerSharp.Net
                 while ((read = await socket.ReceiveAsync(
                     readMemory, SocketFlags.None, state.CancellationToken).ConfigureAwait(false)) != 0)
                 {
-                    // TODO: this only reads uncompressed packets for now, 
-                    //  this will require slight change when compressed packets are implemented
-
                     // We process by the message length (unless it's a legacy server list ping), 
                     // so don't worry if we received parts of the next message.
 
@@ -135,22 +132,24 @@ namespace MCServerSharp.Net
 
                     OperationStatus handleStatus;
                     while ((handleStatus = HandlePacket(
-                        connection, ref state, out VarInt totalMessageLength)) == OperationStatus.Done &&
-                        connection.ProtocolState != ProtocolState.Closing)
+                        connection, ref state, out VarInt totalMessageLength)) == OperationStatus.Done)
                     {
                         receiveBuffer.TrimStart(totalMessageLength);
                     }
 
                     if (handleStatus == OperationStatus.InvalidData)
                     {
-                        // TODO: handle this state?
-                        break;
+                        // TODO: handle this state better
+                        throw new InvalidDataException();
                     }
                 }
             }
+            catch (SocketException sockEx) when (sockEx.SocketErrorCode == SocketError.ConnectionReset)
+            {
+                // TODO: increment statistic?
+            }
             catch (Exception ex)
             {
-                Console.WriteLine(ex);
                 connection.Kick(ex);
             }
 

@@ -163,11 +163,16 @@ namespace MCServerSharp.Net
                 var connection = buffer[i];
                 if (connection.ProtocolState == ProtocolState.Closing)
                 {
-                    if (Orchestrator.PacketSendQueues.TryGetValue(connection, out var queue) &&
-                        !queue.IsEngaged)
+                    bool connected = connection.Socket.Connected;
+                    if (!connected || connection.SendBuffer.Length == 0)
                     {
-                        if (connection.SendBuffer.Length == 0 || !connection.Socket.Connected)
-                            connection.Close(immediate: true);
+                        connection.Close(immediate: true);
+
+                        if (!Orchestrator.PacketSendQueues.TryRemove(connection, out var removedQueue))
+                            throw new Exception("Failed to remove packet send queue.");
+
+                        foreach (var staleHolder in removedQueue.PacketQueue)
+                            Orchestrator.ReturnPacketHolder(staleHolder);
                     }
                 }
                 else

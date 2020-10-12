@@ -6,7 +6,10 @@ namespace MCServerSharp.Net
 {
     public abstract class PacketHolder
     {
-        public long TransactionId { get; set; }
+        // TODO: Add ReferenceCount to allow multiple workers to send concurrently
+        //       and List<NetConnection> to allow sending one packet to multiple clients.
+        //       The worker that decrements ReferenceCount to 0 returns the PacketHolder.
+
         public NetConnection? Connection { get; set; }
         public ProtocolState State { get; set; }
         public int? CompressionThreshold { get; set; }

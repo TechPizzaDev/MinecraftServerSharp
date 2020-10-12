@@ -3,6 +3,7 @@
     public enum NetSendState
     {
         Closing,
+        Closed,
         FullSend,
         Sending
     }
