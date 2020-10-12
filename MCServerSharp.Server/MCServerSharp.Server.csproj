@@ -26,7 +26,7 @@
     <ProjectReference Include="..\MCServerSharp.Base\MCServerSharp.Base.csproj" />
     <ProjectReference Include="..\MCServerSharp.NBT\MCServerSharp.NBT.csproj" />
     <ProjectReference Include="..\MCServerSharp.Net\MCServerSharp.Net.csproj" />
-    <ProjectReference Include="..\MCServerSharp.Server\MCServerSharp.World.csproj" />
+    <ProjectReference Include="..\MCServerSharp.World\MCServerSharp.World.csproj" />
   </ItemGroup>
 
 </Project>

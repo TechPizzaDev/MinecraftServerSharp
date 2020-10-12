@@ -14,11 +14,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MCServerSharp.NBT", "MCServerSharp.NBT\MCServerSharp.NBT.csproj", "{83B54FEE-D441-49F8-B8DC-5F0532F7D216}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MCServerSharp.World", "MCServerSharp.Server\MCServerSharp.World.csproj", "{93A8F2CF-A40F-405B-A9F3-6FC902BCF5D6}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MCServerSharp.World", "MCServerSharp.World\MCServerSharp.World.csproj", "{93A8F2CF-A40F-405B-A9F3-6FC902BCF5D6}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MCServerSharp.Base", "MCServerSharp.Base\MCServerSharp.Base.csproj", "{8FB3C106-65FF-4987-A860-6616E4B269C3}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MCServerSharp.Server", "MCServerSharp.Runner\MCServerSharp.Server.csproj", "{F882822D-F2D4-4DC2-91C0-FE0439D41BDB}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MCServerSharp.Server", "MCServerSharp.Server\MCServerSharp.Server.csproj", "{F882822D-F2D4-4DC2-91C0-FE0439D41BDB}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MCServerSharp.Net", "MCServerSharp.Net\MCServerSharp.Net.csproj", "{9A147149-BD48-43EB-9AEB-CB80FEA24D30}"
 EndProject
