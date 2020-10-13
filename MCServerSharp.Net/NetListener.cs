@@ -14,6 +14,7 @@ namespace MCServerSharp.Net
 
         public delegate void ListenerEvent(NetListener sender);
         public delegate void ConnectionEvent(NetListener sender, NetConnection connection);
+        public delegate bool PrimaryConnectionEvent(NetListener sender, NetConnection connection);
 
         public event ListenerEvent? Started;
         public event ListenerEvent? Stopped;
@@ -22,11 +23,17 @@ namespace MCServerSharp.Net
         public event ConnectionEvent? Disconnection;
 
         private NetOrchestrator Orchestrator { get; }
+        private PrimaryConnectionEvent PrimaryConnectionHandler { get; }
+
         public Socket Socket { get; }
 
-        public NetListener(NetOrchestrator orchestrator)
+        public NetListener(NetOrchestrator orchestrator, PrimaryConnectionEvent primaryConnectionHandler)
         {
             Orchestrator = orchestrator ?? throw new ArgumentNullException(nameof(orchestrator));
+
+            PrimaryConnectionHandler = primaryConnectionHandler ?? 
+                throw new ArgumentNullException(nameof(primaryConnectionHandler));
+
             Socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
         }
 
@@ -75,8 +82,10 @@ namespace MCServerSharp.Net
 
             connection.Socket.Blocking = true;
 
-            // TODO: do validation of the client
-            Connection?.Invoke(this, connection);
+            if (PrimaryConnectionHandler.Invoke(this, connection))
+            {
+                Connection?.Invoke(this, connection);
+            }
 
             // Accept the next connection request
             StartAccept(acceptEvent);

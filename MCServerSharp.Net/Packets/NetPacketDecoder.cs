@@ -9,13 +9,13 @@ using MCServerSharp.NBT;
 
 namespace MCServerSharp.Net.Packets
 {
+    public delegate OperationStatus NetPacketReaderAction<TPacket>(NetBinaryReader reader, out TPacket packet);
+
     /// <summary>
     /// Gives access to delegates that turn message data into packets.
     /// </summary>
     public partial class NetPacketDecoder : NetPacketCoder<ClientPacketId>
     {
-        public delegate OperationStatus PacketReaderDelegate<TPacket>(NetBinaryReader reader, out TPacket packet);
-
         private static Type[] _binaryReaderTypes = new[]
         {
             typeof(NetBinaryReader),
@@ -70,12 +70,12 @@ namespace MCServerSharp.Net.Packets
             RegisterPacketTypesFromCallingAssembly(x => x.Attribute.IsClientPacket);
         }
 
-        public PacketReaderDelegate<TPacket> GetPacketReader<TPacket>()
+        public NetPacketReaderAction<TPacket> GetPacketReaderAction<TPacket>()
         {
-            return (PacketReaderDelegate<TPacket>)GetPacketCoder(typeof(TPacket));
+            return (NetPacketReaderAction<TPacket>)GetPacketAction(typeof(TPacket));
         }
 
-        protected override Delegate CreateCoderDelegate(PacketStructInfo structInfo)
+        protected override Delegate CreatePacketAction(PacketStructInfo structInfo)
         {
             var constructors = structInfo.Type.GetConstructors();
             var constructorInfoList = constructors
@@ -137,7 +137,7 @@ namespace MCServerSharp.Net.Packets
 
             expressions.Add(resultCodeVar); // Return the read code by putting it as the last expression.
 
-            var delegateType = typeof(PacketReaderDelegate<>).MakeGenericType(structInfo.Type);
+            var delegateType = typeof(NetPacketReaderAction<>).MakeGenericType(structInfo.Type);
             var lambdaBody = Expression.Block(variables, expressions);
             var lambda = Expression.Lambda(delegateType, lambdaBody, new[] { readerParam, outPacketParam });
             return lambda.Compile();

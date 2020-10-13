@@ -19,7 +19,7 @@ namespace MCServerSharp.Net
 
     public class PacketHolder<TPacket> : PacketHolder
     {
-        public NetPacketWriterDelegate<TPacket> Writer { get; set; }
+        public NetPacketWriterAction<TPacket> Writer { get; set; }
         
         [AllowNull]
         public TPacket Packet { get; set; }

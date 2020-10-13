@@ -8,7 +8,7 @@ using MCServerSharp.NBT;
 
 namespace MCServerSharp.Net.Packets
 {
-    public delegate void NetPacketWriterDelegate<TPacket>(
+    public delegate void NetPacketWriterAction<TPacket>(
         NetBinaryWriter writer, in TPacket packet);
 
     /// <summary>
@@ -66,12 +66,12 @@ namespace MCServerSharp.Net.Packets
             RegisterPacketTypesFromCallingAssembly(x => x.Attribute.IsServerPacket);
         }
 
-        public NetPacketWriterDelegate<TPacket> GetPacketWriter<TPacket>()
+        public NetPacketWriterAction<TPacket> GetPacketWriter<TPacket>()
         {
-            return (NetPacketWriterDelegate<TPacket>)GetPacketCoder(typeof(TPacket));
+            return (NetPacketWriterAction<TPacket>)GetPacketAction(typeof(TPacket));
         }
 
-        protected override Delegate CreateCoderDelegate(PacketStructInfo structInfo)
+        protected override Delegate CreatePacketAction(PacketStructInfo structInfo)
         {
             var expressions = new List<Expression>();
             var writerParam = Expression.Parameter(typeof(NetBinaryWriter), "Writer");
@@ -89,10 +89,10 @@ namespace MCServerSharp.Net.Packets
                 CreateComplexPacketWriter(expressions, packetParam, writerParam);
             }
 
-            var writerDelegate = typeof(NetPacketWriterDelegate<>).MakeGenericType(structInfo.Type);
+            var actionType = typeof(NetPacketWriterAction<>).MakeGenericType(structInfo.Type);
             var lambdaBody = Expression.Block(expressions);
             var lambdaArgs = new[] { writerParam, packetParam };
-            var resultLambda = Expression.Lambda(writerDelegate, lambdaBody, lambdaArgs);
+            var resultLambda = Expression.Lambda(actionType, lambdaBody, lambdaArgs);
             return resultLambda.Compile();
         }
 

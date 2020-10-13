@@ -13,20 +13,20 @@ using MCServerSharp.Utility;
 
 namespace MCServerSharp.Net
 {
-    public delegate OperationStatus PacketHandlerDelegate(
+    public delegate OperationStatus NetPacketHandler(
         NetConnection connection,
         NetBinaryReader packetReader,
         NetPacketDecoder.PacketIdDefinition packetIdDefinition,
         out int messageLength);
 
-    public delegate void LegacyServerListPingHandlerDelegate(
+    public delegate void NetLegacyServerListPingHandler(
         NetConnection connection,
         ClientLegacyServerListPing? ping);
 
     public partial class NetPacketCodec
     {
-        private Dictionary<ClientPacketId, PacketHandlerDelegate> PacketHandlers { get; } =
-            new Dictionary<ClientPacketId, PacketHandlerDelegate>();
+        private Dictionary<ClientPacketId, NetPacketHandler> PacketHandlers { get; } =
+            new Dictionary<ClientPacketId, NetPacketHandler>();
 
         private NetPacketDecoder.PacketIdDefinition LegacyServerListPingPacketDefinition { get; set; }
 
@@ -34,7 +34,7 @@ namespace MCServerSharp.Net
         public NetPacketDecoder Decoder { get; }
         public NetPacketEncoder Encoder { get; }
 
-        public LegacyServerListPingHandlerDelegate? LegacyServerListPingHandler { get; set; }
+        public NetLegacyServerListPingHandler? LegacyServerListPingHandler { get; set; }
 
         #region Constructors
 
@@ -62,7 +62,7 @@ namespace MCServerSharp.Net
 
             Decoder.InitializePacketIdMaps(typeof(ClientPacketId).GetFields());
 
-            Decoder.CreateCoderDelegates();
+            Decoder.CreatePacketActions();
             if (!Decoder.TryGetPacketIdDefinition(ClientPacketId.LegacyServerListPing, out var definition))
                 throw new InvalidOperationException(
                     $"Missing packet definition for \"{nameof(ClientPacketId.LegacyServerListPing)}\".");
@@ -77,12 +77,12 @@ namespace MCServerSharp.Net
 
             Encoder.InitializePacketIdMaps(typeof(ServerPacketId).GetFields());
 
-            Encoder.CreateCoderDelegates();
+            Encoder.CreatePacketActions();
         }
 
         #endregion
 
-        public void SetPacketHandler(ClientPacketId id, PacketHandlerDelegate packetHandler)
+        public void SetPacketHandler(ClientPacketId id, NetPacketHandler packetHandler)
         {
             if (packetHandler == null)
                 throw new ArgumentNullException(nameof(packetHandler));
@@ -93,7 +93,7 @@ namespace MCServerSharp.Net
             PacketHandlers.Add(id, packetHandler);
         }
 
-        public PacketHandlerDelegate GetPacketHandler(ClientPacketId id)
+        public NetPacketHandler GetPacketHandler(ClientPacketId id)
         {
             if (!PacketHandlers.TryGetValue(id, out var packetHandler))
                 throw new Exception($"Missing packet handler for \"{id}\".");

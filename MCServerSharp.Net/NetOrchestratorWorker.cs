@@ -21,7 +21,7 @@ namespace MCServerSharp.Net
     /// </summary>
     public partial class NetOrchestratorWorker : IDisposable
     {
-        public delegate PacketWriteResult WritePacketDelegate(
+        public delegate PacketWriteResult PacketWriteAction(
             PacketHolder packetHolder,
             Stream packetBuffer,
             Stream compressionBuffer);
@@ -32,8 +32,8 @@ namespace MCServerSharp.Net
             typeof(NetOrchestratorWorker).GetMethod(
                 nameof(WritePacket), BindingFlags.Public | BindingFlags.Static);
 
-        private static ConcurrentDictionary<Type, WritePacketDelegate> WritePacketDelegateCache { get; } =
-            new ConcurrentDictionary<Type, WritePacketDelegate>();
+        private static ConcurrentDictionary<Type, PacketWriteAction> PacketWriteActionCache { get; } =
+            new ConcurrentDictionary<Type, PacketWriteAction>();
 
         private ChunkedMemoryStream _packetWriteBuffer;
         private ChunkedMemoryStream _packetCompressionBuffer;
@@ -74,12 +74,12 @@ namespace MCServerSharp.Net
                 _flushRequestEvent.Set();
         }
 
-        public static WritePacketDelegate GetWritePacketDelegate(Type packetType)
+        public static PacketWriteAction GetPacketWriteAction(Type packetType)
         {
-            return WritePacketDelegateCache.GetOrAdd(packetType, (type) =>
+            return PacketWriteActionCache.GetOrAdd(packetType, (type) =>
             {
                 var genericMethod = WritePacketMethod!.MakeGenericMethod(type);
-                return ReflectionHelper.CreateDelegateFromMethod<WritePacketDelegate>(
+                return ReflectionHelper.CreateDelegateFromMethod<PacketWriteAction>(
                     genericMethod, useFirstArgumentAsInstance: false);
             });
         }
@@ -197,9 +197,9 @@ namespace MCServerSharp.Net
                                 if (!packetHolder.Connection.IsAlive)
                                     break;
 
-                                var writePacketDelegate = GetWritePacketDelegate(packetHolder.PacketType);
+                                var packetWriteAction = GetPacketWriteAction(packetHolder.PacketType);
 
-                                var writeResult = writePacketDelegate.Invoke(
+                                var packetWriteResult = packetWriteAction.Invoke(
                                     packetHolder, _packetWriteBuffer, _packetCompressionBuffer);
                             }
                             finally

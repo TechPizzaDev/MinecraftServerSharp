@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using MCServerSharp.Collections;
 using MCServerSharp.Utility;
 
 namespace MCServerSharp.Net.Packets
@@ -11,7 +12,7 @@ namespace MCServerSharp.Net.Packets
     {
         protected Dictionary<DataTypeKey, MethodInfo> DataTypeHandlers { get; }
         protected Dictionary<Type, PacketStructInfo> RegisteredPacketTypes { get; }
-        protected Dictionary<Type, Delegate> PacketCoderDelegates { get; }
+        protected Dictionary<Type, Delegate> PacketActions { get; }
 
         /// <summary>
         /// Array of ID-to-packet mappings,
@@ -23,20 +24,20 @@ namespace MCServerSharp.Net.Packets
         /// Array of packet-to-ID mappings,
         /// indexed by the integer value of <see cref="ProtocolState"/>.
         /// </summary>
-        protected Dictionary<Type, PacketIdDefinition>[] TypeToPacketIdMaps { get; }
+        protected Dictionary<Type, PacketIdDefinition>[] PacketTypeToIdMaps { get; }
 
         public int RegisteredTypeCount => RegisteredPacketTypes.Count;
-        public int PreparedTypeCount => PacketCoderDelegates.Count;
+        public int PreparedTypeCount => PacketActions.Count;
 
         public NetPacketCoder()
         {
             DataTypeHandlers = new Dictionary<DataTypeKey, MethodInfo>();
             RegisteredPacketTypes = new Dictionary<Type, PacketStructInfo>();
-            PacketCoderDelegates = new Dictionary<Type, Delegate>();
+            PacketActions = new Dictionary<Type, Delegate>();
 
             int stateCount = Enum.GetValues(typeof(ProtocolState)).Length;
             PacketIdMaps = new Dictionary<int, PacketIdDefinition>[stateCount];
-            TypeToPacketIdMaps = new Dictionary<Type, PacketIdDefinition>[stateCount];
+            PacketTypeToIdMaps = new Dictionary<Type, PacketIdDefinition>[stateCount];
         }
 
         protected abstract void RegisterDataType(params Type[] arguments);
@@ -46,14 +47,16 @@ namespace MCServerSharp.Net.Packets
         public virtual void InitializePacketIdMaps(IEnumerable<FieldInfo> fields)
         {
             var mappingAttributeList = fields
-                .Where(f => f.GetCustomAttribute<PacketIdMappingAttribute>() != null)
-                .Select(f => new PacketIdMappingInfo(f, f.GetCustomAttribute<PacketIdMappingAttribute>()!))
+                .SelectWhere(
+                f => f.GetCustomAttribute<PacketIdMappingAttribute>(),
+                (f, a) => a != null,
+                (f, a) => new PacketIdMappingInfo(f, a!))
                 .ToList();
 
             for (int stateIndex = 0; stateIndex < PacketIdMaps.Length; stateIndex++)
             {
                 PacketIdMaps[stateIndex] = new Dictionary<int, PacketIdDefinition>();
-                TypeToPacketIdMaps[stateIndex] = new Dictionary<Type, PacketIdDefinition>();
+                PacketTypeToIdMaps[stateIndex] = new Dictionary<Type, PacketIdDefinition>();
 
                 var state = (ProtocolState)stateIndex;
                 foreach (var mappingInfo in mappingAttributeList.Where(x => x.Attribute.State == state))
@@ -69,7 +72,7 @@ namespace MCServerSharp.Net.Packets
                             var definition = new PacketIdDefinition(typeEntry.Key, mapRawId, mapId);
 
                             PacketIdMaps[stateIndex].Add(definition.RawId, definition);
-                            TypeToPacketIdMaps[stateIndex].Add(definition.Type, definition);
+                            PacketTypeToIdMaps[stateIndex].Add(definition.Type, definition);
                         }
                     }
                 }
@@ -85,7 +88,7 @@ namespace MCServerSharp.Net.Packets
         protected Dictionary<Type, PacketIdDefinition> GetTypeToPacketIdMap(ProtocolState state)
         {
             int index = (int)state;
-            return TypeToPacketIdMaps[index];
+            return PacketTypeToIdMaps[index];
         }
 
         public bool TryGetPacketIdDefinition(
@@ -185,32 +188,26 @@ namespace MCServerSharp.Net.Packets
 
         #endregion
 
-        #region CoderDelegate-related methods
+        #region PacketAction-related methods
 
-        protected abstract Delegate CreateCoderDelegate(PacketStructInfo structInfo);
+        protected abstract Delegate CreatePacketAction(PacketStructInfo structInfo);
 
-        public void CreateCoderDelegates()
+        public void CreatePacketActions()
         {
             foreach (var pair in RegisteredPacketTypes)
             {
-                var coderDelegate = CreateCoderDelegate(pair.Value);
-                PacketCoderDelegates.Add(pair.Value.Type, coderDelegate);
+                var packetAction = CreatePacketAction(pair.Value);
+                PacketActions.Add(pair.Value.Type, packetAction);
             }
         }
 
-        public Delegate GetPacketCoder(Type packetType)
+        public Delegate GetPacketAction(Type packetType)
         {
-            if (!PacketCoderDelegates.TryGetValue(packetType, out var reader))
+            if (!PacketActions.TryGetValue(packetType, out var reader))
             {
-                CreateCoderDelegate(new PacketStructInfo(packetType));
-                try
-                {
-                    reader = PacketCoderDelegates[packetType];
-                }
-                catch (KeyNotFoundException)
-                {
-                    throw new Exception($"Missing packet coder for \"{packetType}\".");
-                }
+                reader = CreatePacketAction(new PacketStructInfo(packetType));
+                if (reader == null)
+                    throw new InvalidOperationException("Failed to create packet action.");
             }
             return reader;
         }

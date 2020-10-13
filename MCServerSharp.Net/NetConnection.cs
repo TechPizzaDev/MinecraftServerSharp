@@ -68,10 +68,10 @@ namespace MCServerSharp.Net
 
         public OperationStatus ReadPacket<TPacket>(NetBinaryReader reader, out TPacket packet, out int length)
         {
-            var readerDelegate = Orchestrator.Codec.Decoder.GetPacketReader<TPacket>();
+            var readerAction = Orchestrator.Codec.Decoder.GetPacketReaderAction<TPacket>();
 
             long startPosition = reader.Position;
-            var status = readerDelegate.Invoke(reader, out packet);
+            var status = readerAction.Invoke(reader, out packet);
 
             length = (int)(reader.Position - startPosition);
             return status;

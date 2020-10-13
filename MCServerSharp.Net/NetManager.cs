@@ -42,7 +42,7 @@ namespace MCServerSharp.Net
             MemoryManager = memoryManager ?? throw new ArgumentNullException(nameof(memoryManager));
             Codec = new NetPacketCodec(MemoryManager);
             Orchestrator = new NetOrchestrator(MemoryManager, Codec);
-            Listener = new NetListener(Orchestrator);
+            Listener = new NetListener(Orchestrator, AcceptConnection);
 
             _connections = new HashSet<NetConnection>();
             Connections = _connections.AsReadOnly();
@@ -112,31 +112,22 @@ namespace MCServerSharp.Net
         {
             Orchestrator.Start(workerCount: 4);
 
-            Listener.Connection += Listener_Connection;
-            Listener.Disconnection += Listener_Disconnection;
-
             Listener.Start(backlog);
         }
 
-        private void Listener_Connection(NetListener sender, NetConnection connection)
+        private bool AcceptConnection(NetListener sender, NetConnection connection)
         {
             lock (ConnectionMutex)
             {
                 if (!_connections.Add(connection))
-                    throw new InvalidOperationException();
+                    throw new InvalidOperationException(); // This should never occur.
             }
 
             // TODO: manage connection tasks
+            // TODO: validate client
             var connectionTask = Codec.EngageConnection(connection, cancellationToken: default);
-        }
 
-        private void Listener_Disconnection(NetListener sender, NetConnection connection)
-        {
-            lock (ConnectionMutex)
-            {
-                if (!_connections.Remove(connection))
-                    throw new InvalidOperationException();
-            }
+            return true;
         }
 
         public int GetConnectionCount()
@@ -147,20 +138,18 @@ namespace MCServerSharp.Net
             }
         }
 
-        public void UpdateConnections(List<NetConnection> buffer, out int activeConnectionCount)
+        public void UpdateConnections(List<NetConnection> connectionBuffer, out int activeConnectionCount)
         {
-            if (buffer == null)
-                throw new ArgumentNullException(nameof(buffer));
+            if (connectionBuffer == null)
+                throw new ArgumentNullException(nameof(connectionBuffer));
 
             lock (ConnectionMutex)
-            {
-                buffer.AddRange(_connections);
-            }
-
+                connectionBuffer.AddRange(_connections);
+            
             activeConnectionCount = 0;
-            for (int i = 0; i < buffer.Count; i++)
+            for (int i = 0; i < connectionBuffer.Count; i++)
             {
-                var connection = buffer[i];
+                var connection = connectionBuffer[i];
                 if (connection.ProtocolState == ProtocolState.Closing)
                 {
                     bool connected = connection.Socket.Connected;
@@ -168,11 +157,18 @@ namespace MCServerSharp.Net
                     {
                         connection.Close(immediate: true);
 
-                        if (!Orchestrator.PacketSendQueues.TryRemove(connection, out var removedQueue))
-                            throw new Exception("Failed to remove packet send queue.");
+                        lock (ConnectionMutex)
+                        {
+                            if (!_connections.Remove(connection))
+                                throw new InvalidOperationException();
+                        }
 
-                        foreach (var staleHolder in removedQueue.PacketQueue)
-                            Orchestrator.ReturnPacketHolder(staleHolder);
+                        // There won't be a queue if there was no packet send attempt during connection.
+                        if (Orchestrator.PacketSendQueues.TryRemove(connection, out var removedQueue))
+                        {
+                            foreach (var staleHolder in removedQueue.PacketQueue)
+                                Orchestrator.ReturnPacketHolder(staleHolder);
+                        }
                     }
                 }
                 else

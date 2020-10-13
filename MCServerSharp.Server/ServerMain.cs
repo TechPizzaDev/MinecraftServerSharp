@@ -11,6 +11,7 @@ using System.Threading;
 using MCServerSharp.Blocks;
 using MCServerSharp.Data;
 using MCServerSharp.Enums;
+using MCServerSharp.NBT;
 using MCServerSharp.Net;
 using MCServerSharp.Net.Packets;
 using MCServerSharp.Utility;
@@ -186,6 +187,7 @@ namespace MCServerSharp.Runner
 
             {
                 Console.WriteLine("Loading blocks...");
+
                 _blockLookup = LoadBlocks();
                 _stateLookup = new Dictionary<uint, BlockState>();
                 int stateCount = 0;
@@ -220,12 +222,12 @@ namespace MCServerSharp.Runner
                 );
         }
 
-        private static IStateProperty ParseStateProperty(string name, string[] values)
+        private static IStateProperty ParseStateProperty(string name, List<string> values)
         {
-            if (values.Length == 0)
+            if (values.Count == 0)
                 throw new ArgumentException("The enumerable may not be empty.", nameof(values));
 
-            if (values.Length == 2)
+            if (values.Count == 2)
                 if (values.Contains("true") && values.Contains("false"))
                     return new BooleanStateProperty(name);
 
@@ -268,8 +270,8 @@ namespace MCServerSharp.Runner
             using (blocksDocument)
             {
                 var blocksDictionary = new Dictionary<Identifier, BlockDescription>();
-                var blockStatePropertyBuilder = new List<IStateProperty>();
-
+                var blockStatePropBuilder = new List<IStateProperty>();
+                
                 uint blockId = 0;
                 foreach (var blockProperty in blocksDocument.RootElement.EnumerateObject())
                 {
@@ -293,50 +295,50 @@ namespace MCServerSharp.Runner
 
                     static string GetEnumString(JsonElement element)
                     {
-                        // TODO: improve by converting to snake_case to PascalCase
+                        // TODO: improve by converting to snake_case to PascalCase somewhere..
                         return element.GetString().Replace("_", "", StringComparison.Ordinal);
                     }
 
-                    var blockProperties = Array.Empty<IStateProperty>();
-                    if (blockObject.TryGetProperty("properties", out var blockPropertiesObject))
+                    var blockProps = Array.Empty<IStateProperty>();
+                    if (blockObject.TryGetProperty("properties", out var blockPropsObject))
                     {
-                        blockStatePropertyBuilder.Clear();
-                        foreach (var blockPropertyProperty in blockPropertiesObject.EnumerateObject())
+                        blockStatePropBuilder.Clear();
+                        foreach (var blockPropProp in blockPropsObject.EnumerateObject())
                         {
-                            string[] stringValues = blockPropertyProperty.Value.EnumerateArray()
+                            var propNames = blockPropProp.Value.EnumerateArray()
                                 .Select(x => GetEnumString(x))
-                                .ToArray();
-
-                            blockStatePropertyBuilder.Add(
-                                ParseStateProperty(blockPropertyProperty.Name, stringValues));
+                                .ToList();
+                            
+                            var parsedProp = ParseStateProperty(blockPropProp.Name, propNames);
+                            blockStatePropBuilder.Add(parsedProp);
                         }
-                        blockProperties = blockStatePropertyBuilder.ToArray();
+                        blockProps = blockStatePropBuilder.ToArray();
                     }
 
                     var blockStates = new BlockState[stateCount];
                     var block = new BlockDescription(
-                        blockStates, blockProperties,
+                        blockStates, blockProps,
                         blockName, blockId, defaultStateIndex.GetValueOrDefault());
 
                     for (int i = 0; i < blockStates.Length; i++)
                     {
                         var stateObject = stateArray[i];
-                        var idProperty = stateObject.GetProperty("id");
-                        var propertyValues = Array.Empty<StatePropertyValue>();
+                        var idProp = stateObject.GetProperty("id");
+                        var propValues = Array.Empty<StatePropertyValue>();
 
-                        if (blockProperties.Length != 0)
+                        if (blockProps.Length != 0)
                         {
-                            propertyValues = new StatePropertyValue[blockProperties.Length];
-                            var statePropertiesObject = stateObject.GetProperty("properties");
+                            propValues = new StatePropertyValue[blockProps.Length];
+                            var statePropsObject = stateObject.GetProperty("properties");
                             int propertyIndex = 0;
-                            foreach (var statePropertyProperty in statePropertiesObject.EnumerateObject())
+                            foreach (var statePropProp in statePropsObject.EnumerateObject())
                             {
-                                var blockStateProperty = blockProperties.First(x => statePropertyProperty.NameEquals(x.Name));
-                                int valueIndex = blockStateProperty.ParseIndex(GetEnumString(statePropertyProperty.Value));
-                                propertyValues[propertyIndex++] = StatePropertyValue.Create(blockStateProperty, valueIndex);
+                                var blockStateProp = blockProps.First(x => statePropProp.NameEquals(x.Name));
+                                int valueIndex = blockStateProp.ParseIndex(GetEnumString(statePropProp.Value));
+                                propValues[propertyIndex++] = StatePropertyValue.Create(blockStateProp, valueIndex);
                             }
                         }
-                        blockStates[i] = new BlockState(block, propertyValues, idProperty.GetUInt32());
+                        blockStates[i] = new BlockState(block, propValues, idProp.GetUInt32());
                     }
 
                     blocksDictionary.Add(blockName, block);

@@ -25,7 +25,7 @@ namespace MCServerSharp.Net
         }
 
         public PacketHolder<TPacket> Rent<TPacket>(
-            NetPacketWriterDelegate<TPacket> writer,
+            NetPacketWriterAction<TPacket> writer,
             NetConnection connection,
             in TPacket packet)
         {
