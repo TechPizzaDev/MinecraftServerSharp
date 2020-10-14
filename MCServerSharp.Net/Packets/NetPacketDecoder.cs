@@ -75,7 +75,7 @@ namespace MCServerSharp.Net.Packets
             return (NetPacketReaderAction<TPacket>)GetPacketAction(typeof(TPacket));
         }
 
-        protected override Delegate CreatePacketAction(PacketStructInfo structInfo)
+        public override Delegate CreatePacketAction(PacketStructInfo structInfo)
         {
             var constructors = structInfo.Type.GetConstructors();
             var constructorInfoList = constructors
@@ -84,6 +84,7 @@ namespace MCServerSharp.Net.Packets
                 .ToList();
 
             if (constructorInfoList.Count > 1)
+                // TODO: Change this after PacketSwitch attribute for params is implemented
                 throw new Exception("Only one packet constructor may be defined.");
 
             var variables = new List<ParameterExpression>();
@@ -95,14 +96,13 @@ namespace MCServerSharp.Net.Packets
             var readerParam = Expression.Parameter(typeof(NetBinaryReader), "Reader");
             var outPacketParam = Expression.Parameter(structInfo.Type.MakeByRefType(), "Packet");
 
-            var resultCodeVar = Expression.Variable(typeof(OperationStatus), "OperationStatus");
-            variables.Add(resultCodeVar);
+            var statusVar = Expression.Variable(typeof(OperationStatus), "Status");
+            variables.Add(statusVar);
+
+            LabelTarget? returnTarget = null;
+            ConstructorInfo? constructor = constructorInfoList.FirstOrDefault()?.Constructor;
 
             NewExpression newPacket;
-            LabelTarget? returnTarget = null;
-            ConstructorInfo? constructor = constructorInfoList.Count > 0
-                ? constructorInfoList[0].Constructor : null;
-
             if (constructor != null)
             {
                 var constructorParams = constructor.GetParameters();
@@ -112,7 +112,7 @@ namespace MCServerSharp.Net.Packets
                     constructorParams[1].ParameterType == typeof(OperationStatus).MakeByRefType())
                 {
                     constructorArgs.Add(readerParam);
-                    constructorArgs.Add(resultCodeVar);
+                    constructorArgs.Add(statusVar);
                 }
                 else
                 {
@@ -120,7 +120,7 @@ namespace MCServerSharp.Net.Packets
 
                     CreateComplexPacketReader(
                         variables, constructorArgs, expressions,
-                        readerParam, resultCodeVar,
+                        readerParam, statusVar,
                         returnTarget, constructorParams);
                 }
                 newPacket = Expression.New(constructor, constructorArgs);
@@ -128,14 +128,14 @@ namespace MCServerSharp.Net.Packets
             else
             {
                 newPacket = Expression.New(structInfo.Type);
-                expressions.Add(Expression.Assign(resultCodeVar, Expression.Constant(OperationStatus.Done)));
+                expressions.Add(Expression.Assign(statusVar, Expression.Constant(OperationStatus.Done)));
             }
             expressions.Add(Expression.Assign(outPacketParam, newPacket));
 
             if (returnTarget != null)
                 expressions.Add(Expression.Label(returnTarget));
 
-            expressions.Add(resultCodeVar); // Return the read code by putting it as the last expression.
+            expressions.Add(statusVar); // Return the status by putting it as the last expression.
 
             var delegateType = typeof(NetPacketReaderAction<>).MakeGenericType(structInfo.Type);
             var lambdaBody = Expression.Block(variables, expressions);
@@ -148,52 +148,54 @@ namespace MCServerSharp.Net.Packets
             List<Expression> constructorArgs,
             List<Expression> expressions,
             ParameterExpression readerParam,
-            ParameterExpression resultCodeVar,
+            ParameterExpression statusVar,
             LabelTarget returnTarget,
             ParameterInfo[] constructorParams)
         {
-            var retType = typeof(OperationStatus);
-
             for (int i = 0; i < constructorParams.Length; i++)
             {
                 var constructorParam = constructorParams[i];
-                var resultVar = Expression.Variable(constructorParam.ParameterType, constructorParam.Name);
-                if (constructorParam.ParameterType.IsByRef)
-                    throw new Exception("An implicit packet constructor may not contain by-ref parameters.");
+                var paramType = constructorParam.ParameterType;
+                if (paramType.IsByRef)
+                    throw new Exception("A complex packet constructor may not contain by-ref parameters.");
 
+                var resultVar = Expression.Variable(constructorParam.ParameterType, constructorParam.Name);
                 variables.Add(resultVar);
                 constructorArgs.Add(resultVar);
 
-                var readType = constructorParam.ParameterType.MakeByRefType();
+                var paramOutType = paramType.MakeByRefType();
                 var tuples = new[]
                 {
+                    // Used for NetBinaryReader methods.
                     (Reader: readerParam,
                     Args: new[] { resultVar },
-                    Key: new DataTypeKey(retType, readType)),
+                    Key: new DataTypeKey(typeof(OperationStatus), paramOutType)),
 
+                    // Used for extension methods.
                     (Reader: null,
                     Args: new[] { readerParam, resultVar },
-                    Key: new DataTypeKey(retType, typeof(NetBinaryReader), readType)),
+                    Key: new DataTypeKey(typeof(OperationStatus), typeof(NetBinaryReader), paramOutType)),
                 };
 
-                MethodInfo? readMethod = null;
+                MethodInfo? dataReadMethod = null;
                 foreach (var (reader, args, dataKey) in tuples)
                 {
-                    if (DataTypeHandlers.TryGetValue(dataKey, out readMethod))
+                    if (DataTypeHandlers.TryGetValue(dataKey, out dataReadMethod))
                     {
-                        var readCall = Expression.Call(reader, readMethod, args);
-                        expressions.Add(Expression.Assign(resultCodeVar, readCall));
+                        var readCall = Expression.Call(reader, dataReadMethod, args);
+                        var statusAssign = Expression.Assign(statusVar, readCall);
+                        expressions.Add(statusAssign);
 
-                        expressions.Add(Expression.IfThen(
-                            test: Expression.NotEqual(resultCodeVar, Expression.Constant(OperationStatus.Done)),
-                            ifTrue: Expression.Goto(returnTarget)));
+                        var condition = Expression.IfThen(
+                            test: Expression.NotEqual(statusVar, Expression.Constant(OperationStatus.Done)),
+                            ifTrue: Expression.Goto(returnTarget));
 
+                        expressions.Add(condition);
                         break;
                     }
                 }
-
-                if (readMethod == null)
-                    throw new Exception();
+                if (dataReadMethod == null)
+                    throw new Exception($"Failed to find data read method for {paramType}.");
             }
         }
     }

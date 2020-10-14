@@ -190,7 +190,7 @@ namespace MCServerSharp.Net.Packets
 
         #region PacketAction-related methods
 
-        protected abstract Delegate CreatePacketAction(PacketStructInfo structInfo);
+        public abstract Delegate CreatePacketAction(PacketStructInfo structInfo);
 
         public void CreatePacketActions()
         {

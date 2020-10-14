@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using MCServerSharp.Collections;
 
 namespace MCServerSharp.Net.Packets
 {
@@ -29,12 +30,12 @@ namespace MCServerSharp.Net.Packets
             if (assembly == null)
                 throw new ArgumentNullException(nameof(assembly));
 
-            foreach (Type type in assembly.ExportedTypes)
-            {
-                var structAttribute = type.GetCustomAttribute<PacketStructAttribute>();
-                if (structAttribute != null)
-                    yield return new PacketStructInfo(type, structAttribute);
-            }
+            var packetTypes = assembly.ExportedTypes.SelectWhere(
+                t => t.GetCustomAttribute<PacketStructAttribute>(),
+                (t, a) => a != null,
+                (t, a) => new PacketStructInfo(t, a!));
+
+            return packetTypes;
         }
     }
 }

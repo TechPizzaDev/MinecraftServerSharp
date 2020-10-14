@@ -71,7 +71,7 @@ namespace MCServerSharp.Net.Packets
             return (NetPacketWriterAction<TPacket>)GetPacketAction(typeof(TPacket));
         }
 
-        protected override Delegate CreatePacketAction(PacketStructInfo structInfo)
+        public override Delegate CreatePacketAction(PacketStructInfo structInfo)
         {
             var expressions = new List<Expression>();
             var writerParam = Expression.Parameter(typeof(NetBinaryWriter), "Writer");
@@ -81,6 +81,10 @@ namespace MCServerSharp.Net.Packets
             {
                 string methodName = nameof(IWritablePacket.Write);
                 var writeMethod = structInfo.Type.GetMethod(methodName, new[] { writerParam.Type });
+                if (writeMethod == null)
+                    throw new Exception(
+                        $"Failed to get {nameof(IWritablePacket)} method required for reflection.");
+
                 var writeCall = Expression.Call(packetParam, writeMethod, writerParam);
                 expressions.Add(writeCall);
             }

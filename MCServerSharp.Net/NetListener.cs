@@ -22,9 +22,8 @@ namespace MCServerSharp.Net
         public event ConnectionEvent? Connection;
         public event ConnectionEvent? Disconnection;
 
-        private NetOrchestrator Orchestrator { get; }
-        private PrimaryConnectionEvent PrimaryConnectionHandler { get; }
-
+        public NetOrchestrator Orchestrator { get; }
+        public PrimaryConnectionEvent PrimaryConnectionHandler { get; }
         public Socket Socket { get; }
 
         public NetListener(NetOrchestrator orchestrator, PrimaryConnectionEvent primaryConnectionHandler)

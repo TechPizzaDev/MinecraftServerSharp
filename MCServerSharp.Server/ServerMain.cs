@@ -457,7 +457,7 @@ namespace MCServerSharp.Runner
             manager.SetPacketHandler(delegate
                 (NetConnection connection, ClientLoginStart loginStart)
             {
-                var setCompression = new ServerSetCompression(128);
+                var setCompression = new ServerSetCompression(-1);
                 connection.EnqueuePacket(setCompression);
                 connection.CompressionThreshold = setCompression.Threshold;
 

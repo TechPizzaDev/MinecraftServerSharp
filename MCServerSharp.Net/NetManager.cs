@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Net;
 using System.Reflection;
 using MCServerSharp.Collections;
@@ -13,7 +12,6 @@ namespace MCServerSharp.Net
 {
     public class NetManager
     {
-
         public const int BlockSize = 1024 * 16;
         public const int BlockMultiple = BlockSize * 16;
         public const int MaxBufferSize = BlockMultiple * 16;
@@ -40,6 +38,7 @@ namespace MCServerSharp.Net
         public NetManager(RecyclableMemoryManager memoryManager)
         {
             MemoryManager = memoryManager ?? throw new ArgumentNullException(nameof(memoryManager));
+
             Codec = new NetPacketCodec(MemoryManager);
             Orchestrator = new NetOrchestrator(MemoryManager, Codec);
             Listener = new NetListener(Orchestrator, AcceptConnection);
