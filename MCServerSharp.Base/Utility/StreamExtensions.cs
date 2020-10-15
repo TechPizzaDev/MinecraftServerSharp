@@ -1,5 +1,7 @@
 ﻿using System;
 using System.IO;
+using System.Net.Sockets;
+using System.Runtime.InteropServices;
 
 namespace MCServerSharp.Utility
 {
@@ -50,7 +52,7 @@ namespace MCServerSharp.Utility
         /// Reads the bytes from the current stream and writes them to another stream
         /// using a stack-allocated buffer.
         /// </summary>
-        public static void SpanCopyTo(this Stream source, Stream destination)
+        public static long SpanCopyTo(this Stream source, Stream destination)
         {
             if (source == null)
                 throw new ArgumentNullException(nameof(source));
@@ -58,23 +60,25 @@ namespace MCServerSharp.Utility
                 throw new ArgumentNullException(nameof(destination));
 
             Span<byte> buffer = stackalloc byte[4096];
+            long totalRead = 0;
             int read;
             while ((read = source.Read(buffer)) != 0)
+            {
                 destination.Write(buffer.Slice(0, read));
+                totalRead += read;
+            }
+            return totalRead;
         }
 
         /// <summary>
         /// Reads the bytes from the current stream and writes them to another stream
         /// using a stack-allocated buffer and reporting every write.
         /// </summary>
-        public static void SpanCopyTo(
+        public static long SpanCopyTo(
             this Stream source, Stream destination, Action<int>? onWrite)
         {
             if (onWrite == null)
-            {
-                SpanCopyTo(source, destination);
-                return;
-            }
+                return SpanCopyTo(source, destination);
 
             if (source == null)
                 throw new ArgumentNullException(nameof(source));
@@ -82,12 +86,70 @@ namespace MCServerSharp.Utility
                 throw new ArgumentNullException(nameof(destination));
 
             Span<byte> buffer = stackalloc byte[4096];
+            long totalRead = 0;
             int read;
             while ((read = source.Read(buffer)) != 0)
             {
                 destination.Write(buffer.Slice(0, read));
+                totalRead += read;
                 onWrite.Invoke(read);
             }
+            return totalRead;
+        }
+
+        /// <summary>
+        /// Reads the bytes from the current stream and writes them to another stream
+        /// using a stack-allocated buffer.
+        /// </summary>
+        public static long SpanWriteTo(this Stream source, Stream destination, long maxWrite)
+        {
+            if (source == null)
+                throw new ArgumentNullException(nameof(source));
+            if (destination == null)
+                throw new ArgumentNullException(nameof(destination));
+            if (maxWrite < 0)
+                throw new ArgumentOutOfRangeException(nameof(maxWrite));
+
+            Span<byte> buffer = stackalloc byte[4096];
+            long totalRead = 0;
+            int read;
+            while ((read = source.Read(buffer.Slice(0, (int)Math.Min(buffer.Length, maxWrite)))) != 0)
+            {
+                destination.Write(buffer.Slice(0, read));
+                totalRead += read;
+                maxWrite -= read;
+            }
+            return totalRead;
+        }
+
+        /// <summary>
+        /// Reads the bytes from the current stream and writes them to another stream
+        /// using a stack-allocated buffer and reporting every write.
+        /// </summary>
+        public static long SpanWriteTo(
+            this Stream source, Stream destination, long maxWrite, Action<int>? onWrite)
+        {
+            if (onWrite == null)
+                return SpanWriteTo(source, destination, maxWrite);
+
+            if (source == null)
+                throw new ArgumentNullException(nameof(source));
+            if (destination == null)
+                throw new ArgumentNullException(nameof(destination));
+            if (maxWrite < 0)
+                throw new ArgumentOutOfRangeException(nameof(maxWrite));
+
+            Span<byte> buffer = stackalloc byte[4096];
+            long totalRead = 0;
+            int read;
+            while ((read = source.Read(buffer.Slice(0, (int)Math.Min(buffer.Length, maxWrite)))) != 0)
+            {
+                destination.Write(buffer.Slice(0, read));
+                totalRead += read;
+                maxWrite -= read;
+                onWrite.Invoke(read);
+            }
+            return totalRead;
         }
     }
 }
