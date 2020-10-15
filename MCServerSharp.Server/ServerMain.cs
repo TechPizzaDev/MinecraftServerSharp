@@ -183,7 +183,7 @@ namespace MCServerSharp.Runner
         private static void LoadGameData()
         {
             // TODO: create data generator tool (that runs before project build?) 
-            // TODO: NET5 source generator for trivial access to blocks
+            // TODO: NET5 source generator for trivial access to blocks per supported version
 
             {
                 Console.WriteLine("Loading blocks...");
@@ -225,26 +225,28 @@ namespace MCServerSharp.Runner
         private static IStateProperty ParseStateProperty(string name, List<string> values)
         {
             if (values.Count == 0)
-                throw new ArgumentException("The enumerable may not be empty.", nameof(values));
+                throw new ArgumentEmptyException(nameof(values));
 
             if (values.Count == 2)
+            {
                 if (values.Contains("true") && values.Contains("false"))
                     return new BooleanStateProperty(name);
+            }
 
-            bool intProperty = true;
+            bool isIntProperty = true;
             int min = int.MaxValue;
             int max = int.MinValue;
             foreach (string value in values)
             {
                 if (!int.TryParse(value, out int intValue))
                 {
-                    intProperty = false;
+                    isIntProperty = false;
                     break;
                 }
                 min = Math.Min(min, intValue);
                 max = Math.Max(max, intValue);
             }
-            if (intProperty)
+            if (isIntProperty)
                 return new IntegerStateProperty(name, min, max);
 
             foreach (var (propertyType, enumValues) in _stateEnumSets)
@@ -457,7 +459,7 @@ namespace MCServerSharp.Runner
             manager.SetPacketHandler(delegate
                 (NetConnection connection, ClientLoginStart loginStart)
             {
-                var setCompression = new ServerSetCompression(-1);
+                var setCompression = new ServerSetCompression(128);
                 connection.EnqueuePacket(setCompression);
                 connection.CompressionThreshold = setCompression.Threshold;
 
@@ -479,8 +481,8 @@ namespace MCServerSharp.Runner
                     (Utf8String)"minecraft:brand",
                     (Utf8String)"MCServerSharp"));
 
-                int chunksX = 2;
-                int chunksZ = 2;
+                int chunksX = 8;
+                int chunksZ = 8;
                 int playerX = chunksX * 8;
                 int playerY = 260;
                 int playerZ = chunksZ * 8;

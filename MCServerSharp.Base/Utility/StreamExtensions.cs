@@ -1,7 +1,5 @@
 ﻿using System;
 using System.IO;
-using System.Net.Sockets;
-using System.Runtime.InteropServices;
 
 namespace MCServerSharp.Utility
 {

@@ -84,7 +84,7 @@ namespace MCServerSharp.Net
 
         public async ValueTask<NetSendState> FlushSendBuffer()
         {
-            if (!IsAlive)
+            if (!Socket.Connected)
                 return NetSendState.Closed;
 
             var sendBuffer = SendBuffer;

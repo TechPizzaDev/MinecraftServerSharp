@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.Net;
 using System.Reflection;
+using System.Threading;
 using MCServerSharp.Collections;
 using MCServerSharp.Data.IO;
 using MCServerSharp.Net.Packets;
@@ -120,12 +121,18 @@ namespace MCServerSharp.Net
             lock (ConnectionMutex)
             {
                 if (!_connections.Add(connection))
-                    throw new InvalidOperationException(); // This should never occur.
+                {
+                    // This should never occur. It would mean that the listener is broken,
+                    // as a connection should be unique.
+                    throw new InvalidOperationException();
+                }
             }
 
             // TODO: manage connection tasks
             // TODO: validate client
-            var connectionTask = Codec.EngageConnection(connection, cancellationToken: default);
+
+            // As soon as the client connects, start receiving
+            var connectionTask = Codec.EngageClientConnection(connection, cancellationToken: default);
 
             return true;
         }
@@ -145,7 +152,7 @@ namespace MCServerSharp.Net
 
             lock (ConnectionMutex)
                 connectionBuffer.AddRange(_connections);
-            
+
             activeConnectionCount = 0;
             for (int i = 0; i < connectionBuffer.Count; i++)
             {
@@ -153,10 +160,23 @@ namespace MCServerSharp.Net
                 if (connection.ProtocolState == ProtocolState.Closing)
                 {
                     bool connected = connection.Socket.Connected;
+
+                    if (connected &&
+                        Orchestrator.PacketSendQueues.TryGetValue(connection, out var netQueue))
+                    {
+                        lock (netQueue.EngageMutex)
+                        {
+                            if (!netQueue.IsEngaged && !netQueue.PacketQueue.IsEmpty)
+                            {
+                                netQueue.IsEngaged = true;
+                                Orchestrator.QueuesToFlush.Enqueue(netQueue);
+                                continue;
+                            }
+                        }
+                    }
+
                     if (!connected || connection.SendBuffer.Length == 0)
                     {
-                        connection.Close(immediate: true);
-
                         lock (ConnectionMutex)
                         {
                             if (!_connections.Remove(connection))
@@ -164,11 +184,13 @@ namespace MCServerSharp.Net
                         }
 
                         // There won't be a queue if there was no packet send attempt during connection.
-                        if (Orchestrator.PacketSendQueues.TryRemove(connection, out var removedQueue))
+                        if (Orchestrator.PacketSendQueues.TryRemove(connection, out var removedNetQueue))
                         {
-                            foreach (var staleHolder in removedQueue.PacketQueue)
+                            foreach (var staleHolder in removedNetQueue.PacketQueue)
                                 Orchestrator.ReturnPacketHolder(staleHolder);
                         }
+
+                        connection.Close(immediate: true);
                     }
                 }
                 else

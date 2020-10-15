@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Net.Sockets;
@@ -101,19 +102,26 @@ namespace MCServerSharp.Net
             return packetHandler;
         }
 
-        public async Task EngageConnection(NetConnection connection, CancellationToken cancellationToken)
+        /// Connection flow/lifetime: 
+        /// Every connection begins in <see cref="EngageClientConnection"/>, where a loop reads 
+        /// asynchrounsly from the client socket. 
+        /// Successful reads get copied to the connection's receive buffer.
+        /// 
+
+        public async Task EngageClientConnection(NetConnection connection, CancellationToken cancellationToken)
         {
             if (connection == null)
                 throw new ArgumentNullException(nameof(connection));
 
-            // As soon as the client connects, start receiving
-
-            var readBuffer = new byte[1024 * 16];
+            var readBuffer = new byte[1024 * 4]; // Clients don't really need a big read buffer.
             var readMemory = readBuffer.AsMemory();
-            var socket = connection.Socket;
 
+            var socket = connection.Socket;
             var receiveBuffer = connection.ReceiveBuffer;
-            var state = new ReceiveState(new NetBinaryReader(receiveBuffer), cancellationToken);
+            var state = new ReceiveState(
+                connection,
+                new NetBinaryReader(receiveBuffer),
+                cancellationToken);
 
             try
             {
@@ -121,28 +129,37 @@ namespace MCServerSharp.Net
                 while ((read = await socket.ReceiveAsync(
                     readMemory, SocketFlags.None, state.CancellationToken).ConfigureAwait(false)) != 0)
                 {
+                    // Insert received data into beginning of receive buffer.
+                    var readSlice = readMemory.Slice(0, read);
+                    receiveBuffer.Seek(0, SeekOrigin.End);
+                    receiveBuffer.Write(readSlice.Span);
+                    receiveBuffer.Seek(0, SeekOrigin.Begin);
+                    connection.BytesReceived += readSlice.Length;
+
                     // We process by the message length (unless it's a legacy server list ping), 
                     // so don't worry if we received parts of the next message.
 
-                    var readSlice = readMemory.Slice(0, read);
-                    state.Reader.Seek(0, SeekOrigin.End);
-                    state.Reader.BaseStream.Write(readSlice.Span);
-                    state.Reader.Position = 0;
-                    connection.BytesReceived += readSlice.Length;
-
+                    int toTrim = 0;
                     OperationStatus handleStatus;
-                    while ((handleStatus = HandlePacket(
-                        connection, ref state, out VarInt totalMessageLength)) == OperationStatus.Done &&
-                        connection.IsAlive)
+                    while ((handleStatus = HandlePacket(ref state, out VarInt totalMessageLength)) == OperationStatus.Done)
                     {
-                        receiveBuffer.TrimStart(totalMessageLength);
+                        toTrim += totalMessageLength;
+                        if (!connection.IsAlive)
+                            break;
                     }
 
-                    if (handleStatus == OperationStatus.InvalidData)
+                    // TODO: fix this
+                    //if (handleStatus == OperationStatus.InvalidData)
                     {
                         // TODO: handle this state better
-                        throw new InvalidDataException();
+                        connection.Kick(new InvalidDataException());
+                        return;
                     }
+
+                    if (!connection.IsAlive)
+                        break;
+
+                    receiveBuffer.TrimStart(toTrim);
                 }
             }
             catch (SocketException sockEx) when (sockEx.SocketErrorCode == SocketError.ConnectionReset)
@@ -152,6 +169,7 @@ namespace MCServerSharp.Net
             catch (Exception ex)
             {
                 connection.Kick(ex);
+                return;
             }
 
             connection.Close(immediate: false);
@@ -159,13 +177,15 @@ namespace MCServerSharp.Net
 
         public struct ReceiveState
         {
-            public readonly NetBinaryReader Reader;
-            public readonly CancellationToken CancellationToken;
+            public NetConnection Connection { get; }
+            public NetBinaryReader Reader { get; }
+            public CancellationToken CancellationToken { get; }
 
             public ProtocolState? ProtocolOverride;
 
-            public ReceiveState(NetBinaryReader reader, CancellationToken cancellationToken)
+            public ReceiveState(NetConnection connection, NetBinaryReader reader, CancellationToken cancellationToken)
             {
+                Connection = connection ?? throw new ArgumentNullException(nameof(connection));
                 Reader = reader;
                 CancellationToken = cancellationToken;
 
@@ -187,25 +207,26 @@ namespace MCServerSharp.Net
         }
 
         public OperationStatus HandlePacket(
-            NetConnection connection, ref ReceiveState state, out VarInt totalPacketLength)
+            ref ReceiveState state, out VarInt totalPacketLength)
         {
-            if (connection == null)
-                throw new ArgumentNullException(nameof(connection));
+            var connection = state.Connection;
+            Debug.Assert(connection != null);
 
             totalPacketLength = default;
 
-            if (state.Reader.PeekByte() == LegacyServerListPingPacketDefinition.RawId)
+            var reader = state.Reader;
+            if (reader.PeekByte() == LegacyServerListPingPacketDefinition.RawId)
             {
-                state.Reader.Position++;
+                reader.Position++;
 
-                var legacyServerListPingStatus = ReadLegacyServerListPing(connection, state.Reader);
+                var legacyServerListPingStatus = ReadLegacyServerListPing(connection, reader);
                 if (legacyServerListPingStatus != OperationStatus.NeedMoreData)
                     connection.Close(immediate: false);
 
                 return legacyServerListPingStatus;
             }
 
-            var packetLengthStatus = state.Reader.Read(out VarInt packetLength, out int packetLengthBytes);
+            var packetLengthStatus = reader.Read(out VarInt packetLength, out int packetLengthBytes);
             if (packetLengthStatus != OperationStatus.Done)
                 return packetLengthStatus;
 
@@ -216,7 +237,7 @@ namespace MCServerSharp.Net
             }
 
             totalPacketLength = packetLengthBytes + packetLength;
-            if (state.Reader.Length < totalPacketLength)
+            if (reader.Length < totalPacketLength)
                 return OperationStatus.NeedMoreData;
 
             VarInt dataLength;
@@ -225,9 +246,9 @@ namespace MCServerSharp.Net
             // CompressionThreshold < 0 == disabled
             // CompressionThreshold = 0 == enabled for all
             // CompressionThreshold > x == enabled for sizes >= x
-            if (connection.CompressionThreshold >= 0) 
+            if (connection.CompressionThreshold >= 0)
             {
-                var dataLengthStatus = state.Reader.Read(out dataLength, out int dataLengthBytes);
+                var dataLengthStatus = reader.Read(out dataLength, out int dataLengthBytes);
                 if (dataLengthStatus != OperationStatus.Done)
                     return dataLengthStatus;
 
@@ -237,7 +258,7 @@ namespace MCServerSharp.Net
                         return dataLengthStatus;
 
                     var decompressionBuffer = connection.DecompressionBuffer;
-                    using (var decompressor = new ZlibStream(state.Reader.BaseStream, CompressionMode.Decompress, true))
+                    using (var decompressor = new ZlibStream(reader.BaseStream, CompressionMode.Decompress, true))
                     {
                         decompressionBuffer.SetLength(0);
                         decompressionBuffer.Position = 0;
@@ -252,7 +273,7 @@ namespace MCServerSharp.Net
                 else
                 {
                     dataLength = packetLength - packetLengthBytes - dataLengthBytes;
-                    packetStream = state.Reader.BaseStream;
+                    packetStream = reader.BaseStream;
 
                     if ((dataLengthStatus = ValidateDataLength(connection, dataLength)) != OperationStatus.Done)
                         return dataLengthStatus;
@@ -261,7 +282,7 @@ namespace MCServerSharp.Net
             else
             {
                 dataLength = packetLength - packetLengthBytes;
-                packetStream = state.Reader.BaseStream;
+                packetStream = reader.BaseStream;
 
                 var dataLengthStatus = ValidateDataLength(connection, dataLength);
                 if (dataLengthStatus != OperationStatus.Done)

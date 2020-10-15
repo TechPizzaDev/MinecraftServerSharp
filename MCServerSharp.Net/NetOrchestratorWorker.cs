@@ -128,7 +128,7 @@ namespace MCServerSharp.Net
             if (holder.CompressionThreshold >= 0)
             {
                 bool compressed =
-                    holder.CompressionThreshold == 0 || 
+                    holder.CompressionThreshold == 0 ||
                     dataLength >= holder.CompressionThreshold;
 
                 if (compressed)
@@ -178,18 +178,16 @@ namespace MCServerSharp.Net
 
             while (IsRunning)
             {
+                // Wait to not waste time on repeating loop.
+                IsBusy = false;
+                _flushRequestEvent.WaitOne(TimeoutMillis);
+
+                if (!Orchestrator.QueuesToFlush.TryDequeue(out var orchestratorQueue))
+                    continue;
+
+                IsBusy = true;
                 try
                 {
-                    // Wait to not waste time on repeating loop.
-                    IsBusy = false;
-                    _flushRequestEvent.WaitOne(TimeoutMillis);
-
-                    if (!Orchestrator.QueuesToFlush.TryDequeue(out var orchestratorQueue))
-                        continue;
-
-                    IsBusy = true;
-                    var connection = orchestratorQueue.Connection;
-
                     try
                     {
                         while (orchestratorQueue.PacketQueue.TryDequeue(out var packetHolder))
@@ -216,7 +214,7 @@ namespace MCServerSharp.Net
                     }
                     finally
                     {
-                        var flushTask = connection.FlushSendBuffer();
+                        var flushTask = orchestratorQueue.Connection.FlushSendBuffer();
                         if (flushTask.IsCompleted) // Many flushes complete synchronously
                         {
                             FinishSendQueue(flushTask.Result, orchestratorQueue);
@@ -251,7 +249,7 @@ namespace MCServerSharp.Net
             {
                 if (queue.PacketQueue.IsEmpty)
                     queue.IsEngaged = false;
-                else if (state != NetSendState.Closed)
+                else
                     queue.Connection.Orchestrator.QueuesToFlush.Enqueue(queue);
             }
         }
