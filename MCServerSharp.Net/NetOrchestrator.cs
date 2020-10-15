@@ -93,7 +93,7 @@ namespace MCServerSharp.Net
             if (packet == null)
                 throw new ArgumentNullException(nameof(packet));
 
-            var writer = Codec.Encoder.GetPacketWriter<TPacket>();
+            var writer = Codec.Encoder.GetPacketWriterAction<TPacket>();
 
             lock (_packetHolderPool)
             {

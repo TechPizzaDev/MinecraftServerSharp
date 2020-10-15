@@ -75,6 +75,21 @@ namespace MCServerSharp.Net.Packets
             return (NetPacketReaderAction<TPacket>)GetPacketAction(typeof(TPacket));
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// A manual read pattern is inferred by using
+        /// <c>(<see cref="NetBinaryReader"/>, <see langword="out"/> <see cref="OperationStatus"/>)</c>
+        /// parameters.
+        /// </para>
+        /// <para>
+        /// The packet constructor is not called if data is malformed.
+        /// Empty packet constructors are called without reading packet data 
+        /// (always returning <see cref="OperationStatus.Done"/>).
+        /// </para>
+        /// </remarks>
         public override Delegate CreatePacketAction(PacketStructInfo structInfo)
         {
             var constructors = structInfo.Type.GetConstructors();
@@ -84,8 +99,10 @@ namespace MCServerSharp.Net.Packets
                 .ToList();
 
             if (constructorInfoList.Count > 1)
+            {
                 // TODO: Change this after PacketSwitch attribute for params is implemented
                 throw new Exception("Only one packet constructor may be defined.");
+            }
 
             var variables = new List<ParameterExpression>();
             var expressions = new List<Expression>();
@@ -99,36 +116,54 @@ namespace MCServerSharp.Net.Packets
             var statusVar = Expression.Variable(typeof(OperationStatus), "Status");
             variables.Add(statusVar);
 
+            // The return target allows code to jump out in the middle of packet reading.
             LabelTarget? returnTarget = null;
+
             ConstructorInfo? constructor = constructorInfoList.FirstOrDefault()?.Constructor;
 
             NewExpression newPacket;
-            if (constructor != null)
+            if (constructor == null)
+            {
+                // Struct with empty constructor doesn't require much logic
+                newPacket = Expression.New(structInfo.Type);
+
+                // Empty constructors really shouldn't ever fail...
+                expressions.Add(Expression.Assign(statusVar, Expression.Constant(OperationStatus.Done)));
+            }
+            else
             {
                 var constructorParams = constructor.GetParameters();
 
+                // Look if the constructors want to use the read-pattern.
                 if (constructorParams.Length == 2 &&
                     constructorParams[0].ParameterType == typeof(NetBinaryReader) &&
-                    constructorParams[1].ParameterType == typeof(OperationStatus).MakeByRefType())
+                    constructorParams[1].ParameterType == typeof(OperationStatus).MakeByRefType() &&
+                    constructorParams[1].ParameterType.GetElementType() == typeof(OperationStatus))
                 {
+                    if (!constructorParams[1].Attributes.HasFlag(ParameterAttributes.Out))
+                    {
+                        throw new Exception(
+                            $"The constructor parameter types match the read-pattern," +
+                            $"but the {nameof(OperationStatus)} parameter is not an out parameter.");
+                    }
+
                     constructorArgs.Add(readerParam);
                     constructorArgs.Add(statusVar);
                 }
                 else
                 {
+                    // Otherwise just create a read-sequence that calls 
+                    // the constructor with it's params.
                     returnTarget = Expression.Label("Return");
 
-                    CreateComplexPacketReader(
+                    CreatePacketReadSequence(
                         variables, constructorArgs, expressions,
                         readerParam, statusVar,
                         returnTarget, constructorParams);
                 }
+
+                // The constructor is not called if data is malformed.
                 newPacket = Expression.New(constructor, constructorArgs);
-            }
-            else
-            {
-                newPacket = Expression.New(structInfo.Type);
-                expressions.Add(Expression.Assign(statusVar, Expression.Constant(OperationStatus.Done)));
             }
             expressions.Add(Expression.Assign(outPacketParam, newPacket));
 
@@ -143,7 +178,7 @@ namespace MCServerSharp.Net.Packets
             return lambda.Compile();
         }
 
-        private void CreateComplexPacketReader(
+        private void CreatePacketReadSequence(
             List<ParameterExpression> variables,
             List<Expression> constructorArgs,
             List<Expression> expressions,
@@ -164,7 +199,7 @@ namespace MCServerSharp.Net.Packets
                 constructorArgs.Add(resultVar);
 
                 var paramOutType = paramType.MakeByRefType();
-                var tuples = new[]
+                var methodTuples = new[]
                 {
                     // Used for NetBinaryReader methods.
                     (Reader: readerParam,
@@ -175,10 +210,12 @@ namespace MCServerSharp.Net.Packets
                     (Reader: null,
                     Args: new[] { readerParam, resultVar },
                     Key: new DataTypeKey(typeof(OperationStatus), typeof(NetBinaryReader), paramOutType)),
+
+                    // TODO: add a state object with a service collection that's passed to the method?
                 };
 
                 MethodInfo? dataReadMethod = null;
-                foreach (var (reader, args, dataKey) in tuples)
+                foreach (var (reader, args, dataKey) in methodTuples)
                 {
                     if (DataTypeHandlers.TryGetValue(dataKey, out dataReadMethod))
                     {

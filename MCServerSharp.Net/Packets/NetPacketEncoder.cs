@@ -66,7 +66,7 @@ namespace MCServerSharp.Net.Packets
             RegisterPacketTypesFromCallingAssembly(x => x.Attribute.IsServerPacket);
         }
 
-        public NetPacketWriterAction<TPacket> GetPacketWriter<TPacket>()
+        public NetPacketWriterAction<TPacket> GetPacketWriterAction<TPacket>()
         {
             return (NetPacketWriterAction<TPacket>)GetPacketAction(typeof(TPacket));
         }
