@@ -479,11 +479,17 @@ namespace MCServerSharp.Runner
                     (Utf8String)"minecraft:brand",
                     (Utf8String)"MCServerSharp"));
 
+                int chunksX = 2;
+                int chunksZ = 2;
+                int playerX = chunksX * 8;
+                int playerY = 260;
+                int playerZ = chunksZ * 8;
+
                 connection.EnqueuePacket(new ServerSpawnPosition(
-                    new Position(64, 260, 64)));
+                    new Position(playerX, playerY, playerZ)));
 
                 connection.EnqueuePacket(new ServerPlayerPositionLook(
-                    64, 260, 64, 0, 0, ServerPlayerPositionLook.PositionRelatives.None, 1337));
+                    playerX, playerY, playerZ, 0, 0, ServerPlayerPositionLook.PositionRelatives.None, 1337));
 
                 connection.EnqueuePacket(new ServerPlayerAbilities(
                     ServerAbilityFlags.AllowFlying | ServerAbilityFlags.Flying,
@@ -494,9 +500,9 @@ namespace MCServerSharp.Runner
                 {
                     try
                     {
-                        for (int z = 0; z < 8; z++)
+                        for (int z = 0; z < chunksZ; z++)
                         {
-                            for (int x = 0; x < 8; x++)
+                            for (int x = 0; x < chunksX; x++)
                             {
                                 if (connection.ProtocolState != ProtocolState.Play)
                                     goto End;

@@ -26,7 +26,7 @@ namespace MCServerSharp.Net
         public object CloseMutex { get; } = new object();
 
         // TODO: add thread-safe property propagation
-        public int? CompressionThreshold { get; set; }
+        public int CompressionThreshold { get; set; } = -1;
         public ProtocolState ProtocolState { get; set; }
 
         public long BytesReceived { get; set; }

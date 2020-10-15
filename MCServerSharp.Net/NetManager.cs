@@ -19,6 +19,7 @@ namespace MCServerSharp.Net
         // These fit pretty well with the memory block sizes.
         public const int MaxServerPacketSize = 2097152;
         public const int MaxClientPacketSize = 32768;
+        public const int MaxClientPacketDataSize = 65536;
 
         // TODO: move these somewhere
         public int ProtocolVersion { get; } = 578;

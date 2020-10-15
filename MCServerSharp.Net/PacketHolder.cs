@@ -12,7 +12,7 @@ namespace MCServerSharp.Net
 
         public NetConnection? Connection { get; set; }
         public ProtocolState State { get; set; }
-        public int? CompressionThreshold { get; set; }
+        public int CompressionThreshold { get; set; }
 
         public abstract Type PacketType { get; }
     }

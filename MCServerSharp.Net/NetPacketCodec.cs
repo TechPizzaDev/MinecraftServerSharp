@@ -73,7 +73,7 @@ namespace MCServerSharp.Net
         {
             Encoder.RegisterServerPacketTypesFromCallingAssembly();
 
-            Console.WriteLine("Registered " + Decoder.RegisteredTypeCount + " server packet types");
+            Console.WriteLine("Registered " + Encoder.RegisteredTypeCount + " server packet types");
 
             Encoder.InitializePacketIdMaps(typeof(ServerPacketId).GetFields());
 
@@ -132,7 +132,8 @@ namespace MCServerSharp.Net
 
                     OperationStatus handleStatus;
                     while ((handleStatus = HandlePacket(
-                        connection, ref state, out VarInt totalMessageLength)) == OperationStatus.Done)
+                        connection, ref state, out VarInt totalMessageLength)) == OperationStatus.Done &&
+                        connection.IsAlive)
                     {
                         receiveBuffer.TrimStart(totalMessageLength);
                     }
@@ -172,6 +173,19 @@ namespace MCServerSharp.Net
             }
         }
 
+        public static OperationStatus ValidateDataLength(NetConnection connection, int dataLength)
+        {
+            if (connection == null)
+                throw new ArgumentNullException(nameof(connection));
+
+            if (dataLength > NetManager.MaxClientPacketSize)
+            {
+                connection.Kick($"Packet data length {dataLength} exceeds {NetManager.MaxClientPacketSize}.");
+                return OperationStatus.InvalidData;
+            }
+            return OperationStatus.Done;
+        }
+
         public OperationStatus HandlePacket(
             NetConnection connection, ref ReceiveState state, out VarInt totalPacketLength)
         {
@@ -198,7 +212,7 @@ namespace MCServerSharp.Net
             if (packetLength > NetManager.MaxClientPacketSize)
             {
                 connection.Kick($"Packet length {packetLength} exceeds {NetManager.MaxClientPacketSize}.");
-                return OperationStatus.Done;
+                return OperationStatus.InvalidData;
             }
 
             totalPacketLength = packetLengthBytes + packetLength;
@@ -207,7 +221,11 @@ namespace MCServerSharp.Net
 
             VarInt dataLength;
             Stream packetStream;
-            if (connection.CompressionThreshold.HasValue)
+
+            // CompressionThreshold < 0 == disabled
+            // CompressionThreshold = 0 == enabled for all
+            // CompressionThreshold > x == enabled for sizes >= x
+            if (connection.CompressionThreshold >= 0) 
             {
                 var dataLengthStatus = state.Reader.Read(out dataLength, out int dataLengthBytes);
                 if (dataLengthStatus != OperationStatus.Done)
@@ -215,16 +233,18 @@ namespace MCServerSharp.Net
 
                 if (dataLength != 0)
                 {
+                    if ((dataLengthStatus = ValidateDataLength(connection, dataLength)) != OperationStatus.Done)
+                        return dataLengthStatus;
+
                     var decompressionBuffer = connection.DecompressionBuffer;
                     using (var decompressor = new ZlibStream(state.Reader.BaseStream, CompressionMode.Decompress, true))
                     {
                         decompressionBuffer.SetLength(0);
                         decompressionBuffer.Position = 0;
-                        decompressor.SpanCopyTo(decompressionBuffer);
-                    }
 
-                    if (dataLength != decompressionBuffer.Length)
-                        return OperationStatus.InvalidData;
+                        if (decompressor.SpanWriteTo(decompressionBuffer, dataLength) != dataLength)
+                            return OperationStatus.InvalidData;
+                    }
 
                     decompressionBuffer.Position = 0;
                     packetStream = decompressionBuffer;
@@ -233,12 +253,19 @@ namespace MCServerSharp.Net
                 {
                     dataLength = packetLength - packetLengthBytes - dataLengthBytes;
                     packetStream = state.Reader.BaseStream;
+
+                    if ((dataLengthStatus = ValidateDataLength(connection, dataLength)) != OperationStatus.Done)
+                        return dataLengthStatus;
                 }
             }
             else
             {
                 dataLength = packetLength - packetLengthBytes;
                 packetStream = state.Reader.BaseStream;
+
+                var dataLengthStatus = ValidateDataLength(connection, dataLength);
+                if (dataLengthStatus != OperationStatus.Done)
+                    return dataLengthStatus;
             }
 
             var packetReader = new NetBinaryReader(packetStream);

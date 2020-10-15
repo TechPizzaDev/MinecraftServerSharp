@@ -122,9 +122,15 @@ namespace MCServerSharp.Net
             long initialResultPosition = resultWriter.Position;
             int? compressedLength = null;
 
-            if (holder.CompressionThreshold.HasValue)
+            // CompressionThreshold < 0 == disabled
+            // CompressionThreshold = 0 == enabled for all
+            // CompressionThreshold > x == enabled for sizes >= x
+            if (holder.CompressionThreshold >= 0)
             {
-                bool compressed = dataLength >= holder.CompressionThreshold;
+                bool compressed =
+                    holder.CompressionThreshold == 0 || 
+                    dataLength >= holder.CompressionThreshold;
+
                 if (compressed)
                 {
                     compressionBuffer.SetLength(0);
@@ -245,7 +251,7 @@ namespace MCServerSharp.Net
             {
                 if (queue.PacketQueue.IsEmpty)
                     queue.IsEngaged = false;
-                else if(state != NetSendState.Closed)
+                else if (state != NetSendState.Closed)
                     queue.Connection.Orchestrator.QueuesToFlush.Enqueue(queue);
             }
         }
