@@ -58,7 +58,7 @@ namespace MCServerSharp.Collections
             }
         }
 
-        #region
+        #region Constructors
 
         public LongDictionary() : this(0, null)
         {
@@ -80,12 +80,8 @@ namespace MCServerSharp.Collections
             if (capacity > 0)
                 Initialize(capacity);
 
-            if (comparer == null && typeof(TKey) == typeof(string))
-            {
-                // To start, move off default comparer for string which is randomised
-                comparer = (ILongEqualityComparer<TKey>)NonRandomLongStringComparer.Default;
-            }
-            Comparer = comparer ?? LongEqualityComparer<TKey>.Default;
+            // To start, move off default comparer for string which is randomised
+            Comparer = comparer ?? LongEqualityComparer<TKey>.NonRandomDefault;
         }
 
         public LongDictionary(IDictionary<TKey, TValue> dictionary) : this(dictionary, null)
@@ -399,7 +395,8 @@ namespace MCServerSharp.Collections
 
             if (!typeof(TKey).IsValueType && // Value types never rehash
                 collisionCount > LongHashHelpers.HashCollisionThreshold &&
-                comparer is NonRandomLongStringComparer)
+                Comparer is LongEqualityComparer<TKey> longEC &&
+                !longEC.IsRandomized)
             {
                 // If we hit the collision threshold we'll need to 
                 // switch to the comparer which is using randomized string hashing

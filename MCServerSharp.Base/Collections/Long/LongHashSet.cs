@@ -49,12 +49,8 @@ namespace MCServerSharp.Collections
 
         public LongHashSet(ILongEqualityComparer<T>? comparer)
         {
-            if (comparer == null && typeof(T) == typeof(string))
-            {
-                // To start, move off default comparer for string which is randomized.
-                comparer = (ILongEqualityComparer<T>)NonRandomLongStringComparer.Default;
-            }
-            Comparer = comparer ?? LongEqualityComparer<T>.Default;
+            // To start, move off default comparer for string which is randomised
+            Comparer = comparer ?? LongEqualityComparer<T>.NonRandomDefault;
         }
 
         public LongHashSet(int capacity) : this(capacity, null)
@@ -1007,7 +1003,8 @@ namespace MCServerSharp.Collections
 
             if (!typeof(T).IsValueType && // Value types never rehash
                 collisionCount > LongHashHelpers.HashCollisionThreshold &&
-                Comparer is NonRandomLongStringComparer)
+                Comparer is LongEqualityComparer<T> longEC &&
+                !longEC.IsRandomized)
             {
                 // If we hit the collision threshold we'll need to
                 // switch to the comparer which is using randomized string hashing

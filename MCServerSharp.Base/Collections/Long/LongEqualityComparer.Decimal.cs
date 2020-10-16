@@ -2,18 +2,15 @@
 
 namespace MCServerSharp.Collections
 {
-    public partial class LongEqualityComparer<T>
+    internal sealed class LongDecimalComparer : LongEqualityComparer<decimal>
     {
-        private class LongDecimalComparer : LongEqualityComparer<decimal>
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+        public override long GetLongHashCode(decimal d)
         {
-            [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-            public override long GetLongHashCode(decimal d)
-            {
-                ref long data = ref Unsafe.As<decimal, long>(ref d);
-                long h1 = data;
-                long h2 = Unsafe.Add(ref data, 1);
-                return LongHashCode.Combine(h1, h2);
-            }
+            ref long data = ref Unsafe.As<decimal, long>(ref d);
+            long h1 = data;
+            long h2 = Unsafe.Add(ref data, 1);
+            return LongHashCode.Combine(h1, h2);
         }
     }
 }

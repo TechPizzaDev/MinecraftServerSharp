@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Buffers;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
+using MCServerSharp.Collections;
 
 namespace MCServerSharp
 {
@@ -8,12 +10,12 @@ namespace MCServerSharp
     // TODO: overload + operator to more efficiently combine Utf8String and String instances
 
     [DebuggerDisplay("{ToString()}")]
-    public class Utf8String : IComparable<Utf8String>, IEquatable<Utf8String>
+    public class Utf8String : IComparable<Utf8String>, IEquatable<Utf8String>, ILongHashable
     {
         public static Utf8String Empty { get; } = new Utf8String(Array.Empty<byte>());
 
         private readonly byte[] _bytes;
-        
+
         public ReadOnlySpan<byte> Bytes => _bytes;
         public int Length => _bytes.Length;
 
@@ -59,6 +61,11 @@ namespace MCServerSharp
             return str;
         }
 
+        public static bool IsNullOrEmpty([NotNullWhen(false)] Utf8String? value)
+        {
+            return value == null || value.Length == 0;
+        }
+
         public int CompareTo(Utf8String? other)
         {
             if (ReferenceEquals(this, other))
@@ -78,7 +85,7 @@ namespace MCServerSharp
             if (other == null)
                 return false;
 
-            return Length == other.Length 
+            return Length == other.Length
                 && Bytes.SequenceEqual(other.Bytes);
         }
 
@@ -119,6 +126,49 @@ namespace MCServerSharp
         public static Utf8String ToUtf8String(string value)
         {
             return (Utf8String)value;
+        }
+
+        public override int GetHashCode()
+        {
+            return LongEqualityComparer<Utf8String>.Default.GetHashCode(this);
+        }
+
+        public long GetLongHashCode()
+        {
+            return LongEqualityComparer<Utf8String>.Default.GetLongHashCode(this);
+        }
+
+        public static bool operator ==(Utf8String? left, Utf8String? right)
+        {
+            if (left is null)
+                return right is null;
+
+            return left.Equals(right);
+        }
+
+        public static bool operator !=(Utf8String? left, Utf8String? right)
+        {
+            return !(left == right);
+        }
+
+        public static bool operator <(Utf8String? left, Utf8String? right)
+        {
+            return left is null ? right is object : left.CompareTo(right) < 0;
+        }
+
+        public static bool operator <=(Utf8String? left, Utf8String? right)
+        {
+            return left is null || left.CompareTo(right) <= 0;
+        }
+
+        public static bool operator >(Utf8String? left, Utf8String? right)
+        {
+            return left is object && left.CompareTo(right) > 0;
+        }
+
+        public static bool operator >=(Utf8String? left, Utf8String? right)
+        {
+            return left is null ? right is null : left.CompareTo(right) >= 0;
         }
     }
 }

@@ -1,18 +1,16 @@
-﻿
+﻿using System.Runtime.CompilerServices;
+
 namespace MCServerSharp.Collections
 {
-    public partial class LongEqualityComparer<T>
+    internal sealed class LongDoubleComparer : LongEqualityComparer<double>
     {
-        private class LongDoubleComparer : LongEqualityComparer<double>
+        public override unsafe long GetLongHashCode(double value)
         {
-            public override unsafe long GetLongHashCode(double obj)
-            {
-                // Ensure that 0 and -0 have the same hash code
-                if (obj == 0)
-                    return 0;
+            // Ensure that 0 and -0 have the same hash code
+            if (value == 0)
+                return 0;
 
-                return *(long*)&obj;
-            }
+            return Unsafe.As<double, long>(ref value);
         }
     }
 }

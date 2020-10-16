@@ -13,7 +13,7 @@ namespace MCServerSharp.Collections
     /// (i.e. never used for free-form user input),
     /// or are otherwise mitigated.
     /// </remarks>
-    public sealed class NonRandomLongStringComparer : LongEqualityComparer<string?>
+    public sealed class NonRandomLongUtf8StringComparer : LongEqualityComparer<Utf8String?>
     {
         /// <summary>
         /// Fast hash method but can cause many collisions if specially crafted by attackers.
@@ -21,7 +21,7 @@ namespace MCServerSharp.Collections
         /// <remarks>
         /// Based on <c>string.GetNonRandomizedHashCode()</c> from .NET.
         /// </remarks>
-        private static (uint h1, uint h2) Hash(ReadOnlySpan<char> span)
+        public static (uint h1, uint h2) Hash(ReadOnlySpan<byte> span)
         {
             if (span.IsEmpty)
                 return (0, 0);
@@ -29,7 +29,7 @@ namespace MCServerSharp.Collections
             uint hash1 = (5381 << 16) + 5381;
             uint hash2 = hash1;
 
-            var ints = MemoryMarshal.Cast<char, uint>(span);
+            var ints = MemoryMarshal.Cast<byte, uint>(span);
             int intCount = ints.Length;
             while (ints.Length >= 2)
             {
@@ -45,21 +45,21 @@ namespace MCServerSharp.Collections
             return (hash1, hash2);
         }
 
-        public override int GetHashCode(string? value)
+        public override int GetHashCode(Utf8String? value)
         {
             if (value == null)
                 return 0;
 
-            var (h1, h2) = Hash(value.AsSpan());
+            var (h1, h2) = Hash(value.Bytes);
             return (int)(h1 + (h2 * 1566083941));
         }
 
-        public override long GetLongHashCode(string? value)
+        public override long GetLongHashCode(Utf8String? value)
         {
             if (value == null)
                 return 0;
 
-            var (h1, h2) = Hash(value.AsSpan());
+            var (h1, h2) = Hash(value.Bytes);
             return (long)((ulong)h2 << 32 | h1);
         }
     }

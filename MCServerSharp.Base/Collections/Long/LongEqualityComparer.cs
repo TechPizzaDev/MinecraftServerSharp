@@ -5,24 +5,35 @@ using System.Runtime.CompilerServices;
 
 namespace MCServerSharp.Collections
 {
-    public abstract partial class LongEqualityComparer<T> : EqualityComparer<T>, ILongEqualityComparer<T>
+    public abstract class LongEqualityComparer<T> : EqualityComparer<T>, ILongEqualityComparer<T>
     {
-        public static new LongEqualityComparer<T> Default { get; } = 
-            (LongEqualityComparer<T>)CreateComparer();
+        public static new LongEqualityComparer<T> Default { get; } =
+            CreateComparer(randomized: true);
+
+        public static LongEqualityComparer<T> NonRandomDefault { get; } =
+            CreateComparer(randomized: false);
+
+        public virtual bool IsRandomized => false;
 
         public LongEqualityComparer()
         {
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public override bool Equals([AllowNull] T x, [AllowNull] T y) => EqualityComparer<T>.Default.Equals(x, y);
+        public override bool Equals([AllowNull] T x, [AllowNull] T y)
+        {
+            return EqualityComparer<T>.Default.Equals(x, y);
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public override int GetHashCode([DisallowNull] T value) => EqualityComparer<T>.Default.GetHashCode(value);
+        public override int GetHashCode([DisallowNull] T value)
+        {
+            return EqualityComparer<T>.Default.GetHashCode(value);
+        }
 
         public abstract long GetLongHashCode([DisallowNull] T value);
 
-        private static ILongEqualityComparer<T> CreateComparer()
+        private static LongEqualityComparer<T> CreateComparer(bool randomized)
         {
             if (typeof(T).IsGenericTypeDefinition &&
                 typeof(T).GetGenericTypeDefinition() == typeof(Nullable<>))
@@ -33,26 +44,36 @@ namespace MCServerSharp.Collections
             }
 
             if (typeof(T) == typeof(string))
-                // LongStringComparer is "randomized" by default
-                return (ILongEqualityComparer<T>)new LongStringComparer();
+            {
+                return (LongEqualityComparer<T>)(randomized 
+                    ? (object)new LongStringComparer()
+                    : new NonRandomLongStringComparer());
+            }
+
+            if (typeof(T) == typeof(Utf8String))
+            {
+                return (LongEqualityComparer<T>)(randomized 
+                    ? (object)new LongUtf8StringComparer() 
+                    : new NonRandomLongUtf8StringComparer());
+            }
 
             if (typeof(T) == typeof(long))
-                return (ILongEqualityComparer<T>)new LongInt64Comparer();
+                return (LongEqualityComparer<T>)(object)new LongInt64Comparer();
 
             if (typeof(T) == typeof(ulong))
-                return (ILongEqualityComparer<T>)new LongUInt64Comparer();
+                return (LongEqualityComparer<T>)(object)new LongUInt64Comparer();
 
             if (typeof(T) == typeof(IntPtr))
-                return (ILongEqualityComparer<T>)new LongIntPtrComparer();
+                return (LongEqualityComparer<T>)(object)new LongIntPtrComparer();
 
             if (typeof(T) == typeof(UIntPtr))
-                return (ILongEqualityComparer<T>)new LongUIntPtrComparer();
+                return (LongEqualityComparer<T>)(object)new LongUIntPtrComparer();
 
             if (typeof(T) == typeof(double))
-                return (ILongEqualityComparer<T>)new LongDoubleComparer();
+                return (LongEqualityComparer<T>)(object)new LongDoubleComparer();
 
             if (typeof(T) == typeof(decimal))
-                return (ILongEqualityComparer<T>)new LongDecimalComparer();
+                return (LongEqualityComparer<T>)(object)new LongDecimalComparer();
 
             if (typeof(ILongHashable).IsAssignableFrom(typeof(T)))
             {
