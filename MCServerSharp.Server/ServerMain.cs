@@ -11,6 +11,7 @@ using System.Threading;
 using MCServerSharp.Blocks;
 using MCServerSharp.Data;
 using MCServerSharp.Enums;
+using MCServerSharp.Maths;
 using MCServerSharp.NBT;
 using MCServerSharp.Net;
 using MCServerSharp.Net.Packets;
@@ -21,6 +22,13 @@ namespace MCServerSharp.Runner
 {
     public static class ServerMain
     {
+        // TODO: fix these very temporary fields
+        static int chunksX = 32;
+        static int chunksZ = 32;
+        static int playerX = chunksX * 8;
+        static int playerY = 10;
+        static int playerZ = chunksZ * 8;
+
         // TODO: move these to a Game class
         public const string PongResource = "Minecraft/Net/Pong.json";
 
@@ -35,7 +43,7 @@ namespace MCServerSharp.Runner
 
         private static Dimension _dimension;
 
-        private static List<NetConnection> _connectionsBuffer = new List<NetConnection>();
+        private static List<NetConnection> _connectionsList = new List<NetConnection>();
 
         private static (Type, HashSet<string>)[] _stateEnumSets = new (Type, HashSet<string>)[]
         {
@@ -273,7 +281,7 @@ namespace MCServerSharp.Runner
             {
                 var blocksDictionary = new Dictionary<Identifier, BlockDescription>();
                 var blockStatePropBuilder = new List<IStateProperty>();
-                
+
                 uint blockId = 0;
                 foreach (var blockProperty in blocksDocument.RootElement.EnumerateObject())
                 {
@@ -310,7 +318,7 @@ namespace MCServerSharp.Runner
                             var propNames = blockPropProp.Value.EnumerateArray()
                                 .Select(x => GetEnumString(x))
                                 .ToList();
-                            
+
                             var parsedProp = ParseStateProperty(blockPropProp.Name, propNames);
                             blockStatePropBuilder.Add(parsedProp);
                         }
@@ -350,40 +358,98 @@ namespace MCServerSharp.Runner
             }
         }
 
+        private static void SendChunks(List<NetConnection> connections)
+        {
+            foreach (var connection in connections)
+            {
+                try
+                {
+                    connection.ChunkPosition = new ChunkPosition(
+                        (int)(connection.PlayerPosition.X / 16),
+                        (int)(connection.PlayerPosition.Z / 16));
+
+                    if (connection.ChunkPosition != connection.LastChunkPosition)
+                    {
+                        connection.EnqueuePacket(
+                            new ServerUpdateViewPosition(
+                                connection.ChunkPosition.X,
+                                connection.ChunkPosition.Z));
+
+                        Console.WriteLine(
+                            connection.UserName + " moved from chunk " +
+                            connection.LastChunkPosition + " to " + connection.ChunkPosition);
+
+                        for (int z = 0; z < chunksZ; z++)
+                        {
+                            for (int x = 0; x < chunksX; x++)
+                            {
+                                if (connection.ProtocolState != ProtocolState.Play)
+                                    return;
+
+                                if (connection.SentChunks.Add((x, z)))
+                                {
+                                    var chunk = _dimension.GetChunk(x, z);
+                                    var chunkData = new ServerChunkData(chunk, fullChunk: true);
+                                    connection.EnqueuePacket(chunkData);
+                                }
+                            }
+                        }
+
+                        connection.LastChunkPosition = connection.ChunkPosition;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    connection.Kick(ex);
+
+                    Console.WriteLine("Failed to send chunks to client: " + ex.Message);
+                }
+            }
+        }
+
         private static void Game_Tick(Ticker ticker)
         {
+            _connectionsList.Clear();
+            _manager.UpdateConnections(_connectionsList, out int activeCount);
+
             _tickCount++;
             if (_tickCount % 20 == 0) // Every second
             {
-                _connectionsBuffer.Clear();
-                _manager.UpdateConnections(_connectionsBuffer, out int activeCount);
-
-                foreach (var conn in _connectionsBuffer)
+                foreach (var conn in _connectionsList)
                     TickAlive(conn, _tickCount);
 
                 //if (updateCount > 0)
                 //    Console.WriteLine(activeCount + " connections");
 
-                lock (_manager.ConnectionMutex)
+                foreach (var connection in _connectionsList)
                 {
-                    foreach (var connection in _manager.Connections)
-                    {
-                        if (connection.ProtocolState != ProtocolState.Play)
-                            continue;
+                    if (connection.ProtocolState != ProtocolState.Play)
+                        continue;
 
-                        var chat = Chat.Text($"S:{connection.BytesSent / 1000}k | R:{connection.BytesReceived / 100 / 10d}k");
+                    var chat = Chat.Text($"S:{connection.BytesSent / 1000}k | R:{connection.BytesReceived / 100 / 10d}k");
 
-                        connection.EnqueuePacket(new ServerChat(chat, 2));
-                    }
+                    connection.EnqueuePacket(new ServerChat(chat, 2));
                 }
 
-                Console.WriteLine(
-                    "Tick Time: " +
-                    ticker.ElapsedTime.TotalMilliseconds.ToString("00.0") +
-                    "/" +
-                    ticker.TargetTime.TotalMilliseconds.ToString("00") + " ms" +
-                    " | " +
-                    (ticker.ElapsedTime.Ticks / (float)ticker.TargetTime.Ticks * 100f).ToString("00") + "%");
+                //Console.WriteLine(
+                //    "Tick Time: " +
+                //    ticker.ElapsedTime.TotalMilliseconds.ToString("00.0") +
+                //    "/" +
+                //    ticker.TargetTime.TotalMilliseconds.ToString("00") + " ms" +
+                //    " | " +
+                //    (ticker.ElapsedTime.Ticks / (float)ticker.TargetTime.Ticks * 100f).ToString("00") + "%");
+            }
+
+            SendChunks(_connectionsList);
+
+            foreach (var connection in _connectionsList)
+            {
+                if (connection.ClientSettingsChanged)
+                {
+                    connection.ClientSettingsChanged = false;
+
+                    connection.SentChunks.Clear();
+                }
             }
 
             _dimension.Tick();
@@ -459,8 +525,12 @@ namespace MCServerSharp.Runner
             manager.SetPacketHandler(delegate
                 (NetConnection connection, ClientLoginStart loginStart)
             {
+                if (connection.ProtocolState == ProtocolState.Closing)
+                    return;
+
                 var setCompression = new ServerSetCompression(128);
                 connection.EnqueuePacket(setCompression);
+
                 connection.CompressionThreshold = setCompression.Threshold;
 
                 var uuid = new UUID(0, 1);
@@ -481,12 +551,6 @@ namespace MCServerSharp.Runner
                     (Utf8String)"minecraft:brand",
                     (Utf8String)"MCServerSharp"));
 
-                int chunksX = 8;
-                int chunksZ = 8;
-                int playerX = chunksX * 8;
-                int playerY = 260;
-                int playerZ = chunksZ * 8;
-
                 connection.EnqueuePacket(new ServerSpawnPosition(
                     new Position(playerX, playerY, playerZ)));
 
@@ -495,41 +559,14 @@ namespace MCServerSharp.Runner
 
                 connection.EnqueuePacket(new ServerPlayerAbilities(
                     ServerAbilityFlags.AllowFlying | ServerAbilityFlags.Flying,
-                    0.2f,
+                    0.33f,
                     0.1f));
-
-                System.Threading.Tasks.Task.Run(() =>
-                {
-                    try
-                    {
-                        for (int z = 0; z < chunksZ; z++)
-                        {
-                            for (int x = 0; x < chunksX; x++)
-                            {
-                                if (connection.ProtocolState != ProtocolState.Play)
-                                    goto End;
-
-                                var chunk = _dimension.GetChunk(x, z);
-                                var chunkData = new ServerChunkData(chunk, fullChunk: true);
-                                connection.EnqueuePacket(chunkData);
-                            }
-                        }
-
-                        End:
-                        return;
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine(ex);
-                    }
-                });
             });
 
 
             static void PlayerPositionChange(NetConnection connection, double x, double y, double z)
             {
-                connection.EnqueuePacket(
-                    new ServerUpdateViewPosition((VarInt)(x / 16), (VarInt)(z / 16)));
+                connection.PlayerPosition = new Vector3d(x, y, z);
             }
 
 
@@ -645,9 +682,12 @@ namespace MCServerSharp.Runner
 
 
             manager.SetPacketHandler(delegate
-                (NetConnection connection, ClientClientSettings clientSettings)
+                (NetConnection connection, ClientSettings clientSettings)
             {
-                Console.WriteLine("Got client settings");
+                connection.ClientSettings = clientSettings;
+                connection.ClientSettingsChanged = true;
+
+                Console.WriteLine("got client settings");
             });
 
 

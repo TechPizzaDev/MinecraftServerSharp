@@ -143,13 +143,14 @@ namespace MCServerSharp.Net
                     OperationStatus handleStatus;
                     while ((handleStatus = HandlePacket(ref state, out VarInt totalMessageLength)) == OperationStatus.Done)
                     {
+                        receiveBuffer.TrimStart(totalMessageLength);
+
                         toTrim += totalMessageLength;
                         if (!connection.IsAlive)
                             break;
                     }
 
-                    // TODO: fix this
-                    //if (handleStatus == OperationStatus.InvalidData)
+                    if (handleStatus == OperationStatus.InvalidData)
                     {
                         // TODO: handle this state better
                         connection.Kick(new InvalidDataException());
@@ -159,7 +160,8 @@ namespace MCServerSharp.Net
                     if (!connection.IsAlive)
                         break;
 
-                    receiveBuffer.TrimStart(toTrim);
+                    // TODO: fix this
+                    //receiveBuffer.TrimStart(toTrim);
                 }
             }
             catch (SocketException sockEx) when (sockEx.SocketErrorCode == SocketError.ConnectionReset)

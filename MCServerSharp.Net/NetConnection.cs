@@ -1,15 +1,60 @@
 ﻿using System;
 using System.Buffers;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
 using System.Threading.Tasks;
 using MCServerSharp.Data.IO;
+using MCServerSharp.Maths;
 using MCServerSharp.Net.Packets;
 using MCServerSharp.Utility;
 
 namespace MCServerSharp.Net
 {
+    public struct ChunkPosition : IEquatable<ChunkPosition>
+    {
+        public int X;
+        public int Z;
+
+        public ChunkPosition(int x, int y)
+        {
+            X = x;
+            Z = y;
+        }
+
+        public readonly bool Equals(ChunkPosition other)
+        {
+            return X == other.X
+                && Z == other.Z;
+        }
+
+        public override readonly int GetHashCode()
+        {
+            return HashCode.Combine(X, Z);
+        }
+
+        public override readonly bool Equals(object? obj)
+        {
+            return obj is ChunkPosition value && Equals(value);
+        }
+
+        public override readonly string ToString()
+        {
+            return "{X:" + X + ", Z:" + Z + "}";
+        }
+
+        public static bool operator ==(ChunkPosition left, ChunkPosition right)
+        {
+            return left.Equals(right);
+        }
+
+        public static bool operator !=(ChunkPosition left, ChunkPosition right)
+        {
+            return !(left == right);
+        }
+    }
+
     public partial class NetConnection
     {
         private Action<NetConnection>? _closeAction;
@@ -32,7 +77,19 @@ namespace MCServerSharp.Net
         public long BytesReceived { get; set; }
         public long BytesSent { get; set; }
 
+        // TODO: move this to Player class
         public string? UserName { get; set; }
+
+        public ChunkPosition ChunkPosition { get; set; }
+        public ChunkPosition LastChunkPosition { get; set; }
+
+        public Vector3d PlayerPosition { get; set; }
+        public Vector3d LastPosition { get; set; }
+
+        public ClientSettings ClientSettings { get; set; }
+        public bool ClientSettingsChanged { get; set; }
+
+        public HashSet<(int, int)> SentChunks = new HashSet<(int, int)>();
 
         public bool IsAlive
         {
@@ -66,7 +123,8 @@ namespace MCServerSharp.Net
 
         #endregion
 
-        public OperationStatus ReadPacket<TPacket>(NetBinaryReader reader, out TPacket packet, out int length)
+        public OperationStatus ReadPacket<TPacket>(
+            NetBinaryReader reader, out TPacket packet, out int length)
         {
             var readerAction = Orchestrator.Codec.Decoder.GetPacketReaderAction<TPacket>();
 
@@ -118,7 +176,11 @@ namespace MCServerSharp.Net
 
         public void Kick(Exception? exception)
         {
+#if DEBUG
+            bool detailed = true;
+#else
             bool detailed = false;
+#endif
 
             Chat? chat = null;
             if (exception != null)
@@ -160,7 +222,9 @@ namespace MCServerSharp.Net
                     var packet = new ServerPlayDisconnect(reason.Value);
                     EnqueuePacket(packet);
                 }
-                else if (ProtocolState == ProtocolState.Login)
+                else if (
+                    ProtocolState == ProtocolState.Login ||
+                    ProtocolState == ProtocolState.Status)
                 {
                     var packet = new ServerLoginDisconnect(reason.Value);
                     EnqueuePacket(packet);
@@ -188,7 +252,7 @@ namespace MCServerSharp.Net
                 _closeAction = null;
 
                 // TODO: finalize metrics and use them somehow
-                //Console.WriteLine("Connection metrics; Sent: " + BytesSent + ", Received: " + BytesReceived);
+                Console.WriteLine("Connection metrics; Sent: " + BytesSent + ", Received: " + BytesReceived);
             }
         }
     }

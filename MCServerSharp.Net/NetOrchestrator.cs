@@ -108,6 +108,7 @@ namespace MCServerSharp.Net
         {
             if (packetHolder == null)
                 throw new ArgumentNullException(nameof(packetHolder));
+
             var holderConnection = packetHolder.Connection;
             if (holderConnection == null)
                 throw new ArgumentException("No assigned connection.");
@@ -120,7 +121,8 @@ namespace MCServerSharp.Net
                 queue = new NetPacketSendQueue(holderConnection);
                 PacketSendQueues.TryAdd(queue.Connection, queue);
             }
-            queue.PacketQueue.Enqueue(packetHolder);
+
+            queue.Queue.Enqueue(packetHolder);
 
             // We can safely return here without locking the queue.
             // Workers will requeue the queue for flushing if 

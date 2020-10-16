@@ -21,7 +21,7 @@ namespace MCServerSharp.Collections
         /// <remarks>
         /// Based on <c>string.GetNonRandomizedHashCode()</c> from .NET.
         /// </remarks>
-        private static (uint h1, uint h2) Hash(ReadOnlySpan<char> span)
+        public static (uint h1, uint h2) Hash(ReadOnlySpan<char> span)
         {
             if (span.IsEmpty)
                 return (0, 0);

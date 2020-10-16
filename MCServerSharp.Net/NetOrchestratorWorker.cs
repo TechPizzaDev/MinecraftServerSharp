@@ -5,6 +5,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Net.Sockets;
 using System.Reflection;
+using System.Runtime;
 using System.Threading;
 using System.Threading.Tasks;
 using MCServerSharp.Data.IO;
@@ -190,26 +191,9 @@ namespace MCServerSharp.Net
                 {
                     try
                     {
-                        while (orchestratorQueue.PacketQueue.TryDequeue(out var packetHolder))
+                        while (orchestratorQueue.Queue.TryDequeue(out var packetHolder))
                         {
-                            Debug.Assert(
-                                packetHolder.Connection != null,
-                                "Packet holder has no attached connection.");
-
-                            try
-                            {
-                                if (!packetHolder.Connection.IsAlive)
-                                    break;
-
-                                var packetWriteAction = GetPacketWriteAction(packetHolder.PacketType);
-
-                                var packetWriteResult = packetWriteAction.Invoke(
-                                    packetHolder, _packetWriteBuffer, _packetCompressionBuffer);
-                            }
-                            finally
-                            {
-                                Orchestrator.ReturnPacketHolder(packetHolder);
-                            }
+                            ProcessPacket(packetHolder, out _);
                         }
                     }
                     finally
@@ -237,6 +221,36 @@ namespace MCServerSharp.Net
             }
         }
 
+        private bool ProcessPacket(PacketHolder packetHolder, out PacketWriteResult writeResult)
+        {
+            Debug.Assert(
+                packetHolder.Connection != null,
+                "Packet holder has no attached connection.");
+
+            try
+            {
+                if (!packetHolder.Connection.Socket.Connected)
+                {
+                    writeResult = default;
+                    return false;
+                }
+
+                var packetWriteAction = GetPacketWriteAction(packetHolder.PacketType);
+
+                writeResult = packetWriteAction.Invoke(
+                    packetHolder, _packetWriteBuffer, _packetCompressionBuffer);
+
+                if (packetHolder.PacketType == typeof(ServerLoginDisconnect) ||
+                    packetHolder.PacketType == typeof(ServerPlayDisconnect))
+                    Console.WriteLine("wrote " + packetHolder.PacketType);
+            }
+            finally
+            {
+                Orchestrator.ReturnPacketHolder(packetHolder);
+            }
+            return true;
+        }
+
         private static void FinishSendQueue(Task<NetSendState> task, object? state)
         {
             var queue = (NetPacketSendQueue)state!;
@@ -247,7 +261,7 @@ namespace MCServerSharp.Net
         {
             lock (queue.EngageMutex)
             {
-                if (queue.PacketQueue.IsEmpty)
+                if (queue.Queue.IsEmpty)
                     queue.IsEngaged = false;
                 else
                     queue.Connection.Orchestrator.QueuesToFlush.Enqueue(queue);

@@ -3,7 +3,6 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.Net;
 using System.Reflection;
-using System.Threading;
 using MCServerSharp.Collections;
 using MCServerSharp.Data.IO;
 using MCServerSharp.Net.Packets;
@@ -121,17 +120,11 @@ namespace MCServerSharp.Net
             lock (ConnectionMutex)
             {
                 if (!_connections.Add(connection))
-                {
-                    // This should never occur. It would mean that the listener is broken,
-                    // as a connection should be unique.
-                    throw new InvalidOperationException();
-                }
+                    throw new InvalidOperationException(); // This should never occur.
             }
 
             // TODO: manage connection tasks
             // TODO: validate client
-
-            // As soon as the client connects, start receiving
             var connectionTask = Codec.EngageClientConnection(connection, cancellationToken: default);
 
             return true;
@@ -157,47 +150,41 @@ namespace MCServerSharp.Net
             for (int i = 0; i < connectionBuffer.Count; i++)
             {
                 var connection = connectionBuffer[i];
-                if (connection.ProtocolState == ProtocolState.Closing)
-                {
-                    bool connected = connection.Socket.Connected;
 
-                    if (connected &&
-                        Orchestrator.PacketSendQueues.TryGetValue(connection, out var netQueue))
-                    {
-                        lock (netQueue.EngageMutex)
-                        {
-                            if (!netQueue.IsEngaged && !netQueue.PacketQueue.IsEmpty)
-                            {
-                                netQueue.IsEngaged = true;
-                                Orchestrator.QueuesToFlush.Enqueue(netQueue);
-                                continue;
-                            }
-                        }
-                    }
-
-                    if (!connected || connection.SendBuffer.Length == 0)
-                    {
-                        lock (ConnectionMutex)
-                        {
-                            if (!_connections.Remove(connection))
-                                throw new InvalidOperationException();
-                        }
-
-                        // There won't be a queue if there was no packet send attempt during connection.
-                        if (Orchestrator.PacketSendQueues.TryRemove(connection, out var removedNetQueue))
-                        {
-                            foreach (var staleHolder in removedNetQueue.PacketQueue)
-                                Orchestrator.ReturnPacketHolder(staleHolder);
-                        }
-
-                        connection.Close(immediate: true);
-                    }
-                }
-                else
-                {
+                if (UpdateConnection(connection))
                     activeConnectionCount++;
-                }
             }
+        }
+
+        public bool UpdateConnection(NetConnection connection)
+        {
+            if (connection == null)
+                throw new ArgumentNullException(nameof(connection));
+
+            if (connection.ProtocolState != ProtocolState.Closing)
+                return true;
+
+            bool connected = connection.Socket.Connected;
+            if (!connected || connection.SendBuffer.Length == 0)
+            {
+                lock (ConnectionMutex)
+                {
+                    if (!_connections.Remove(connection))
+                        throw new InvalidOperationException();
+                }
+
+                // There won't be a queue if there was no packet send attempt during connection.
+                if (Orchestrator.PacketSendQueues.TryRemove(connection, out var removedQueue))
+                {
+                    // There may be packet holders queued if the socket gets 
+                    // closed before everything is sent. 
+                    // The orchestrator should empty the queue.
+                    Orchestrator.QueuesToFlush.Enqueue(removedQueue);
+                }
+
+                connection.Close(immediate: true);
+            }
+            return false;
         }
     }
 }
