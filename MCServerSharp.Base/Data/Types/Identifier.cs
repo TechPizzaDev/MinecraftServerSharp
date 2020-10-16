@@ -45,9 +45,10 @@ namespace MCServerSharp
 
             string[] parts = Value.Split(Separator, StringSplitOptions.None);
             if (parts.Length != 2)
+            {
                 throw new ArgumentException(
                     "Could not separate identifier into a namespace and location.", nameof(value));
-
+            }
             ValidateParts(parts[0], parts[1]);
 
             Namespace = parts[0];
@@ -64,7 +65,47 @@ namespace MCServerSharp
         }
 
         #endregion
-        
+
+        public static bool TryParse(Utf8String value, out Identifier identifier)
+        {
+            if (value == null)
+                throw new ArgumentNullException(nameof(value));
+
+            // TODO: Could be useful if we implement Utf8Identifier
+            //int colonIndex = value.Bytes.IndexOf((byte)':');
+            //if (colonIndex == -1)
+            //{
+            //    identifier = default;
+            //    return false;
+            //}
+            //
+            //int nextColonIndex = value.Bytes.Slice(colonIndex + 1).IndexOf((byte)':');
+            //if (nextColonIndex != -1)
+            //{
+            //    identifier = default;
+            //    return false;
+            //}
+
+            string value16 = value.ToString();
+
+            string[] parts = value16.Split(Separator, StringSplitOptions.None);
+            if (parts.Length != 2)
+                goto Fail;
+
+            string @namespace = parts[0];
+            string location = parts[1];
+            if (!IsValidNamespace(@namespace) ||
+                !IsValidLocation(location))
+                goto Fail;
+
+            identifier = new Identifier(@namespace, location);
+            return true;
+
+            Fail:
+            identifier = default;
+            return false;
+        }
+
         public bool Equals(Identifier other)
         {
             return Equals(other.Value);
@@ -85,7 +126,6 @@ namespace MCServerSharp
             return string.CompareOrdinal(Value, other);
         }
 
-        [DebuggerHidden]
         private static void ValidateParts(string @namespace, string location)
         {
             if (!IsValidNamespace(@namespace))

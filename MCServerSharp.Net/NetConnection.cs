@@ -17,10 +17,10 @@ namespace MCServerSharp.Net
         public int X;
         public int Z;
 
-        public ChunkPosition(int x, int y)
+        public ChunkPosition(int x, int z)
         {
             X = x;
-            Z = y;
+            Z = z;
         }
 
         public readonly bool Equals(ChunkPosition other)
@@ -84,7 +84,9 @@ namespace MCServerSharp.Net
         public ChunkPosition LastChunkPosition { get; set; }
 
         public Vector3d PlayerPosition { get; set; }
-        public Vector3d LastPosition { get; set; }
+        public Vector3d LastPlayerPosition { get; set; }
+        public int PlayerIntY { get; set; }
+        public int LastPlayerIntY { get; set; }
 
         public ClientSettings ClientSettings { get; set; }
         public bool ClientSettingsChanged { get; set; }
@@ -193,7 +195,7 @@ namespace MCServerSharp.Net
                     new { text = "Server Exception\n", bold = true },
                     new { text = errorMessage, bold = false }
                 };
-                chat = new Chat((Utf8String)JsonSerializer.Serialize(dyn));
+                chat = new Chat(new Utf8String(JsonSerializer.SerializeToUtf8Bytes(dyn)));
             }
             Kick(chat);
         }
@@ -208,7 +210,7 @@ namespace MCServerSharp.Net
                     new { text = "Kicked by server\n", bold = true },
                     new { text = reason, bold = false }
                 };
-                chat = new Chat((Utf8String)JsonSerializer.Serialize(dyn));
+                chat = new Chat(new Utf8String(JsonSerializer.SerializeToUtf8Bytes(dyn)));
             }
             Kick(chat);
         }

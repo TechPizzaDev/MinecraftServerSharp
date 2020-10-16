@@ -12,14 +12,19 @@ namespace MCServerSharp.Data.IO
         public Stream BaseStream { get; }
         public NetBinaryOptions Options { get; }
 
-        public long Length => BaseStream.Length;
-        public long Remaining => Length - Position;
+        public long Length
+        {
+            get => BaseStream.Length;
+            set => BaseStream.SetLength(value);
+        }
 
         public long Position
         {
             get => BaseStream.Position;
             set => BaseStream.Position = value;
         }
+
+        public long Remaining => Length - Position;
 
         public NetBinaryReader(Stream stream, NetBinaryOptions? options = default)
         {
@@ -30,7 +35,7 @@ namespace MCServerSharp.Data.IO
                 throw new IOException("The stream is not readable.");
         }
 
-        public long Seek(int offset, SeekOrigin origin)
+        public long Seek(long offset, SeekOrigin origin)
         {
             return BaseStream.Seek(offset, origin);
         }

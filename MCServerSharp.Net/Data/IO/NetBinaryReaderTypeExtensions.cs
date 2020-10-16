@@ -6,6 +6,18 @@ namespace MCServerSharp.Data.IO
 {
     public static class NetBinaryReaderTypeExtensions
     {
+        public static OperationStatus Read(this NetBinaryReader reader, out Identifier identifier)
+        {
+            var status = reader.Read(out Utf8String identifierString);
+            if (status != OperationStatus.Done)
+                return status;
+
+            if (!Identifier.TryParse(identifierString, out identifier))
+                return OperationStatus.InvalidData;
+
+            return OperationStatus.Done;
+        }
+
         public static OperationStatus Read(this NetBinaryReader reader, out Position position)
         {
             var status = reader.Read(out long rawValue);
@@ -36,7 +48,10 @@ namespace MCServerSharp.Data.IO
 
                 status = reader.Read(out NbtDocument? nbt);
                 if (status != OperationStatus.Done)
+                {
+                    nbt?.Dispose();
                     goto NotDone;
+                }
 
                 slot = new Slot(itemID, itemCount, nbt);
                 return OperationStatus.Done;

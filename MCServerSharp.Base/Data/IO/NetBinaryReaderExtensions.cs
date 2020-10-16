@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Buffers;
 using System.Buffers.Binary;
-using System.Diagnostics.Tracing;
 using System.IO;
 using System.Runtime.InteropServices;
 
@@ -9,7 +8,11 @@ namespace MCServerSharp.Data.IO
 {
     public static class NetBinaryReaderExtensions
     {
-        [Obsolete("Allocates array. Try to use Span<byte> overload.")]
+        /// <summary>
+        /// </summary>
+        /// <remarks>
+        /// Allocates array. Try to use <see cref="Span{T}"/> overload.
+        /// </remarks>
         public static byte[] ReadBytes(this NetBinaryReader reader, int count)
         {
             byte[] result = new byte[count];

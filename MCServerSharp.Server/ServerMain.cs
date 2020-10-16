@@ -379,24 +379,27 @@ namespace MCServerSharp.Runner
                             connection.UserName + " moved from chunk " +
                             connection.LastChunkPosition + " to " + connection.ChunkPosition);
 
-                        for (int z = 0; z < chunksZ; z++)
-                        {
-                            for (int x = 0; x < chunksX; x++)
-                            {
-                                if (connection.ProtocolState != ProtocolState.Play)
-                                    return;
-
-                                if (connection.SentChunks.Add((x, z)))
-                                {
-                                    var chunk = _dimension.GetChunk(x, z);
-                                    var chunkData = new ServerChunkData(chunk, fullChunk: true);
-                                    connection.EnqueuePacket(chunkData);
-                                }
-                            }
-                        }
-
                         connection.LastChunkPosition = connection.ChunkPosition;
                     }
+
+                    for (int z = 0; z < chunksZ; z++)
+                    {
+                        for (int x = 0; x < chunksX; x++)
+                        {
+                            if (connection.ProtocolState != ProtocolState.Play)
+                                return;
+
+                            if (connection.SentChunks.Add((x, z)))
+                            {
+                                var chunk = _dimension.GetChunk(x, z);
+                                var chunkData = new ServerChunkData(chunk, fullChunk: true);
+                                connection.EnqueuePacket(chunkData);
+                                goto End;
+                            }
+                        }
+                    }
+                    End:
+                    return;
                 }
                 catch (Exception ex)
                 {
@@ -431,13 +434,13 @@ namespace MCServerSharp.Runner
                     connection.EnqueuePacket(new ServerChat(chat, 2));
                 }
 
-                //Console.WriteLine(
-                //    "Tick Time: " +
-                //    ticker.ElapsedTime.TotalMilliseconds.ToString("00.0") +
-                //    "/" +
-                //    ticker.TargetTime.TotalMilliseconds.ToString("00") + " ms" +
-                //    " | " +
-                //    (ticker.ElapsedTime.Ticks / (float)ticker.TargetTime.Ticks * 100f).ToString("00") + "%");
+                Console.WriteLine(
+                    "Tick Time: " +
+                    ticker.ElapsedTime.TotalMilliseconds.ToString("00.0") +
+                    "/" +
+                    ticker.TargetTime.TotalMilliseconds.ToString("00") + " ms" +
+                    " | " +
+                    (ticker.ElapsedTime.Ticks / (float)ticker.TargetTime.Ticks * 100f).ToString("00") + "%");
             }
 
             SendChunks(_connectionsList);
@@ -567,6 +570,19 @@ namespace MCServerSharp.Runner
             static void PlayerPositionChange(NetConnection connection, double x, double y, double z)
             {
                 connection.PlayerPosition = new Vector3d(x, y, z);
+
+                connection.PlayerIntY = (int)Math.Round(connection.PlayerPosition.Y);
+                if (connection.LastPlayerIntY != connection.PlayerIntY)
+                {
+                    connection.LastPlayerIntY = connection.PlayerIntY;
+
+                    connection.EnqueuePacket(
+                        new ServerUpdateViewPosition(
+                            connection.ChunkPosition.X,
+                            connection.ChunkPosition.Z));
+                }
+
+                connection.LastPlayerPosition = connection.PlayerPosition;
             }
 
 
@@ -745,7 +761,7 @@ namespace MCServerSharp.Runner
                     }
                 };
 
-                var chatToSend = new Chat(new Utf8String(JsonSerializer.Serialize(dyn)));
+                var chatToSend = new Chat(new Utf8String(JsonSerializer.SerializeToUtf8Bytes(dyn)));
 
                 lock (manager.ConnectionMutex)
                 {
@@ -760,7 +776,9 @@ namespace MCServerSharp.Runner
             manager.SetPacketHandler(delegate
                 (NetConnection connection, ClientPluginMessage pluginMessage)
             {
-
+                Console.WriteLine(
+                    connection.UserName + " - Plugin @ " + pluginMessage.Channel + ": \"" +
+                    new Utf8String(pluginMessage.Data) + "\"");
             });
 
 
