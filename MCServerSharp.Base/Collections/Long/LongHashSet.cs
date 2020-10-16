@@ -16,7 +16,7 @@ namespace MCServerSharp.Collections
         /// <summary>
         /// Cutoff point for stackallocs. This corresponds to the number of ints.
         /// </summary>
-        public const int StackAllocThreshold = 100;
+        public const int StackAllocThreshold = 256;
 
         /// <summary>
         /// When constructing a hashset from an existing collection, it may contain duplicates,
@@ -908,7 +908,7 @@ namespace MCServerSharp.Collections
         /// </summary>
         public static ILongEqualityComparer<LongHashSet<T>> CreateSetComparer()
         {
-            return new LongHashSetEqualityComparer<T>();
+            return new LongHashSetComparer<T>();
         }
 
         /// <summary>
