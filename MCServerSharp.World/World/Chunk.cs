@@ -19,7 +19,7 @@ namespace MCServerSharp.World
 
         public ReadOnlyMemory<ChunkSection> Sections => _sections;
 
-        public Chunk(int x, int z, Dimension dimension, IBlockPalette blockPalette)
+        public Chunk(int x, int z, Dimension dimension, BlockState airBlock, IBlockPalette blockPalette)
         {
             X = x;
             Z = z;
@@ -28,7 +28,7 @@ namespace MCServerSharp.World
             _sections = new ChunkSection[SectionCount];
             for (int y = 0; y < _sections.Length; y++)
             {
-                _sections[y] = new ChunkSection(this, y, blockPalette);
+                _sections[y] = new ChunkSection(this, y, airBlock, blockPalette);
             }
         }
 

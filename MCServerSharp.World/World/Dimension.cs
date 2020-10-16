@@ -8,7 +8,6 @@ namespace MCServerSharp.World
         private DirectBlockPalette _directBlockPalette;
 
         private LongDictionary<long, Chunk> _chunks;
-        private int i;
 
         public bool HasSkylight => true;
 
@@ -34,20 +33,20 @@ namespace MCServerSharp.World
             long key = GetChunkKey(x, z);
             if (!_chunks.TryGetValue(key, out var chunk))
             {
-                chunk = new Chunk(x, z, this, _directBlockPalette);
+                var air = _directBlockPalette.blockLookup["minecraft:air"].DefaultState;
 
-                foreach (var section in chunk.Sections.Span)
-                {
-                    var palette = section.BlockPalette;
-                    
-                    for (int j = 0; j < ChunkSection.BlockCount; j++)
-                    {
-                        var state = palette.BlockForId((uint)(i++));
-                        i = (i + 1) % palette.Count;
+                chunk = new Chunk(x, z, this, air, _directBlockPalette);
 
-                        section.SetBlock(state, j);
-                    }
-                }
+                var section0 = chunk.Sections.Span[0];
+
+                int y = 0;
+                section0.FillLevelBlock(_directBlockPalette.blockLookup["minecraft:bedrock"].DefaultState, y++);
+
+                for (int j = 0; j < 3; j++)
+                    section0.FillLevelBlock(_directBlockPalette.blockLookup["minecraft:dirt"].DefaultState, y++);
+
+                section0.FillLevelBlock(_directBlockPalette.blockLookup["minecraft:grass_block"].DefaultState, y++);
+
 
                 _chunks.Add(key, chunk);
             }
