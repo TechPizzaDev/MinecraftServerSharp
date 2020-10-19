@@ -1,16 +1,18 @@
 ﻿using MCServerSharp.Components;
 
-namespace MCServerSharp.Entity.Mob
+namespace MCServerSharp.Entities.Mobs
 {
-    public class PlayerComponent : Component<Player>
+    public class PlayerComponent : Component<Player>, ITickable
     {
+        public Player Player => Entity;
+
         public PlayerComponent(Player entity) : base(entity)
         {
         }
 
-        public override void Tick()
+        public void Tick()
         {
-
+            Player.Components.Tick();
         }
     }
 }

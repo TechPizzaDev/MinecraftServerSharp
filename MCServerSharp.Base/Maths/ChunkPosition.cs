@@ -13,6 +13,31 @@ namespace MCServerSharp.Maths
             Z = z;
         }
 
+        public static double Dot(ChunkPosition a, ChunkPosition b)
+        {
+            return (a.X * b.X) + (a.Z * b.Z);
+        }
+
+        public static double DistanceSquared(ChunkPosition a, ChunkPosition b)
+        {
+            var difference = a - b;
+            return Dot(difference, difference);
+        }
+
+        public static ChunkPosition operator +(ChunkPosition a, ChunkPosition b)
+        {
+            return new ChunkPosition(
+                a.X + b.X,
+                a.Z + b.Z);
+        }
+
+        public static ChunkPosition operator -(ChunkPosition left, ChunkPosition right)
+        {
+            return new ChunkPosition(
+                left.X - right.X,
+                left.Z - right.Z);
+        }
+
         public readonly bool Equals(ChunkPosition other)
         {
             return X == other.X

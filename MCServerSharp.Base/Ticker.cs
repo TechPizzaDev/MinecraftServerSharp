@@ -12,8 +12,22 @@ namespace MCServerSharp
 
         public TimeSpan TargetTime { get; }
 
+        public bool IsRunning { get; private set; }
         public TimeSpan ElapsedTime { get; private set; }
-        public TimeSpan FreeTime => TargetTime - ElapsedTime;
+        public TimeSpan SurplusTime => TargetTime - ElapsedTime;
+
+        public TimeSpan FreeTime
+        {
+            get
+            {
+                var surplus = SurplusTime;
+                if (surplus.Ticks > 0)
+                    return surplus;
+                return TimeSpan.Zero;
+            }
+        }
+
+        public TimeSpan DeltaTime => ElapsedTime + FreeTime;
 
         public Ticker(TimeSpan targetTickTime)
         {
@@ -22,10 +36,14 @@ namespace MCServerSharp
 
         public void Run()
         {
+            if (IsRunning)
+                throw new InvalidOperationException();
+            IsRunning = true;
+
             long lastTicks = Stopwatch.GetTimestamp();
             long targetSleepTicks = 0;
 
-            while (true)
+            while (IsRunning)
             {
                 long currentTicks = Stopwatch.GetTimestamp();
                 long sleepTicks = currentTicks - lastTicks;
@@ -37,7 +55,7 @@ namespace MCServerSharp
                 long preciseSleepTime = TargetTime.Ticks - ElapsedTime.Ticks;
                 long sleepOverheadTicks = sleepTicks - targetSleepTicks;
                 targetSleepTicks = preciseSleepTime - sleepOverheadTicks;
-                
+
                 long sleepMillis = targetSleepTicks / TimeSpan.TicksPerMillisecond;
                 if (sleepMillis > 0)
                     Thread.Sleep((int)sleepMillis);

@@ -13,8 +13,6 @@ namespace MCServerSharp.Components
         {
             Entity = entity ?? throw new ArgumentNullException(nameof(entity));
         }
-
-        public abstract void Tick();
     }
 
     /// <summary>

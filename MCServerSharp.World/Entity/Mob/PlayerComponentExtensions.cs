@@ -2,7 +2,7 @@
 using System.Diagnostics.CodeAnalysis;
 using MCServerSharp.Components;
 
-namespace MCServerSharp.Entity.Mob
+namespace MCServerSharp.Entities.Mobs
 {
     public static class PlayerComponentExtensions
     {
@@ -11,7 +11,7 @@ namespace MCServerSharp.Entity.Mob
             if (components == null)
                 throw new ArgumentNullException(nameof(components));
 
-            return components.Get<PlayerComponent>().Entity;
+            return components.Get<Component<Player>>().Entity;
         }
 
         public static Player GetPlayer(this ComponentEntity entity)
@@ -19,15 +19,24 @@ namespace MCServerSharp.Entity.Mob
             if (entity == null)
                 throw new ArgumentNullException(nameof(entity));
 
-            return entity.Components.Get<PlayerComponent>().Entity;
+            return entity.Components.Get<Component<Player>>().Entity;
         }
 
-        public static bool GetPlayer(this ComponentCollection components, [NotNullWhen(true)] out Player? player)
+        public static Player GetPlayer(this Component hostComponent)
+        {
+            if (hostComponent == null)
+                throw new ArgumentNullException(nameof(hostComponent));
+
+            return GetPlayer(hostComponent.Entity);
+        }
+
+        public static bool GetPlayer(
+            this ComponentCollection components, [NotNullWhen(true)] out Player? player)
         {
             if (components == null)
                 throw new ArgumentNullException(nameof(components));
 
-            if (components.Get<PlayerComponent>(out var component))
+            if (components.Get<Component<Player>>(out var component))
             {
                 player = component.Entity;
                 return true;
@@ -36,18 +45,28 @@ namespace MCServerSharp.Entity.Mob
             return false;
         }
 
-        public static bool GetPlayer(this ComponentEntity entity, [NotNullWhen(true)] out Player? player)
+        public static bool GetPlayer(
+            this ComponentEntity entity, [NotNullWhen(true)] out Player? player)
         {
             if (entity == null)
                 throw new ArgumentNullException(nameof(entity));
 
-            if (entity.Components.Get<PlayerComponent>(out var component))
+            if (entity.Components.Get<Component<Player>>(out var component))
             {
                 player = component.Entity;
                 return true;
             }
             player = null;
             return false;
+        }
+
+        public static bool GetPlayer(
+            this Component hostComponent, [NotNullWhen(true)] out Player? player)
+        {
+            if (hostComponent == null)
+                throw new ArgumentNullException(nameof(hostComponent));
+
+            return GetPlayer(hostComponent.Entity, out player);
         }
     }
 }

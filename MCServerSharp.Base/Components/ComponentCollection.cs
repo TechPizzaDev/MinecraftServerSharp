@@ -11,17 +11,20 @@ namespace MCServerSharp.Components
     /// <summary>
     /// Represents a collection of components.
     /// </summary>
-    public class ComponentCollection : IReadOnlyCollection<Component>
+    public class ComponentCollection : IReadOnlyCollection<Component>, ITickable
     {
         // TODO: consider swapping between list and hashset if 
         // a component amount threshold is reached
+        
         private List<Component> _components;
+        private List<ITickable> _tickables;
 
         public int Count => _components.Count;
 
         public ComponentCollection()
         {
             _components = new List<Component>();
+            _tickables = new List<ITickable>();
         }
 
         public TComponent Get<TComponent>()
@@ -32,7 +35,7 @@ namespace MCServerSharp.Components
                 if (component is TComponent genericComponent)
                     return genericComponent;
             }
-            throw new KeyNotFoundException();
+            throw new KeyNotFoundException(typeof(TComponent).FullName);
         }
 
         public bool Get<TComponent>([NotNullWhen(true)] out TComponent? component)
@@ -58,9 +61,7 @@ namespace MCServerSharp.Components
                 if (c is TComponent genericComponent)
                     return genericComponent;
             }
-            var component = new TComponent();
-            _components.Add(component);
-            return component;
+            return Add<TComponent>();
         }
 
         public TComponent GetOrAdd<TComponent>(Func<TComponent> factory)
@@ -79,8 +80,7 @@ namespace MCServerSharp.Components
             if (component == null)
                 throw new InvalidOperationException("The factory return null.");
 
-            _components.Add(component);
-            return component;
+            return Add(component);
         }
 
         public TComponent GetOrAdd<TState, TComponent>(
@@ -101,8 +101,7 @@ namespace MCServerSharp.Components
             if (component == null)
                 throw new InvalidOperationException("The factory return null.");
 
-            _components.Add(component);
-            return component;
+            return Add(component);
         }
 
         public bool Has<TComponent>()
@@ -125,6 +124,8 @@ namespace MCServerSharp.Components
             if (Has<TComponent>())
                 throw new InvalidOperationException();
 
+            if (component is ITickable tickable)
+                _tickables.Add(tickable);
             _components.Add(component);
             return component;
         }
@@ -135,25 +136,28 @@ namespace MCServerSharp.Components
             if (Has<TComponent>())
                 throw new InvalidOperationException();
 
-            var component = new TComponent();
-            _components.Add(component);
-            return component;
+            return Add(new TComponent());
         }
 
         public void Tick()
         {
-            //var components = GetComponentSpan();
-            //for (int i = 0; i < components.Length; i++)
-            //    components[i].Tick();
+            //var tickables = GetTickableSpan();
+            //for (int i = 0; i < tickables.Length; i++)
+            //    tickables[i].Tick();
 
-            for (int i = 0; i < _components.Count; i++)
-                _components[i].Tick();
+            for (int i = 0; i < _tickables.Count; i++)
+                _tickables[i].Tick();
         }
 
         // TODO: NET5
         //public ReadOnlySpan<Component> GetComponentSpan()
         //{
         //    return CollectionsMarshal.AsSpan(_components);
+        //}
+
+        //public ReadOnlySpan<ITickable> GetTickableSpan()
+        //{
+        //    return CollectionsMarshal.AsSpan(_tickables);
         //}
 
         public List<Component>.Enumerator GetEnumerator()

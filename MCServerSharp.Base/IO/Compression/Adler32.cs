@@ -31,7 +31,6 @@ namespace MCServerSharp.IO.Compression
         /// <param name="buffer">The span of bytes.</param>
         /// <param name="seed">The Adler32 seed value.</param>
         /// <returns>The checksum.</returns>
-        [CLSCompliant(false)]
         public static uint Calculate(ReadOnlySpan<byte> buffer, uint seed)
         {
             if (buffer.IsEmpty)
