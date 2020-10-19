@@ -147,12 +147,14 @@ namespace MCServerSharp.Net
                 connectionBuffer.AddRange(_connections);
 
             activeConnectionCount = 0;
-            for (int i = 0; i < connectionBuffer.Count; i++)
+            for (int i = connectionBuffer.Count; i-- > 0;)
             {
                 var connection = connectionBuffer[i];
 
                 if (UpdateConnection(connection))
                     activeConnectionCount++;
+                else
+                    connectionBuffer.RemoveAt(i);
             }
         }
 

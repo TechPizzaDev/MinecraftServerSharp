@@ -16,4 +16,17 @@ namespace MCServerSharp.Components
 
         public abstract void Tick();
     }
+
+    /// <summary>
+    /// Represents a behavior that acts upon a component entity.
+    /// </summary>
+    public abstract class Component<TEntity> : Component
+        where TEntity : ComponentEntity
+    {
+        public new TEntity Entity => (TEntity)base.Entity;
+
+        protected Component(TEntity entity) : base(entity)
+        {
+        }
+    }
 }

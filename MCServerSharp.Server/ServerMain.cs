@@ -10,11 +10,13 @@ using System.Text.Json;
 using System.Threading;
 using MCServerSharp.Blocks;
 using MCServerSharp.Data;
+using MCServerSharp.Entity.Mob;
 using MCServerSharp.Enums;
 using MCServerSharp.Maths;
 using MCServerSharp.NBT;
 using MCServerSharp.Net;
 using MCServerSharp.Net.Packets;
+using MCServerSharp.Server;
 using MCServerSharp.Utility;
 using MCServerSharp.World;
 
@@ -362,24 +364,27 @@ namespace MCServerSharp.Runner
         {
             foreach (var connection in connections)
             {
+                if (!connection.GetPlayer(out Player? player))
+                    continue;
+
                 try
                 {
-                    connection.ChunkPosition = new ChunkPosition(
-                        (int)(connection.PlayerPosition.X / 16),
-                        (int)(connection.PlayerPosition.Z / 16));
+                    player.ChunkPosition = new ChunkPosition(
+                        (int)(player.Position.X / 16),
+                        (int)(player.Position.Z / 16));
 
-                    if (connection.ChunkPosition != connection.LastChunkPosition)
+                    if (player.ChunkPosition != player.LastChunkPosition)
                     {
                         connection.EnqueuePacket(
                             new ServerUpdateViewPosition(
-                                connection.ChunkPosition.X,
-                                connection.ChunkPosition.Z));
+                                player.ChunkPosition.X,
+                                player.ChunkPosition.Z));
 
                         Console.WriteLine(
-                            connection.UserName + " moved from chunk " +
-                            connection.LastChunkPosition + " to " + connection.ChunkPosition);
+                            player.UserName + " moved from chunk " +
+                            player.LastChunkPosition + " to " + player.ChunkPosition);
 
-                        connection.LastChunkPosition = connection.ChunkPosition;
+                        player.LastChunkPosition = player.ChunkPosition;
                     }
 
                     for (int z = 0; z < chunksZ; z++)
@@ -389,7 +394,7 @@ namespace MCServerSharp.Runner
                             if (connection.ProtocolState != ProtocolState.Play)
                                 return;
 
-                            if (connection.SentChunks.Add((x, z)))
+                            if (player.SentChunks.Add((x, z)))
                             {
                                 var chunk = _dimension.GetChunk(x, z);
                                 var chunkData = new ServerChunkData(chunk, fullChunk: true);
@@ -447,11 +452,14 @@ namespace MCServerSharp.Runner
 
             foreach (var connection in _connectionsList)
             {
-                if (connection.ClientSettingsChanged)
-                {
-                    connection.ClientSettingsChanged = false;
+                if (!connection.Components.Get(out ClientSettingsComponent? settings))
+                    continue;
 
-                    connection.SentChunks.Clear();
+                if (settings.SettingsChanged)
+                {
+                    settings.SettingsChanged = false;
+
+                    settings.Entity.SentChunks.Clear();
                 }
             }
 
@@ -540,9 +548,12 @@ namespace MCServerSharp.Runner
                 var name = loginStart.Name;
                 var loginSuccess = new ServerLoginSuccess(uuid.ToUtf8String(), name);
 
-                connection.EnqueuePacket(loginSuccess);
+                connection.Components.Add(new PlayerComponent(new Player
+                {
+                    UserName = name.ToString()
+                }));
 
-                connection.UserName = name.ToString();
+                connection.EnqueuePacket(loginSuccess);
                 connection.ProtocolState = ProtocolState.Play;
 
                 var playerId = new EntityId(69);
@@ -569,20 +580,22 @@ namespace MCServerSharp.Runner
 
             static void PlayerPositionChange(NetConnection connection, double x, double y, double z)
             {
-                connection.PlayerPosition = new Vector3d(x, y, z);
+                Player player = connection.GetPlayer();
 
-                connection.PlayerIntY = (int)Math.Round(connection.PlayerPosition.Y);
-                if (connection.LastPlayerIntY != connection.PlayerIntY)
+                player.Position = new Vector3d(x, y, z);
+
+                player.IntY = (int)Math.Round(player.Position.Y);
+                if (player.LastIntY != player.IntY)
                 {
-                    connection.LastPlayerIntY = connection.PlayerIntY;
+                    player.LastIntY = player.IntY;
 
                     connection.EnqueuePacket(
                         new ServerUpdateViewPosition(
-                            connection.ChunkPosition.X,
-                            connection.ChunkPosition.Z));
+                            player.ChunkPosition.X,
+                            player.ChunkPosition.Z));
                 }
 
-                connection.LastPlayerPosition = connection.PlayerPosition;
+                player.LastPosition = player.Position;
             }
 
 
@@ -700,8 +713,12 @@ namespace MCServerSharp.Runner
             manager.SetPacketHandler(delegate
                 (NetConnection connection, ClientSettings clientSettings)
             {
-                connection.ClientSettings = clientSettings;
-                connection.ClientSettingsChanged = true;
+                // The player object should be created early in the pipeline.
+                var component = connection.Components.GetOrAdd(
+                    connection, (c) => new ClientSettingsComponent(c.GetPlayer()));
+
+                component.Settings = clientSettings;
+                component.SettingsChanged = true;
 
                 Console.WriteLine("got client settings");
             });
@@ -745,7 +762,7 @@ namespace MCServerSharp.Runner
             {
                 // TODO: better broadcasting
 
-                string? name = connection.UserName;
+                string? name = connection.GetPlayer().UserName;
                 if (name == null)
                     name = "null";
 
@@ -777,7 +794,7 @@ namespace MCServerSharp.Runner
                 (NetConnection connection, ClientPluginMessage pluginMessage)
             {
                 Console.WriteLine(
-                    connection.UserName + " - Plugin @ " + pluginMessage.Channel + ": \"" +
+                    connection.GetPlayer().UserName + " - Plugin @ " + pluginMessage.Channel + ": \"" +
                     new Utf8String(pluginMessage.Data) + "\"");
             });
 

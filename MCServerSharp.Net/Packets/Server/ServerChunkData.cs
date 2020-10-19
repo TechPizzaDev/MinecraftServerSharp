@@ -35,7 +35,7 @@ namespace MCServerSharp.Net.Packets
             if (FullChunk)
             {
                 Span<int> biomes = stackalloc int[1024];
-                biomes.Fill(8); // 127=void
+                biomes.Fill(127); // 127=void
                 writer.Write(biomes);
             }
 

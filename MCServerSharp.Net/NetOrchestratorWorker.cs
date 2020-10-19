@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
@@ -33,8 +34,12 @@ namespace MCServerSharp.Net
             typeof(NetOrchestratorWorker).GetMethod(
                 nameof(WritePacket), BindingFlags.Public | BindingFlags.Static);
 
-        private static ConcurrentDictionary<Type, PacketWriteAction> PacketWriteActionCache { get; } =
+        private static ConcurrentDictionary<Type, PacketWriteAction> GlobalPacketWriteActionCache { get; } =
             new ConcurrentDictionary<Type, PacketWriteAction>();
+
+        // Having an action cache per worker should result in slightly lower overhead.
+        private Dictionary<Type, PacketWriteAction> PacketWriteActionCache { get; } =
+            new Dictionary<Type, PacketWriteAction>();
 
         private ChunkedMemoryStream _packetWriteBuffer;
         private ChunkedMemoryStream _packetCompressionBuffer;
@@ -77,12 +82,22 @@ namespace MCServerSharp.Net
 
         public static PacketWriteAction GetPacketWriteAction(Type packetType)
         {
-            return PacketWriteActionCache.GetOrAdd(packetType, (type) =>
+            return GlobalPacketWriteActionCache.GetOrAdd(packetType, (type) =>
             {
                 var genericMethod = WritePacketMethod!.MakeGenericMethod(type);
                 return ReflectionHelper.CreateDelegateFromMethod<PacketWriteAction>(
                     genericMethod, useFirstArgumentAsInstance: false);
             });
+        }
+
+        private PacketWriteAction GetLocalPacketWriteAction(Type type)
+        {
+            if (!PacketWriteActionCache.TryGetValue(type, out var action))
+            {
+                action = GetPacketWriteAction(type);
+                PacketWriteActionCache.Add(type, action);
+            }
+            return action;
         }
 
         public static PacketWriteResult WritePacket<TPacket>(
@@ -214,6 +229,17 @@ namespace MCServerSharp.Net
                 {
                     // TODO: increment statistic?
                 }
+                catch (SocketException sockEx) when (sockEx.SocketErrorCode == SocketError.ConnectionAborted)
+                {
+                    Console.WriteLine("Connection aborted for " + orchestratorQueue.Connection.RemoteEndPoint);
+                    // TODO: increment statistic?
+                }
+                catch (ObjectDisposedException) when (!orchestratorQueue.Connection.Socket.Connected)
+                {
+                    // This should happen very rarely.
+
+                    // TODO: increment statistic (tried to send with closed connection)?
+                }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"Exception on thread \"{Thread.CurrentThread.Name}\": {ex}");
@@ -235,14 +261,10 @@ namespace MCServerSharp.Net
                     return false;
                 }
 
-                var packetWriteAction = GetPacketWriteAction(packetHolder.PacketType);
+                var packetWriteAction = GetLocalPacketWriteAction(packetHolder.PacketType);
 
                 writeResult = packetWriteAction.Invoke(
                     packetHolder, _packetWriteBuffer, _packetCompressionBuffer);
-
-                if (packetHolder.PacketType == typeof(ServerLoginDisconnect) ||
-                    packetHolder.PacketType == typeof(ServerPlayDisconnect))
-                    Console.WriteLine("wrote " + packetHolder.PacketType);
             }
             finally
             {
