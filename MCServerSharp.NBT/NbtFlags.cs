@@ -11,7 +11,8 @@ namespace MCServerSharp.NBT
         LittleEndian = 1 << 2,
         BigEndian = 1 << 3,
 
-        TypedNamed = Typed | Named
+        TypedNamed = Typed | Named,
+        Endianness = BigEndian | LittleEndian,
     }
 
 }

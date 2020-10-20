@@ -31,7 +31,12 @@ namespace MCServerSharp.NBT
         {
             base.Write(writer, flags);
 
+            var elementType = GetNbtType(typeof(TTag));
+            writer.Write((byte)elementType);
+
             writer.Write(Count);
+            foreach (var item in Items)
+                item.Write(writer, flags & NbtFlags.Endianness);
         }
 
         public override List<TTag>.Enumerator GetEnumerator()

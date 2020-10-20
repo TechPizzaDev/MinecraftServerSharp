@@ -12,5 +12,13 @@ namespace MCServerSharp.NBT
 
             tag.Write(writer, NbtFlags.TypedNamed);
         }
+
+        public static void Write(this NetBinaryWriter writer, NbtCompound compound)
+        {
+            if (compound == null)
+                throw new ArgumentNullException(nameof(compound));
+
+            compound.Write(writer, NbtFlags.TypedNamed);
+        }
     }
 }
