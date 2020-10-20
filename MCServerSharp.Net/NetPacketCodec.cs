@@ -156,8 +156,14 @@ namespace MCServerSharp.Net
             {
                 // TODO: increment statistic?
             }
+            catch (SocketException sockEx) when (sockEx.SocketErrorCode == SocketError.ConnectionAborted)
+            {
+                Console.WriteLine("Connection aborted for " + connection.RemoteEndPoint);
+                // TODO: increment statistic?
+            }
             catch (Exception ex)
             {
+                Console.WriteLine(ex);
                 connection.Kick(ex);
                 return;
             }
@@ -303,7 +309,8 @@ namespace MCServerSharp.Net
             status = packetHandler.Invoke(connection, packetReader, packetIdDefinition, out int readLength);
             if (status != OperationStatus.Done)
             {
-                connection.Kick($"Internal server error caused by packet handler status: " + status);
+                connection.Kick(
+                    $"Internal server error caused by packet handler of {packetIdDefinition.Id} with status " + status);
                 return status;
             }
             Debug.Assert(readLength <= dataLength, "Packet handler read too many bytes.");

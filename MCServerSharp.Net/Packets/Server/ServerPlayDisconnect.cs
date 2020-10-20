@@ -4,7 +4,7 @@ namespace MCServerSharp.Net.Packets
     [PacketStruct(ServerPacketId.PlayDisconnect)]
     public readonly struct ServerPlayDisconnect
     {
-        [PacketProperty(0)] public Chat Reason { get; }
+        [DataProperty(0)] public Chat Reason { get; }
 
         public ServerPlayDisconnect(Chat reason)
         {

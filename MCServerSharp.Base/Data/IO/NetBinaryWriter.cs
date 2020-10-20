@@ -128,21 +128,27 @@ namespace MCServerSharp.Data.IO
 
         public void Write(string? value) // TODO: , bool isBigEndian)
         {
-            Write(value, StringHelper.BigUtf16, true);
+            WriteString(value, StringHelper.BigUtf16, true);
         }
 
         public void WriteRaw(string? value) // TODO: , bool isBigEndian)
         {
-            Write(value, StringHelper.BigUtf16, false);
+            WriteString(value, StringHelper.BigUtf16, false);
         }
 
         // TODO: optimize
 
-        public void Write(Utf8String? value) => Write(value?.ToString(), StringHelper.Utf8, true);
+        public void Write(Utf8String? value)
+        {
+            WriteString(value?.ToString(), StringHelper.Utf8, true);
+        }
 
-        public void WriteRaw(Utf8String? value) => Write(value?.ToString(), StringHelper.Utf8, false);
+        public void WriteRaw(Utf8String? value)
+        {
+            WriteString(value?.ToString(), StringHelper.Utf8, false);
+        }
 
-        private void Write(string? value, Encoding encoding, bool includeLength)
+        private void WriteString(string? value, Encoding encoding, bool includeLength)
         {
             value ??= string.Empty;
 

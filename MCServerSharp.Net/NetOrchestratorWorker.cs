@@ -243,6 +243,7 @@ namespace MCServerSharp.Net
                 catch (Exception ex)
                 {
                     Console.WriteLine($"Exception on thread \"{Thread.CurrentThread.Name}\": {ex}");
+                    orchestratorQueue.Connection.Kick(ex);
                 }
             }
         }
@@ -265,6 +266,8 @@ namespace MCServerSharp.Net
 
                 writeResult = packetWriteAction.Invoke(
                     packetHolder, _packetWriteBuffer, _packetCompressionBuffer);
+
+                Console.WriteLine("wrote " + packetHolder.PacketType);
             }
             finally
             {

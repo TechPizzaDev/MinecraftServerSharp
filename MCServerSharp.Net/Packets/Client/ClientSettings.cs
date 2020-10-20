@@ -14,7 +14,7 @@ namespace MCServerSharp.Net.Packets
 
         [PacketConstructor]
         public ClientSettings(
-            [LengthConstraint(Max = 16)] Utf8String locale,
+            [DataLengthConstraint(Max = 16)] Utf8String locale,
             sbyte viewDistance, 
             VarInt chatMode, 
             bool chatColors, 

@@ -12,7 +12,7 @@ namespace MCServerSharp.Net.Packets
         [PacketConstructor]
         public ClientHandshake(
             VarInt protocolVersion,
-            [LengthConstraint(Max = 255)] Utf8String serverAddress,
+            [DataLengthConstraint(Max = 255)] Utf8String serverAddress,
             ushort serverPort,
             VarInt nextState)
         {
@@ -23,4 +23,6 @@ namespace MCServerSharp.Net.Packets
         }
     }
 }
+
+
 

@@ -4,18 +4,18 @@ namespace MCServerSharp.Net.Packets
     [PacketStruct(ServerPacketId.SpawnLivingEntity)]
     public readonly struct ServerSpawnLivingEntity
     {
-        [PacketProperty(0)] public VarInt EntityId { get; }
-        [PacketProperty(1)] public UUID EntityUUID { get; }
-        [PacketProperty(2)] public VarInt Type { get; }
-        [PacketProperty(3)] public double X { get; }
-        [PacketProperty(4)] public double Y { get; }
-        [PacketProperty(5)] public double Z { get; }
-        [PacketProperty(6)] public Angle Yaw { get; }
-        [PacketProperty(7)] public Angle Pitch { get; }
-        [PacketProperty(8)] public Angle HeadPitch { get; }
-        [PacketProperty(9)] public short VelocityX { get; }
-        [PacketProperty(10)] public short VelocityY { get; }
-        [PacketProperty(11)] public short VelocityZ { get; }
+        [DataProperty(0)] public VarInt EntityId { get; }
+        [DataProperty(1)] public UUID EntityUUID { get; }
+        [DataProperty(2)] public VarInt Type { get; }
+        [DataProperty(3)] public double X { get; }
+        [DataProperty(4)] public double Y { get; }
+        [DataProperty(5)] public double Z { get; }
+        [DataProperty(6)] public Angle Yaw { get; }
+        [DataProperty(7)] public Angle Pitch { get; }
+        [DataProperty(8)] public Angle HeadPitch { get; }
+        [DataProperty(9)] public short VelocityX { get; }
+        [DataProperty(10)] public short VelocityY { get; }
+        [DataProperty(11)] public short VelocityZ { get; }
 
         [PacketConstructor]
         public ServerSpawnLivingEntity(

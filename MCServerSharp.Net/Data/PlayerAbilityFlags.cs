@@ -3,7 +3,7 @@
 namespace MCServerSharp.Net.Packets
 {
     [Flags]
-    public enum ServerAbilityFlags : byte
+    public enum PlayerAbilityFlags : byte
     {
         Invulnerable = 0x01,
         Flying = 0x02,

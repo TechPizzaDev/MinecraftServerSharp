@@ -8,6 +8,8 @@ namespace MCServerSharp.Net
 {
     public class NetConnectionComponent : Component<NetConnection>, ITickable
     {
+        private bool _firstSend = true;
+
         public GameTimeComponent GameTime { get; }
 
         /// <summary>
@@ -42,7 +44,7 @@ namespace MCServerSharp.Net
 
                     var chat = Chat.Text(
                         $"S:{Connection.BytesSent / 1000}k | R:{Connection.BytesReceived / 100 / 10d}k");
-                    EnqueuePacket(new ServerChat(chat, 2));
+                    EnqueuePacket(new ServerChat(chat, 2, UUID.Zero));
                 }
                 TickAliveTimer = 0;
             }
@@ -57,6 +59,12 @@ namespace MCServerSharp.Net
         {
             if (!this.GetPlayer(out Player? player))
                 return;
+
+            if (_firstSend)
+            {
+                _firstSend = false;
+                player.UpdateChunksToSend(8);
+            }
 
             try
             {
@@ -84,7 +92,10 @@ namespace MCServerSharp.Net
                     player.LastChunkPosition = player.ChunkPosition;
                 }
 
-                int maxToSend = 8;
+                // TODO: smarter sending
+                // think about predicting player direction and sending chunks in front of player?
+
+                int maxToSend = 6;
                 var chunksToSend = player.ChunksToSend;
                 for (int i = 0; i < chunksToSend.Count; i++)
                 {

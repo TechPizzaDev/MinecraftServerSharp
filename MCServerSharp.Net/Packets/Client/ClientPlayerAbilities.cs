@@ -4,16 +4,12 @@ namespace MCServerSharp.Net.Packets
     [PacketStruct(ClientPacketId.PlayerAbilities)]
     public readonly struct ClientPlayerAbilities
     {
-        public byte Flags { get; }
-        public float FlyingSpeed { get; }
-        public float WalkingSpeed { get; }
+        public PlayerAbilityFlags Flags { get; }
 
         [PacketConstructor]
-        public ClientPlayerAbilities(byte flags, float flyingSpeed, float walkingSpeed)
+        public ClientPlayerAbilities(byte flags)
         {
-            Flags = flags;
-            FlyingSpeed = flyingSpeed;
-            WalkingSpeed = walkingSpeed;
+            Flags = (PlayerAbilityFlags)flags;
         }
     }
 }

@@ -9,7 +9,7 @@ namespace MCServerSharp.Net.Packets
 
         [PacketConstructor]
         public ClientChat(
-            [LengthConstraint(Max = 256)] Utf8String message)
+            [DataLengthConstraint(Max = 256)] Utf8String message)
         {
             Message = message ?? throw new ArgumentNullException(nameof(message));
         }

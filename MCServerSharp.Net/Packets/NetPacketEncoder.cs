@@ -1,10 +1,14 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Threading.Tasks;
+using MCServerSharp.Collections;
 using MCServerSharp.Data.IO;
 using MCServerSharp.NBT;
+using Microsoft.VisualBasic.CompilerServices;
 
 namespace MCServerSharp.Net.Packets
 {
@@ -56,7 +60,10 @@ namespace MCServerSharp.Net.Packets
             RegisterDataType(typeof(NetBinaryWriter), typeof(Chat));
             RegisterDataType(typeof(NetBinaryWriter), typeof(Angle));
             RegisterDataType(typeof(NetBinaryWriter), typeof(Position));
+            RegisterDataType(typeof(NetBinaryWriter), typeof(Identifier));
             RegisterDataType(typeof(NetBinaryWriter), typeof(UUID));
+            RegisterDataType(typeof(NetBinaryWriter), typeof(NbTag));
+            RegisterDataType(typeof(NetBinaryWriter), typeof(NbtCompound));
         }
 
         #endregion
@@ -73,24 +80,26 @@ namespace MCServerSharp.Net.Packets
 
         public override Delegate CreatePacketAction(PacketStructInfo structInfo)
         {
+            // TODO: add support IDisposable
+
             var expressions = new List<Expression>();
             var writerParam = Expression.Parameter(typeof(NetBinaryWriter), "Writer");
             var packetParam = Expression.Parameter(structInfo.Type.MakeByRefType(), "Packet");
 
-            if (typeof(IWritablePacket).IsAssignableFrom(structInfo.Type))
+            if (typeof(IDataWritable).IsAssignableFrom(structInfo.Type))
             {
-                string methodName = nameof(IWritablePacket.Write);
+                string methodName = nameof(IDataWritable.Write);
                 var writeMethod = structInfo.Type.GetMethod(methodName, new[] { writerParam.Type });
                 if (writeMethod == null)
                     throw new Exception(
-                        $"Failed to get {nameof(IWritablePacket)} method required for reflection.");
+                        $"Failed to get public {nameof(IDataWritable.Write)} method required for reflection.");
 
                 var writeCall = Expression.Call(packetParam, writeMethod, writerParam);
                 expressions.Add(writeCall);
             }
             else
             {
-                CreateComplexPacketWriter(expressions, packetParam, writerParam);
+                ReflectiveWrite(expressions, writerParam, packetParam);
             }
 
             var actionType = typeof(NetPacketWriterAction<>).MakeGenericType(structInfo.Type);
@@ -100,107 +109,282 @@ namespace MCServerSharp.Net.Packets
             return resultLambda.Compile();
         }
 
-        private void CreateComplexPacketWriter(
+        private void ReflectiveWrite(
             List<Expression> expressions,
-            ParameterExpression packetParam,
-            ParameterExpression writerParam)
+            ParameterExpression writerParam,
+            Expression instance)
         {
-            // TODO: respect LengthConstraint
-
-            var publicProperties = packetParam.Type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
-            var packetProperties = publicProperties.Select(property =>
+            var publicProps = instance.Type.GetProperties(BindingFlags.Instance | BindingFlags.Public);
+            var attributedProps = publicProps.SelectWhere(
+                p => p.GetCustomAttribute<DataPropertyAttribute>(),
+                (p, a) => a != null,
+                (prop, propAttrib) =>
             {
-                var propertyAttribute = property.GetCustomAttribute<PacketPropertyAttribute>();
-                if (propertyAttribute == null)
-                    return null;
-
-                var lengthConstraintAttrib = property.GetCustomAttribute<LengthConstraintAttribute>();
-                return new PacketPropertyInfo(property, propertyAttribute, lengthConstraintAttrib);
+                var lengthConstraintAttrib = prop.GetCustomAttribute<DataLengthConstraintAttribute>();
+                return new DataPropertyInfo(prop, propAttrib!, lengthConstraintAttrib);
             });
 
-            List<PacketPropertyInfo> packetPropertyList = packetProperties.Where(x => x != null).ToList()!;
-            if (packetPropertyList.Count == 0)
-            {
-                Console.WriteLine($"Packet \"{packetParam.Type}\" has no properties.");
+            List<DataPropertyInfo> propList = attributedProps.ToList();
+            if (propList.Count == 0)
                 return;
-            }
 
-            packetPropertyList.Sort((x, y) => x.SerializationOrder.CompareTo(y.SerializationOrder));
+            propList.Sort((x, y) => x.Order.CompareTo(y.Order));
 
-            for (int i = 0; i < packetPropertyList.Count; i++)
+            for (int i = 0; i < propList.Count; i++)
             {
-                var propertyInfo = packetPropertyList[i];
-                var property = Expression.Property(packetParam, propertyInfo.Property);
-                bool isEnumProperty = propertyInfo.Type.IsEnum;
+                var propInfo = propList[i];
+                var prop = Expression.Property(instance, propInfo.Property);
 
-                (ParameterExpression? Writer, Expression[] Args) writeInfo;
-                MethodInfo? writeMethod;
+                // TODO: clean this up
+                // TODO: adapt for lists?
 
-                Type? writeType;
-                if (isEnumProperty)
+                if (propInfo.Property.GetCustomAttribute<DataEnumerableAttribute>() != null)
                 {
-                    // Enums get sligthly special treatment.
-                    writeType = propertyInfo.Type.GetEnumUnderlyingType();
-                    var enumTypeKey = DataTypeKey.FromVoid(writeType);
-                    if (!DataTypeHandlers.TryGetValue(enumTypeKey, out writeMethod))
-                        throw new Exception("Missing enum write method for \"" + enumTypeKey + "\".");
+                    var collectionVariables = new List<ParameterExpression>();
+                    var collectionExpressions = new List<Expression>();
 
-                    writeInfo = (writerParam, new[] { Expression.Convert(property, writeType) });
-                }
-                else
-                {
-                    writeType = propertyInfo.Type;
+                    // Write out collection length.
+                    ApplyLengthPrefix(collectionExpressions, propInfo, writerParam, prop);
 
-                    var writeInfos = new[]
+                    if (prop.Type.IsArray)
                     {
-                        (Writer: writerParam,
-                        Args: new Expression[] { property },
-                        Key: new DataTypeKey(typeof(void), writeType)),
+                        var arrayIndex = Expression.Variable(typeof(int), "i");
+                        collectionVariables.Add(arrayIndex);
 
-                        (Writer: null,
-                        Args: new Expression[] { writerParam, property },
-                        Key: new DataTypeKey(typeof(void), typeof(NetBinaryWriter), writeType)),
-                    };
+                        var writeBody = new List<Expression>();
+                        var arrayAccess = Expression.ArrayAccess(prop, arrayIndex);
+                        ReflectiveWriteElement(writeBody, writerParam, arrayAccess);
+                        writeBody.Add(Expression.PostIncrementAssign(arrayIndex));
+                        var writeBlock = Expression.Block(writeBody);
 
-                    writeInfo = default;
-                    writeMethod = null;
-                    foreach (var tWriteInfo in writeInfos)
-                    {
-                        if (DataTypeHandlers.TryGetValue(tWriteInfo.Key, out writeMethod))
-                        {
-                            writeInfo = (tWriteInfo.Writer, tWriteInfo.Args);
-                            break;
-                        }
-                    }
+                        var arrayLength = Expression.ArrayLength(prop);
+                        var checkIndex = Expression.GreaterThanOrEqual(
+                            Expression.Convert(arrayIndex, typeof(uint)),
+                            Expression.Convert(arrayLength, typeof(uint)));
 
-                    if (writeMethod == null)
-                        throw new Exception("Missing write method for \"" + writeType + "\".");
-                }
+                        var breakTarget = Expression.Label("End");
+                        var checkOrBreak = Expression.IfThenElse(
+                            checkIndex,
+                            Expression.Break(breakTarget),
+                            writeBlock);
 
-                var lengthPrefixedAttrib = propertyInfo.Property.GetCustomAttribute<LengthPrefixedAttribute>();
-                if (lengthPrefixedAttrib != null)
-                {
-                    if (lengthPrefixedAttrib.LengthSource == LengthSource.CollectionLength)
-                    {
-                        var length = CollectionLength(property);
-                        var lengthWriteMethod = DataTypeHandlers[DataTypeKey.FromVoid(lengthPrefixedAttrib.LengthType)];
-                        var propertyLength = Expression.Convert(length, lengthPrefixedAttrib.LengthType);
-                        expressions.Add(Expression.Call(writerParam, lengthWriteMethod, new[] { propertyLength }));
-                    }
-                    else if (lengthPrefixedAttrib.LengthSource == LengthSource.WrittenBytes)
-                    {
-                        throw new NotImplementedException();
+                        var arrayLoop = Expression.Loop(checkOrBreak, breakTarget);
+                        collectionExpressions.Add(arrayLoop);
                     }
                     else
                     {
-                        throw new InvalidOperationException(
-                            "Unknown length source: " + lengthPrefixedAttrib.LengthSource);
+                        var getEnumeratorMethod = prop.Type.GetMethod(
+                            "GetEnumerator", BindingFlags.Instance | BindingFlags.Public);
+                        if (getEnumeratorMethod == null)
+                            throw new Exception($"Property {prop} is missing a \"GetEnumerator\" method.");
+
+                        AssertValidEnumerator(
+                            getEnumeratorMethod.ReturnType,
+                            out var currentMember,
+                            out var moveNextMethod,
+                            out var disposeMethod);
+
+                        // Define enumerator variable.
+                        var enumeratorVar = Expression.Variable(getEnumeratorMethod.ReturnType, "Enumerator");
+                        collectionVariables.Add(enumeratorVar);
+
+                        // Create and assign enumerator to it's variable.
+                        var enumeratorCall = Expression.Call(prop, getEnumeratorMethod);
+                        var enumeratorAssign = Expression.Assign(enumeratorVar, enumeratorCall);
+                        collectionExpressions.Add(enumeratorAssign);
+
+                        var writeBody = new List<Expression>();
+                        var current = Expression.MakeMemberAccess(enumeratorVar, currentMember);
+                        ReflectiveWriteElement(writeBody, writerParam, current);
+                        var writeBlock = Expression.Block(writeBody);
+
+                        var breakTarget = Expression.Label("End");
+                        var moveNextOrBreak = Expression.IfThenElse(
+                            Expression.Call(enumeratorVar, moveNextMethod),
+                            writeBlock,
+                            Expression.Break(breakTarget));
+
+                        var enumeratorLoop = Expression.Loop(moveNextOrBreak, breakTarget);
+                        if (disposeMethod != null)
+                        {
+                            var finallyDispose = Expression.Call(enumeratorVar, disposeMethod);
+                            var tryFinally = Expression.TryFinally(enumeratorLoop, finallyDispose);
+                            collectionExpressions.Add(tryFinally);
+                        }
+                        else
+                        {
+                            collectionExpressions.Add(enumeratorLoop);
+                        }
+                    }
+
+                    var collectionBlock = Expression.Block(collectionVariables, collectionExpressions);
+                    expressions.Add(collectionBlock);
+                }
+                else
+                {
+                    // TODO: Call WriteElement first as it may throw more descriptive errors.
+                    var writeExpressions = new List<Expression>();
+                    ReflectiveWriteElement(writeExpressions, writerParam, prop);
+
+                    ApplyLengthPrefix(expressions, propInfo, writerParam, instance);
+                    expressions.AddRange(writeExpressions);
+                }
+            }
+        }
+
+        private static void AssertValidEnumerator(
+            Type type,
+            out MemberInfo currentMember,
+            out MethodInfo moveNextMethod,
+            out MethodInfo? disposeMethod)
+        {
+            const BindingFlags Binding =
+                BindingFlags.Instance |
+                BindingFlags.Public |
+                BindingFlags.NonPublic;
+
+            if (type == typeof(void))
+                throw new ArgumentException("The enumerator may not be of type void.");
+
+            {
+                currentMember = type.GetMember("Current", Binding).FirstOrDefault() ??
+                    type.GetInterfaces()
+                    .FirstOrDefault(x => x.GetGenericTypeDefinition() == typeof(IEnumerator<>))?
+                    .GetMember("Current").FirstOrDefault()!;
+
+                if (currentMember == null)
+                    throw new ArgumentException("The enumerator does not have a \"Current\" member.");
+            }
+
+            {
+                moveNextMethod = type.GetMethod("MoveNext", Binding) ??
+                    type.GetInterface(nameof(IEnumerator))?.GetMethod("MoveNext")!;
+
+                if (moveNextMethod == null)
+                    throw new ArgumentException("The enumerator does not have a \"MoveNext\" method.");
+                if (moveNextMethod.ReturnType != typeof(bool))
+                    throw new ArgumentException("The enumerator's \"MoveNext\" method does not return a boolean}.");
+            }
+
+            {
+                disposeMethod = type.GetMethod("Dispose", BindingFlags.Instance | BindingFlags.Public) ??
+                    type.GetInterface(nameof(IDisposable))?.GetMethod("Dispose");
+            }
+        }
+
+        private void ReflectiveWriteElement(
+            List<Expression> expressions,
+            ParameterExpression writerParam,
+            Expression instance)
+        {
+            (ParameterExpression? Writer, Expression[] Args) writeInfo;
+            MethodInfo? writeMethod;
+            Type? writeType;
+
+            if (instance.Type.IsEnum)
+            {
+                // Enums get sligthly special treatment.
+                writeType = instance.Type.GetEnumUnderlyingType();
+
+                var enumTypeKey = DataTypeKey.FromVoid(writeType);
+                if (!DataTypeHandlers.TryGetValue(enumTypeKey, out writeMethod))
+                    throw new Exception("Missing enum write method for \"" + enumTypeKey + "\".");
+
+                writeInfo = (writerParam, new[] { Expression.Convert(instance, writeType) });
+            }
+            else
+            {
+                writeType = instance.Type;
+
+                var writeInfos = new[]
+                {
+                    (Writer: writerParam,
+                    Args: new Expression[] { instance },
+                    Key: new DataTypeKey(typeof(void), writeType)),
+
+                    (Writer: null,
+                    Args: new Expression[] { writerParam, instance },
+                    Key: new DataTypeKey(typeof(void), typeof(NetBinaryWriter), writeType)),
+                };
+
+                writeInfo = default;
+                writeMethod = null;
+                foreach (var (Writer, Args, Key) in writeInfos)
+                {
+                    if (DataTypeHandlers.TryGetValue(Key, out writeMethod))
+                    {
+                        writeInfo = (Writer, Args);
+                        break;
                     }
                 }
 
-                // TODO: write collections
+                if (writeMethod == null)
+                {
+                    string msg = "Missing write method for \"" + writeType + "\".";
 
-                expressions.Add(Expression.Call(writeInfo.Writer, writeMethod, writeInfo.Args));
+                    if (writeType.IsArray || writeType.GetMethod("GetEnumerator")?.ReturnType == typeof(bool))
+                    {
+                        msg += $"\nThe type can be enumerated. Consider using {nameof(DataEnumerableAttribute)}.";
+                    }
+                    throw new Exception(msg);
+                }
+            }
+
+            expressions.Add(Expression.Call(writeInfo.Writer, writeMethod, writeInfo.Args));
+        }
+
+        private void ApplyLengthPrefix(
+            List<Expression> expressions,
+            DataPropertyInfo propInfo,
+            ParameterExpression writerParam,
+            Expression instance)
+        {
+            // TODO: respect LengthConstraint
+
+            var lengthPrefixedAttrib = propInfo.Property.GetCustomAttribute<DataLengthPrefixedAttribute>();
+            if (lengthPrefixedAttrib == null)
+                return;
+
+            switch (lengthPrefixedAttrib.LengthSource)
+            {
+                case LengthSource.ByName:
+                {
+                    var lengthMembers = instance.Type.GetMember("Length");
+                    if (lengthMembers.Length == 0)
+                        lengthMembers = instance.Type.GetMember("Count");
+
+                    if (lengthMembers.Length == 0)
+                    {
+                        throw new Exception(
+                            $"The length-prefixed property {instance} does not have a \"Length\" or \"Count\" member.");
+                    }
+                    var lengthMember =
+                        lengthMembers.FirstOrDefault(x => x is PropertyInfo) ??
+                        lengthMembers.FirstOrDefault(x => x is FieldInfo) ??
+                        lengthMembers[0];
+
+                    var length = Expression.MakeMemberAccess(instance, lengthMember);
+                    var lengthWriteMethod = DataTypeHandlers[DataTypeKey.FromVoid(lengthPrefixedAttrib.LengthType)];
+                    var propertyLength = Expression.Convert(length, lengthPrefixedAttrib.LengthType);
+                    expressions.Add(Expression.Call(writerParam, lengthWriteMethod, new[] { propertyLength }));
+                    break;
+                }
+
+                case LengthSource.Collection:
+                {
+                    var length = CollectionLength(instance);
+                    var lengthWriteMethod = DataTypeHandlers[DataTypeKey.FromVoid(lengthPrefixedAttrib.LengthType)];
+                    var propertyLength = Expression.Convert(length, lengthPrefixedAttrib.LengthType);
+                    expressions.Add(Expression.Call(writerParam, lengthWriteMethod, new[] { propertyLength }));
+                    break;
+                }
+
+                case LengthSource.WrittenBytes:
+                    throw new NotImplementedException();
+
+                default:
+                    throw new InvalidOperationException(
+                        "Unknown length source: " + lengthPrefixedAttrib.LengthSource);
             }
         }
 
@@ -209,7 +393,27 @@ namespace MCServerSharp.Net.Packets
             if (instance.Type.GetGenericTypeDefinition() == typeof(ICollection<>))
                 return Expression.Property(instance, typeof(ICollection<>).GetProperty("Count"));
 
-            throw new Exception($"The expression is not of type {typeof(ICollection<>).Name}.");
+            if (instance.Type.GetGenericTypeDefinition() == typeof(IReadOnlyCollection<>))
+                return Expression.Property(instance, typeof(IReadOnlyCollection<>).GetProperty("Count"));
+
+            throw new Exception(
+                $"The expression is not of type {typeof(ICollection<>).Name} or {typeof(IReadOnlyCollection<>).Name}.");
+        }
+
+        private static void ForEachWrite<TEnumerator, T>(TEnumerator enumerator)
+            where TEnumerator : IEnumerator<T>
+        {
+            try
+            {
+                while (enumerator.MoveNext())
+                {
+
+                }
+            }
+            finally
+            {
+                enumerator.Dispose();
+            }
         }
     }
 }

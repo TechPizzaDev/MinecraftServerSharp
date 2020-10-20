@@ -7,10 +7,12 @@ using MCServerSharp.World;
 namespace MCServerSharp.Net.Packets
 {
     [PacketStruct(ServerPacketId.ChunkData)]
-    public struct ServerChunkData : IWritablePacket
+    public struct ServerChunkData : IDataWritable
     {
-        [PacketProperty(0)] public Chunk Chunk { get; }
-        [PacketProperty(1)] public bool FullChunk { get; }
+        public const int UnderlyingDataSize = 4096;
+
+        [DataProperty(0)] public Chunk Chunk { get; }
+        [DataProperty(1)] public bool FullChunk { get; }
 
         // TODO: create flash-copying (fast deep-clone) of chunks for serialization purposes
 
@@ -35,8 +37,12 @@ namespace MCServerSharp.Net.Packets
             if (FullChunk)
             {
                 Span<int> biomes = stackalloc int[1024];
-                biomes.Fill(127); // 127=void
-                writer.Write(biomes);
+                biomes.Fill(1); // 1=plains (defined in ServerMain)
+
+                // TODO: optimize by creating WriteVar for Span
+                writer.WriteVar(biomes.Length);
+                for (int i = 0; i < biomes.Length; i++)
+                    writer.WriteVar(biomes[i]);
             }
 
             int sectionDataLength = GetChunkSectionDataLength(Chunk);
@@ -99,10 +105,11 @@ namespace MCServerSharp.Net.Packets
             }
         }
 
-
-        private static int GetUnderlyingDataLength(int bitsPerBlock)
+        private static int GetUnderlyingDataLength(int size, int bitsPerBlock)
         {
-            return ChunkSection.BlockCount * bitsPerBlock / 64;
+            int bytesPerBlock = 64 / bitsPerBlock;
+            int longCount = (size + bytesPerBlock - 1) / bytesPerBlock;
+            return longCount;
         }
 
         public static int GetChunkSectionDataLength(ChunkSection section)
@@ -117,9 +124,9 @@ namespace MCServerSharp.Net.Packets
             length += sizeof(byte);
             length += palette.GetEncodedSize();
 
-            int underlyingDataLength = GetUnderlyingDataLength(palette.BitsPerBlock);
-            length += VarInt.GetEncodedSize(underlyingDataLength);
-            length += underlyingDataLength * sizeof(ulong);
+            int longCount = GetUnderlyingDataLength(UnderlyingDataSize, palette.BitsPerBlock);
+            length += VarInt.GetEncodedSize(longCount);
+            length += longCount * sizeof(ulong);
 
             return length;
         }
@@ -138,27 +145,47 @@ namespace MCServerSharp.Net.Packets
             writer.Write((byte)bitsPerBlock);
             palette.Write(writer);
 
-            int dataLength = GetUnderlyingDataLength(bitsPerBlock);
+            int dataLength = GetUnderlyingDataLength(UnderlyingDataSize, bitsPerBlock);
 
             // A bitmask that contains bitsPerBlock set bits
-            uint individualValueMask = (uint)((1 << bitsPerBlock) - 1);
+            uint valueMask = (uint)((1 << bitsPerBlock) - 1);
 
-            // TODO: better/smarter allocations management, 8k on stack is not great (should not be larger though)
             Span<ulong> data = dataLength <= 1024 ? stackalloc ulong[dataLength] : new ulong[dataLength];
 
             ReadOnlySpan<BlockState> blocks = section.Blocks.Span;
 
+            //for (int i = 0; i < blocks.Length; i++)
+            //{
+            //    int startLong = i * bitsPerBlock / 64;
+            //    int startOffset = i * bitsPerBlock % 64;
+            //    int endLong = ((i + 1) * bitsPerBlock - 1) / 64;
+            //
+            //    ulong value = palette.IdForBlock(blocks[i]) & valueMask;
+            //
+            //    data[startLong] |= value << startOffset;
+            //    if (startLong != endLong)
+            //        data[endLong] = value >> (64 - startOffset);
+            //}
+
+
+            int dataOffset = 0;
+            int spaceInBits = 64;
+            ulong bitBuffer = 0;
+
             for (int i = 0; i < blocks.Length; i++)
             {
-                int startLong = i * bitsPerBlock / 64;
-                int startOffset = i * bitsPerBlock % 64;
-                int endLong = ((i + 1) * bitsPerBlock - 1) / 64;
+                ulong value = palette.IdForBlock(blocks[i]) & valueMask;
 
-                ulong value = palette.IdForBlock(blocks[i]) & individualValueMask;
+                bitBuffer <<= bitsPerBlock;
+                bitBuffer |= value;
 
-                data[startLong] |= value << startOffset;
-                if (startLong != endLong)
-                    data[endLong] = value >> (64 - startOffset);
+                spaceInBits -= bitsPerBlock;
+                if (spaceInBits < bitsPerBlock)
+                {
+                    data[dataOffset++] = bitBuffer;
+                    bitBuffer = 0;
+                    spaceInBits = 64;
+                }
             }
 
             writer.WriteVar(dataLength);

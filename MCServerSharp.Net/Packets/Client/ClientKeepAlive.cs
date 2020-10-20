@@ -4,7 +4,7 @@ namespace MCServerSharp.Net.Packets
     [PacketStruct(ClientPacketId.KeepAlive)]
     public readonly struct ClientKeepAlive
     {
-        [PacketProperty(0)] public long KeepAliveId { get; }
+        [DataProperty(0)] public long KeepAliveId { get; }
 
         [PacketConstructor]
         public ClientKeepAlive(long keepAliveId)

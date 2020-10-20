@@ -9,7 +9,7 @@ namespace MCServerSharp.Net.Packets
 
         [PacketConstructor]
         public ClientLoginStart(
-            [LengthConstraint(Max = 16)] Utf8String name)
+            [DataLengthConstraint(Max = 16)] Utf8String name)
         {
             Name = name ?? throw new ArgumentNullException(nameof(name));
         }

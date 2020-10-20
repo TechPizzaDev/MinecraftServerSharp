@@ -35,26 +35,26 @@ namespace MCServerSharp.Net.Packets
         [Mapping(State.Play, 0x03)] ChatMessage,
         [Mapping(State.Play, 0x05)] ClientSettings,
         [Mapping(State.Play, 0x09)] ClickWindow,
-        [Mapping(State.Play, 0x0A)] CloseWindow,
-        [Mapping(State.Play, 0x0B)] PluginMessage,
+        [Mapping(State.Play, 0x0a)] CloseWindow,
+        [Mapping(State.Play, 0x0b)] PluginMessage,
         
-        [Mapping(State.Play, 0x0F)] KeepAlive,
+        [Mapping(State.Play, 0x10)] KeepAlive,
 
-        [Mapping(State.Play, 0x11)] PlayerPosition,
-        [Mapping(State.Play, 0x12)] PlayerPositionRotation,
-        [Mapping(State.Play, 0x13)] PlayerRotation,
-        [Mapping(State.Play, 0x14)] PlayerMovement,
-        [Mapping(State.Play, 0x19)] PlayerAbilities,
+        [Mapping(State.Play, 0x12)] PlayerPosition,
+        [Mapping(State.Play, 0x13)] PlayerPositionRotation,
+        [Mapping(State.Play, 0x14)] PlayerRotation,
+        [Mapping(State.Play, 0x15)] PlayerMovement,
+        [Mapping(State.Play, 0x1a)] PlayerAbilities,
+        [Mapping(State.Play, 0x1b)] PlayerDigging,
+        [Mapping(State.Play, 0x1c)] EntityAction,
+        [Mapping(State.Play, 0x1e)] SetDisplayedRecipe,
+        [Mapping(State.Play, 0x1f)] SetRecipeBookState,
 
-        [Mapping(State.Play, 0x1A)] PlayerDigging,
-        [Mapping(State.Play, 0x1B)] EntityAction,
-        [Mapping(State.Play, 0x1D)] RecipeBookData,
-
-        [Mapping(State.Play, 0x2A)] Animation,
-        [Mapping(State.Play, 0x23)] HeldItemChange,
-        [Mapping(State.Play, 0x26)] CreativeInventoryAction,
-        [Mapping(State.Play, 0x2C)] PlayerBlockPlacement,
-        [Mapping(State.Play, 0x2D)] UseItem,
+        [Mapping(State.Play, 0x25)] HeldItemChange,
+        [Mapping(State.Play, 0x29)] CreativeInventoryAction,
+        [Mapping(State.Play, 0x2c)] Animation,
+        [Mapping(State.Play, 0x2e)] PlayerBlockPlacement,
+        [Mapping(State.Play, 0x2f)] UseItem,
 
         #endregion
     }

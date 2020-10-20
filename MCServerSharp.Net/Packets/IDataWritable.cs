@@ -2,7 +2,7 @@
 
 namespace MCServerSharp.Net.Packets
 {
-    public interface IWritablePacket
+    public interface IDataWritable
     {
         void Write(NetBinaryWriter writer);
     }

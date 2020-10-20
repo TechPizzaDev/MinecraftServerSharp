@@ -7,8 +7,8 @@ namespace MCServerSharp.Entities.Mobs
 {
     public class Player : Mob
     {
-        // TODO: move this to Player class
         public string? UserName { get; set; }
+        public UUID UserUUID { get; set; }
 
         public ChunkPosition ChunkPosition { get; set; }
         public ChunkPosition LastChunkPosition { get; set; }

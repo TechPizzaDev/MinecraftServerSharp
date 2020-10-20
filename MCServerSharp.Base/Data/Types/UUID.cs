@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Buffers;
 using System.Buffers.Binary;
 using System.Runtime.InteropServices;
 using MCServerSharp.Utility;
@@ -14,6 +13,8 @@ namespace MCServerSharp
         public const int MaxHyphenHexStringLength = 4 + MaxHexStringLength;
         public const int MaxIntArrayStringLength = 51;
         public const int MaxStringLength = 51;
+
+        public static UUID Zero => default;
 
         public ulong X { get; }
         public ulong Y { get; }

@@ -2,7 +2,8 @@
 {
     public enum LengthSource
     {
-        CollectionLength,
+        ByName,
+        Collection,
         WrittenBytes
     }
 }

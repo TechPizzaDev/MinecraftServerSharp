@@ -20,6 +20,11 @@ namespace MCServerSharp.Data.IO
             writer.Write((long)position.Value);
         }
 
+        public static void Write(this NetBinaryWriter writer, Identifier identifier)
+        {
+            writer.Write((Utf8String)identifier.Value);
+        }
+
         public static void Write(this NetBinaryWriter writer, UUID uuid)
         {
             Span<byte> buffer = stackalloc byte[sizeof(ulong) * 2];

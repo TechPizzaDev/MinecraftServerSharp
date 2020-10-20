@@ -4,7 +4,7 @@ namespace MCServerSharp.Net.Packets
     [PacketStruct(ServerPacketId.Pong)]
     public readonly struct ServerPong
     {
-        [PacketProperty(0)] public long Payload { get; }
+        [DataProperty(0)] public long Payload { get; }
 
         public ServerPong(long payload)
         {

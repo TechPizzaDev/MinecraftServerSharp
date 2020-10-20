@@ -3,13 +3,13 @@
 namespace MCServerSharp.Net.Packets
 {
     [AttributeUsage(AttributeTargets.Parameter, Inherited = false, AllowMultiple = false)]
-    public sealed class LengthConstraintAttribute : Attribute
+    public sealed class DataLengthConstraintAttribute : Attribute
     {
         public int Min { get; set; }
         public int Max { get; set; }
         public int Constant { get; set; }
 
-        public LengthConstraintAttribute()
+        public DataLengthConstraintAttribute()
         {
         }
     }

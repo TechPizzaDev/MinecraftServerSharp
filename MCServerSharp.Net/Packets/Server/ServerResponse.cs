@@ -4,7 +4,7 @@ namespace MCServerSharp.Net.Packets
     [PacketStruct(ServerPacketId.Response)]
     public readonly struct ServerResponse
     {
-        [PacketProperty(0)] public Utf8String JsonResponse { get; }
+        [DataProperty(0)] public Utf8String JsonResponse { get; }
 
         public ServerResponse(Utf8String jsonResponse)
         {

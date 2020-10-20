@@ -5,7 +5,7 @@ using MCServerSharp.Data.IO;
 namespace MCServerSharp.Net.Packets
 {
     [PacketStruct(ServerPacketId.LegacyServerListPong)]
-    public readonly struct ServerLegacyServerListPong : IWritablePacket
+    public readonly struct ServerLegacyServerListPong : IDataWritable
     {
         public bool IsBeta { get; }
         public int ProtocolVersion { get; }

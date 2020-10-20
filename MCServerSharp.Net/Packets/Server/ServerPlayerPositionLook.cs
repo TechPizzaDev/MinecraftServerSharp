@@ -16,13 +16,13 @@ namespace MCServerSharp.Net.Packets
             X_ROT = 0x10,
         }
 
-        [PacketProperty(0)] public double X { get; }
-        [PacketProperty(1)] public double Y { get; }
-        [PacketProperty(2)] public double Z { get; }
-        [PacketProperty(3)] public float Yaw { get; }
-        [PacketProperty(4)] public float Pitch { get; }
-        [PacketProperty(5)] public PositionRelatives Flags { get; }
-        [PacketProperty(6)] public VarInt TeleportId { get; }
+        [DataProperty(0)] public double X { get; }
+        [DataProperty(1)] public double Y { get; }
+        [DataProperty(2)] public double Z { get; }
+        [DataProperty(3)] public float Yaw { get; }
+        [DataProperty(4)] public float Pitch { get; }
+        [DataProperty(5)] public PositionRelatives Flags { get; }
+        [DataProperty(6)] public VarInt TeleportId { get; }
 
         public ServerPlayerPositionLook(
             double x, double y, double z,

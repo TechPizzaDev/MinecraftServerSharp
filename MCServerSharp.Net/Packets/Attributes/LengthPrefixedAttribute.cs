@@ -8,16 +8,16 @@ namespace MCServerSharp.Net.Packets
         AttributeTargets.Field,
         AllowMultiple = false,
         Inherited = false)]
-    public class LengthPrefixedAttribute : Attribute
+    public class DataLengthPrefixedAttribute : Attribute
     {
         public Type LengthType { get; }
         public LengthSource LengthSource { get; }
 
-        public LengthPrefixedAttribute(
+        public DataLengthPrefixedAttribute(
             Type lengthType, 
-            LengthSource lengthSource = LengthSource.CollectionLength)
+            LengthSource lengthSource = LengthSource.ByName)
         {
-            if (lengthSource < LengthSource.CollectionLength ||
+            if (lengthSource < LengthSource.ByName ||
                 lengthSource > LengthSource.WrittenBytes)
                 throw new ArgumentOutOfRangeException(nameof(lengthSource));
 
