@@ -2,21 +2,21 @@
 
 namespace MCServerSharp.NBT
 {
-    public class NbtByteArray : NbtArray<byte>
+    public class NbtByteArray : NbtArray<sbyte>
     {
         public override NbtType Type => NbtType.ByteArray;
-        
-        public NbtByteArray(Utf8String? name, int count) : base(name, count)
+
+        public NbtByteArray(sbyte[] items) : base(items)
         {
         }
 
-        public NbtByteArray(int count) : base(null, count)
+        public NbtByteArray(int count) : base(count)
         {
         }
 
-        public override void Write(NetBinaryWriter writer, NbtFlags flags)
+        public override void WritePayload(NetBinaryWriter writer, NbtFlags flags)
         {
-            base.Write(writer, flags);
+            base.WritePayload(writer, flags);
 
             writer.Write(Items);
         }

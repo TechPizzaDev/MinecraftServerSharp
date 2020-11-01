@@ -31,8 +31,8 @@ namespace MCServerSharp.Net.Packets
             int mask = GetSectionMask(Chunk);
             writer.WriteVar(mask);
 
-            var motionBlocking = new NbtLongArray((Utf8String)"MOTION_BLOCKING", 36);
-            writer.Write(motionBlocking.AsCompound((Utf8String)"Heightmaps"));
+            var motionBlocking = new NbtLongArray(36);
+            writer.Write(motionBlocking.AsCompound((Utf8String)"Heightmaps", (Utf8String)"MOTION_BLOCKING"));
 
             if (FullChunk)
             {

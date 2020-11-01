@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Linq.Expressions;
 using System.Reflection;
 using MCServerSharp.Data.IO;
 
@@ -7,44 +8,38 @@ namespace MCServerSharp.NBT
 {
     public abstract class NbTag
     {
+        /// <summary>
+        /// Static instance of <see cref="NbtEnd"/> that can be used everywhere.
+        /// </summary>
+        public static NbtEnd End { get; } = new NbtEnd();
+
         private static MethodInfo GetTypeMethod { get; }
         private static ConcurrentDictionary<Type, NbtType> TypeMap { get; }
 
-        public Utf8String? Name { get; }
-
         public abstract NbtType Type { get; }
-
-        // TODO: system.string constructor
 
         static NbTag()
         {
-            GetTypeMethod = typeof(NbTag).GetMethod(nameof(GetNbtType), 1, Array.Empty<Type>())!;
-            if (GetTypeMethod == null)
-            {
-#pragma warning disable CA1065 // Do not raise exceptions in unexpected locations
-                // This should not throw.
-                throw new Exception("Failed to get method required for reflection.");
-#pragma warning restore CA1065
-            }
+            Expression<Func<NbtType>> getTypeExpression = () => GetNbtType<NbtInt>(); // generic type doesn't matter
+            var getTypeMethodExpression = (MethodCallExpression)getTypeExpression.Body;
+
+            GetTypeMethod = getTypeMethodExpression.Method.GetGenericMethodDefinition();
             TypeMap = new ConcurrentDictionary<Type, NbtType>();
         }
 
-        public NbTag(Utf8String? name)
+        // TODO: system.string constructor
+
+        public NbTag()
         {
-            Name = name;
         }
 
-        public virtual void Write(NetBinaryWriter writer, NbtFlags flags)
+        public virtual void WriteHeader(NetBinaryWriter writer, NbtFlags flags)
         {
             if (flags.HasFlag(NbtFlags.Typed))
                 writer.Write((byte)Type);
-
-            if (flags.HasFlag(NbtFlags.Named) && Name != null)
-            {
-                writer.Write((ushort)Name.Length);
-                writer.WriteRaw(Name);
-            }
         }
+
+        public abstract void WritePayload(NetBinaryWriter writer, NbtFlags flags);
 
         public static NbtType GetNbtType(Type type)
         {

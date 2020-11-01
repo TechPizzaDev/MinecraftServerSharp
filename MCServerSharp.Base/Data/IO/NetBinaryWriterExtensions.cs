@@ -6,6 +6,11 @@ namespace MCServerSharp.Data.IO
 {
     public static class NetBinaryWriterExtensions
     {
+        public static void Write(this NetBinaryWriter writer, ReadOnlySpan<sbyte> values)
+        {
+            writer.Write(MemoryMarshal.Cast<sbyte, byte>(values));
+        }
+
         public static void Write(this NetBinaryWriter writer, ReadOnlySpan<int> values)
         {
             static void WriteBytes(NetBinaryWriter writer, ReadOnlySpan<int> source)

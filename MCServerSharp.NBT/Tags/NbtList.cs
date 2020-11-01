@@ -3,22 +3,46 @@ using MCServerSharp.Data.IO;
 
 namespace MCServerSharp.NBT
 {
-    public class NbtList<TTag> : NbtContainer<TTag, List<TTag>.Enumerator>
+    public class NbtList<TTag> : NbtContainer<TTag, List<TTag>.Enumerator>, IList<TTag>
         where TTag : NbTag
     {
-        protected List<TTag> Items { get; }
+        public List<TTag> Items { get; }
 
         public override int Count => Items.Count;
         public override NbtType Type => NbtType.List;
 
-        public NbtList(Utf8String? name, int capacity) : base(name)
+        public bool IsReadOnly => false;
+
+        public TTag this[int index]
+        {
+            get => Items[index];
+            set => Items[index] = value;
+        }
+
+        public NbtList(int capacity)
         {
             Items = new List<TTag>(capacity);
         }
 
-        public NbtList(Utf8String? name) : base(name)
+        public NbtList()
         {
             Items = new List<TTag>();
+        }
+
+        public override void WritePayload(NetBinaryWriter writer, NbtFlags flags)
+        {
+            var elementType = GetNbtType(typeof(TTag));
+            writer.Write((byte)elementType);
+
+            writer.Write(Count);
+
+            foreach (var item in Items)
+                item.WritePayload(writer, flags & NbtFlags.Endianness);
+        }
+
+        public override List<TTag>.Enumerator GetEnumerator()
+        {
+            return Items.GetEnumerator();
         }
 
         public NbtList<TTag> Add(TTag tag)
@@ -27,21 +51,44 @@ namespace MCServerSharp.NBT
             return this;
         }
 
-        public override void Write(NetBinaryWriter writer, NbtFlags flags)
+        void ICollection<TTag>.Add(TTag item)
         {
-            base.Write(writer, flags);
-
-            var elementType = GetNbtType(typeof(TTag));
-            writer.Write((byte)elementType);
-
-            writer.Write(Count);
-            foreach (var item in Items)
-                item.Write(writer, flags & NbtFlags.Endianness);
+            Items.Add(item);
         }
 
-        public override List<TTag>.Enumerator GetEnumerator()
+        public int IndexOf(TTag item)
         {
-            return Items.GetEnumerator();
+            return ((IList<TTag>)Items).IndexOf(item);
+        }
+
+        public void Insert(int index, TTag item)
+        {
+            ((IList<TTag>)Items).Insert(index, item);
+        }
+
+        public void RemoveAt(int index)
+        {
+            ((IList<TTag>)Items).RemoveAt(index);
+        }
+
+        public void Clear()
+        {
+            ((ICollection<TTag>)Items).Clear();
+        }
+
+        public bool Contains(TTag item)
+        {
+            return ((ICollection<TTag>)Items).Contains(item);
+        }
+
+        public void CopyTo(TTag[] array, int arrayIndex)
+        {
+            ((ICollection<TTag>)Items).CopyTo(array, arrayIndex);
+        }
+
+        public bool Remove(TTag item)
+        {
+            return ((ICollection<TTag>)Items).Remove(item);
         }
     }
 }

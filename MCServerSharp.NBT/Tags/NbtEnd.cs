@@ -4,11 +4,13 @@ namespace MCServerSharp.NBT
 {
     public class NbtEnd : NbTag
     {
-        public static NbtEnd Instance { get; } = new NbtEnd();
-
         public override NbtType Type => NbtType.End;
 
-        public NbtEnd() : base(null)
+        public NbtEnd()
+        {
+        }
+
+        public override void WritePayload(NetBinaryWriter writer, NbtFlags flags)
         {
         }
     }

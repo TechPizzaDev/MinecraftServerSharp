@@ -1,5 +1,4 @@
-﻿using System;
-using MCServerSharp.Data.IO;
+﻿using MCServerSharp.Data.IO;
 
 namespace MCServerSharp.NBT
 {
@@ -7,23 +6,32 @@ namespace MCServerSharp.NBT
     {
         public override NbtType Type => NbtType.String;
 
-        public Utf8String Value { get; }
+        public Utf8String? Value { get; set; }
 
-        public NbtString(Utf8String? name, Utf8String value) : base(name)
-        {
-            Value = value ?? throw new ArgumentNullException(nameof(value));
-        }
-
-        public NbtString(Utf8String? name, string value) : this(name, (Utf8String)value)
+        public NbtString()
         {
         }
 
-        public override void Write(NetBinaryWriter writer, NbtFlags flags)
+        public NbtString(Utf8String? value)
         {
-            base.Write(writer, flags);
+            Value = value;
+        }
 
-            writer.Write((ushort)Value.Length);
-            writer.WriteRaw(Value);
+        public NbtString(string? value) : this((Utf8String?)value)
+        {
+        }
+
+        public override void WritePayload(NetBinaryWriter writer, NbtFlags flags)
+        {
+            if (Value == null)
+            {
+                writer.Write((ushort)0);
+            }
+            else
+            {
+                writer.Write((ushort)Value.Length);
+                writer.WriteRaw(Value);
+            }
         }
     }
 }

@@ -481,20 +481,21 @@ namespace MCServerSharp.Runner
 
                 var playerId = new EntityId(69);
 
-                var dimensionTag = new NbtCompound((Utf8String)"element") {
-                    new NbtByte((Utf8String)"piglin_safe", 0),
-                    new NbtByte((Utf8String)"natural", 1),
-                    new NbtFloat((Utf8String)"ambient_light", 1f),
-                    new NbtString((Utf8String)"infiniburn", "minecraft:infiniburn_overworld"),
-                    new NbtByte((Utf8String)"respawn_anchor_works", 1),
-                    new NbtByte((Utf8String)"has_skylight", 1),
-                    new NbtByte((Utf8String)"bed_works", 1),
-                    new NbtString((Utf8String)"effects", "minecraft:overworld"),
-                    new NbtByte((Utf8String)"has_raids", 1),
-                    new NbtInt((Utf8String)"logical_height", 256),
-                    new NbtFloat((Utf8String)"coordinate_scale", 1f),
-                    new NbtByte((Utf8String)"ultrawarm", 0),
-                    new NbtByte((Utf8String)"has_ceiling", 0),
+                var dimensionTag = new NbtCompound
+                {
+                    { "piglin_safe"         , new NbtByte(0) },
+                    { "natural"             , new NbtByte(1) },
+                    { "ambient_light"       , new NbtFloat(1f) },
+                    { "infiniburn"          , new NbtString("minecraft:infiniburn_overworld") },
+                    { "respawn_anchor_works", new NbtByte(1) },
+                    { "has_skylight"        , new NbtByte(1) },
+                    { "bed_works"           , new NbtByte(1) },
+                    { "effects"             , new NbtString("minecraft:overworld") },
+                    { "has_raids"           , new NbtByte(1) },
+                    { "logical_height"      , new NbtInt(256) },
+                    { "coordinate_scale"    , new NbtFloat(1f) },
+                    { "ultrawarm"           , new NbtByte(0) },
+                    { "has_ceiling"         , new NbtByte(0) },
                 };
 
                 connection.EnqueuePacket(new ServerJoinGame(
@@ -503,55 +504,62 @@ namespace MCServerSharp.Runner
                     1,
                     -1,
                     new Identifier[] { "minecraft:overworld" },
-                    new NbtCompound((Utf8String)"")
+                    new NbtCompound
                     {
-                        new NbtCompound((Utf8String)"minecraft:dimension_type")
+                        { "minecraft:dimension_type", new NbtCompound
                         {
-                            new NbtString((Utf8String)"type", "minecraft:dimension_type"),
-                            new NbtList<NbtCompound>((Utf8String)"value")
+                            { "type", new NbtString("minecraft:dimension_type") },
+                            { "value", new NbtList<NbtCompound>
                             {
                                 new NbtCompound
                                 {
-                                    new NbtString((Utf8String)"name", "minecraft:overworld"),
-                                    new NbtInt((Utf8String)"id", 0),
-                                    dimensionTag
+                                    { "name", new NbtString("minecraft:overworld") },
+                                    { "id", new NbtInt(0) },
+                                    { "element", dimensionTag }
                                 }
                             }
+                            }
+                        }
                         },
-                        new NbtCompound((Utf8String)"minecraft:worldgen/biome")
+                        { "minecraft:worldgen/biome", new NbtCompound
                         {
-                            new NbtString((Utf8String)"type", "minecraft:worldgen/biome"),
-                            new NbtList<NbtCompound>((Utf8String)"value")
+                            { "type", new NbtString("minecraft:worldgen/biome") },
+                            { "value", new NbtList<NbtCompound>
                             {
                                 new NbtCompound
                                 {
-                                    new NbtString((Utf8String)"name", "minecraft:plains"),
-                                    new NbtInt((Utf8String)"id", 1),
-                                    new NbtCompound((Utf8String)"element")
+                                    { "name", new NbtString("minecraft:plains") },
+                                    { "id", new NbtInt(1) },
+                                    { "element", new NbtCompound
                                     {
-                                        new NbtString((Utf8String)"precipitation", "rain"),
-                                        new NbtCompound((Utf8String)"effects")
+                                        { "precipitation", new NbtString("rain") },
+                                        { "effects", new NbtCompound
                                         {
-                                            new NbtInt((Utf8String)"sky_color", 7907327),
-                                            new NbtInt((Utf8String)"water_fog_color", 329011),
-                                            new NbtInt((Utf8String)"fog_color", 12638463),
-                                            new NbtInt((Utf8String)"water_color", 4159204),
-                                            new NbtCompound((Utf8String)"mood_sound")
+                                            { "sky_color", new NbtInt(7907327) },
+                                            { "water_fog_color", new NbtInt(329011) },
+                                            { "fog_color", new NbtInt(12638463) },
+                                            { "water_color", new NbtInt(4159204) },
+                                            { "mood_sound", new NbtCompound
                                             {
-                                                new NbtInt((Utf8String)"tick_delay", 6000),
-                                                new NbtDouble((Utf8String)"offset", 2.0),
-                                                new NbtString((Utf8String)"sound", "minecraft:ambient.cave"),
-                                                new NbtInt((Utf8String)"block_search_extent", 8)
+                                                { "tick_delay", new NbtInt(6000) },
+                                                { "offset", new NbtDouble(2.0) },
+                                                { "sound", new NbtString("minecraft:ambient.cave") },
+                                                { "block_search_extent", new NbtInt(8) }
                                             }
+                                            }
+                                        }
                                         },
-                                        new NbtFloat((Utf8String)"depth", 0.125f),
-                                        new NbtFloat((Utf8String)"temperature", 0.8f),
-                                        new NbtFloat((Utf8String)"scale", 0.05f),
-                                        new NbtFloat((Utf8String)"downfall", 0.4f),
-                                        new NbtString((Utf8String)"category", "plains")
-                                    },  
+                                        { "depth"      , new NbtFloat (0.125f) },
+                                        { "temperature", new NbtFloat (0.8f) },
+                                        { "scale"      , new NbtFloat (0.05f) },
+                                        { "downfall"   , new NbtFloat (0.4f) },
+                                        { "category"   , new NbtString("plains") }
+                                    }
+                                    },
                                 },
+                            }
                             },
+                        }
                         },
                     },
                     dimensionTag,
@@ -581,97 +589,97 @@ namespace MCServerSharp.Runner
             });
 
 
-static void PlayerPositionChange(NetConnection connection, double x, double y, double z)
-{
-    Player player = connection.GetPlayer();
+            static void PlayerPositionChange(NetConnection connection, double x, double y, double z)
+            {
+                Player player = connection.GetPlayer();
 
-    player.Position = new Vector3d(x, y, z);
+                player.Position = new Vector3d(x, y, z);
 
-    player.IntY = (int)Math.Round(player.Position.Y);
-    if (player.LastIntY != player.IntY)
-    {
-        player.LastIntY = player.IntY;
+                player.IntY = (int)Math.Round(player.Position.Y);
+                if (player.LastIntY != player.IntY)
+                {
+                    player.LastIntY = player.IntY;
 
-        connection.EnqueuePacket(
-            new ServerUpdateViewPosition(
-                player.ChunkPosition.X,
-                player.ChunkPosition.Z));
-    }
+                    connection.EnqueuePacket(
+                        new ServerUpdateViewPosition(
+                            player.ChunkPosition.X,
+                            player.ChunkPosition.Z));
+                }
 
-    player.LastPosition = player.Position;
-}
-
-
-manager.SetPacketHandler(delegate (
-    NetConnection connection, ClientUseItem useItem)
-{
-    Console.WriteLine("item used");
-});
+                player.LastPosition = player.Position;
+            }
 
 
-manager.SetPacketHandler(delegate (
-    NetConnection connection, ClientPlayerDigging playerAbilities)
-{
-    Console.WriteLine("digging status: " + playerAbilities.Status);
-});
+            manager.SetPacketHandler(delegate (
+                NetConnection connection, ClientUseItem useItem)
+            {
+                Console.WriteLine("item used");
+            });
 
 
-manager.SetPacketHandler(delegate (
-    NetConnection connection, ClientPlayerAbilities playerAbilities)
-{
-
-});
-
-
-manager.SetPacketHandler(delegate (
-    NetConnection connection, ClientCreativeInventoryAction creativeInventoryAction)
-{
-    Console.WriteLine(
-        creativeInventoryAction.Slot + ": " + creativeInventoryAction.SlotData.Present);
-});
+            manager.SetPacketHandler(delegate (
+                NetConnection connection, ClientPlayerDigging playerAbilities)
+            {
+                Console.WriteLine("digging status: " + playerAbilities.Status);
+            });
 
 
-manager.SetPacketHandler(delegate (
-    NetConnection connection, ClientClickWindow clickWindow)
-{
-    Console.WriteLine(clickWindow.Slot);
-});
+            manager.SetPacketHandler(delegate (
+                NetConnection connection, ClientPlayerAbilities playerAbilities)
+            {
+
+            });
 
 
-manager.SetPacketHandler(delegate (
-    NetConnection connection, ClientPlayerBlockPlacement playerBlockPlacement)
-{
-    byte windowID = 1;
+            manager.SetPacketHandler(delegate (
+                NetConnection connection, ClientCreativeInventoryAction creativeInventoryAction)
+            {
+                Console.WriteLine(
+                    creativeInventoryAction.Slot + ": " + creativeInventoryAction.SlotData.Present);
+            });
+
+
+            manager.SetPacketHandler(delegate (
+                NetConnection connection, ClientClickWindow clickWindow)
+            {
+                Console.WriteLine(clickWindow.Slot);
+            });
+
+
+            manager.SetPacketHandler(delegate (
+                NetConnection connection, ClientPlayerBlockPlacement playerBlockPlacement)
+            {
+                byte windowID = 1;
 
                 //Console.WriteLine(playerBlockPlacement.);
                 connection.EnqueuePacket(new ServerOpenWindow(windowID, 13, Chat.Text("Inv on place")));
 
-    System.Threading.Tasks.Task.Run(() =>
-    {
-        connection.EnqueuePacket(new ServerWindowProperty(windowID, 3, 100));
+                System.Threading.Tasks.Task.Run(() =>
+                {
+                    connection.EnqueuePacket(new ServerWindowProperty(windowID, 3, 100));
 
-        float x = 0;
-        while (x < 40)
-        {
-            short value = (short)((Math.Sin(x) + 1) * 50);
-            connection.EnqueuePacket(new ServerWindowProperty(windowID, 2, value));
+                    float x = 0;
+                    while (x < 40)
+                    {
+                        short value = (short)((Math.Sin(x) + 1) * 50);
+                        connection.EnqueuePacket(new ServerWindowProperty(windowID, 2, value));
 
-            x += 0.2f;
-            Thread.Sleep(50);
-        }
-    });
-});
+                        x += 0.2f;
+                        Thread.Sleep(50);
+                    }
+                });
+            });
 
-manager.SetPacketHandler(delegate
-    (NetConnection connection, ClientTeleportConfirm teleportConfirm)
-{
+            manager.SetPacketHandler(delegate
+                (NetConnection connection, ClientTeleportConfirm teleportConfirm)
+            {
                 //Console.WriteLine("Teleport Confirm: Id " + teleportConfirm.TeleportId);
             });
 
 
-manager.SetPacketHandler(delegate
-    (NetConnection connection, ClientPlayerPosition playerPosition)
-{
+            manager.SetPacketHandler(delegate
+                (NetConnection connection, ClientPlayerPosition playerPosition)
+            {
                 //Console.WriteLine(
                 //    "Player Position:" +
                 //    " X" + playerPosition.X +
@@ -679,18 +687,18 @@ manager.SetPacketHandler(delegate
                 //    " Z" + playerPosition.Z);
 
                 PlayerPositionChange(connection, playerPosition.X, playerPosition.FeetY, playerPosition.Z);
-});
+            });
 
 
-manager.SetPacketHandler(delegate
-    (NetConnection connection, ClientPlayerMovement playerMovement)
-{
-});
+            manager.SetPacketHandler(delegate
+                (NetConnection connection, ClientPlayerMovement playerMovement)
+            {
+            });
 
 
-manager.SetPacketHandler(delegate
-    (NetConnection connection, ClientPlayerPositionRotation playerPositionRotation)
-{
+            manager.SetPacketHandler(delegate
+                (NetConnection connection, ClientPlayerPositionRotation playerPositionRotation)
+            {
                 //Console.WriteLine(
                 //    "Player Position Rotation:" // +
                 //                                //" X" + playerPosition.X +
@@ -699,13 +707,13 @@ manager.SetPacketHandler(delegate
                 //    );
 
                 PlayerPositionChange(
-connection, playerPositionRotation.X, playerPositionRotation.FeetY, playerPositionRotation.Z);
-});
+            connection, playerPositionRotation.X, playerPositionRotation.FeetY, playerPositionRotation.Z);
+            });
 
 
-manager.SetPacketHandler(delegate
-    (NetConnection connection, ClientPlayerRotation playerRotation)
-{
+            manager.SetPacketHandler(delegate
+                (NetConnection connection, ClientPlayerRotation playerRotation)
+            {
                 //Console.WriteLine(
                 //    "Player Rotation:" +
                 //    " Yaw" + playerRotation.Yaw +
@@ -713,113 +721,113 @@ manager.SetPacketHandler(delegate
             });
 
 
-manager.SetPacketHandler(delegate
-    (NetConnection connection, ClientSettings clientSettings)
-{
+            manager.SetPacketHandler(delegate
+                (NetConnection connection, ClientSettings clientSettings)
+            {
                 // The player object should be created early in the pipeline.
                 var component = connection.Components.GetOrAdd(
-        connection, (c) => new ClientSettingsComponent(c.GetPlayer()));
+            connection, (c) => new ClientSettingsComponent(c.GetPlayer()));
 
-    component.Settings = clientSettings;
-    component.SettingsChanged = true;
+                component.Settings = clientSettings;
+                component.SettingsChanged = true;
 
-    Console.WriteLine("got client settings");
-});
-
-
-manager.SetPacketHandler(delegate
-    (NetConnection connection, ClientCloseWindow closeWindow)
-{
-
-});
+                Console.WriteLine("got client settings");
+            });
 
 
-manager.SetPacketHandler(delegate
-    (NetConnection connection, ClientEntityAction entityAction)
-{
-});
+            manager.SetPacketHandler(delegate
+                (NetConnection connection, ClientCloseWindow closeWindow)
+            {
+
+            });
 
 
-manager.SetPacketHandler(delegate
-    (NetConnection connection, ClientAnimation animation)
-{
-
-});
-
-
-manager.SetPacketHandler(delegate
-    (NetConnection connection, ClientHeldItemChange heldItemChange)
-{
-
-});
+            manager.SetPacketHandler(delegate
+                (NetConnection connection, ClientEntityAction entityAction)
+            {
+            });
 
 
-manager.SetPacketHandler(delegate
-    (NetConnection connection, ClientSetRecipeBookState recipeBookData)
-{
-});
+            manager.SetPacketHandler(delegate
+                (NetConnection connection, ClientAnimation animation)
+            {
+
+            });
 
 
-manager.SetPacketHandler(delegate
-    (NetConnection connection, ClientChat chat)
-{
+            manager.SetPacketHandler(delegate
+                (NetConnection connection, ClientHeldItemChange heldItemChange)
+            {
+
+            });
+
+
+            manager.SetPacketHandler(delegate
+                (NetConnection connection, ClientSetRecipeBookState recipeBookData)
+            {
+            });
+
+
+            manager.SetPacketHandler(delegate
+                (NetConnection connection, ClientChat chat)
+            {
                 // TODO: better broadcasting
 
                 string? name = connection.GetPlayer().UserName;
-    if (name == null)
-        name = "null";
+                if (name == null)
+                    name = "null";
 
-    Console.WriteLine("<" + name + ">: " + chat.Message);
+                Console.WriteLine("<" + name + ">: " + chat.Message);
 
-    var dyn = new
-    {
-        translate = "chat.type.text",
-        with = new[]
-        {
+                var dyn = new
+                {
+                    translate = "chat.type.text",
+                    with = new[]
+                    {
                         new { text = name, color = "red" },
                         new { text = chat.Message.ToString(), color = "reset" }
-        }
-    };
+                    }
+                };
 
-    var chatToSend = new Chat(new Utf8String(JsonSerializer.SerializeToUtf8Bytes(dyn)));
+                var chatToSend = new Chat(new Utf8String(JsonSerializer.SerializeToUtf8Bytes(dyn)));
 
-    lock (manager.ConnectionMutex)
-    {
-        foreach (var conn in manager.Connections)
-        {
-            conn.EnqueuePacket(new ServerChat(chatToSend, 0, conn.GetPlayer().UserUUID));
-        }
-    }
-});
-
-
-manager.SetPacketHandler(delegate
-    (NetConnection connection, ClientPluginMessage pluginMessage)
-{
-    Console.WriteLine(
-        connection.GetPlayer().UserName + " - Plugin @ " + pluginMessage.Channel + ": \"" +
-        new Utf8String(pluginMessage.Data) + "\"");
-});
+                lock (manager.ConnectionMutex)
+                {
+                    foreach (var conn in manager.Connections)
+                    {
+                        conn.EnqueuePacket(new ServerChat(chatToSend, 0, conn.GetPlayer().UserUUID));
+                    }
+                }
+            });
 
 
-manager.SetPacketHandler(delegate
-    (NetConnection connection, ClientKeepAlive pluginMessage)
-{
+            manager.SetPacketHandler(delegate
+                (NetConnection connection, ClientPluginMessage pluginMessage)
+            {
+                Console.WriteLine(
+                    connection.GetPlayer().UserName + " - Plugin @ " + pluginMessage.Channel + ": \"" +
+                    new Utf8String(pluginMessage.Data) + "\"");
+            });
 
-});
+
+            manager.SetPacketHandler(delegate
+                (NetConnection connection, ClientKeepAlive pluginMessage)
+            {
+
+            });
         }
 
         private static void Manager_Connection(NetListener sender, NetConnection connection)
-{
-    Console.WriteLine("Connection: " + connection.RemoteEndPoint);
-}
+        {
+            Console.WriteLine("Connection: " + connection.RemoteEndPoint);
+        }
 
-private static void Manager_Disconnection(NetListener sender, NetConnection connection)
-{
-    Console.WriteLine("Disconnection: " + connection.RemoteEndPoint);
+        private static void Manager_Disconnection(NetListener sender, NetConnection connection)
+        {
+            Console.WriteLine("Disconnection: " + connection.RemoteEndPoint);
 
-    if (connection.GetPlayer(out Player? player))
-        _leavingPlayers.Enqueue(player);
-}
+            if (connection.GetPlayer(out Player? player))
+                _leavingPlayers.Enqueue(player);
+        }
     }
 }

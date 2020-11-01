@@ -6,17 +6,19 @@ namespace MCServerSharp.NBT
     {
         public override NbtType Type => NbtType.Float;
 
-        public float Value { get; }
+        public float Value { get; set; }
 
-        public NbtFloat(Utf8String? name, float value) : base(name)
+        public NbtFloat()
+        {
+        }
+
+        public NbtFloat(float value)
         {
             Value = value;
         }
 
-        public override void Write(NetBinaryWriter writer, NbtFlags flags)
+        public override void WritePayload(NetBinaryWriter writer, NbtFlags flags)
         {
-            base.Write(writer, flags);
-
             writer.Write(Value);
         }
     }

@@ -4,15 +4,12 @@ namespace MCServerSharp.NBT
 {
     public static class NbTagExtensions
     {
-        public static NbtCompound AsCompound(this NbTag tag, Utf8String? name)
+        public static NbtCompound AsCompound(this NbTag tag, Utf8String tagName, Utf8String? compoundName = null)
         {
             if (tag == null)
                 throw new ArgumentNullException(nameof(tag));
 
-            if (tag.Name == null)
-                throw new InvalidOperationException("This tag is nameless.");
-
-            return new NbtCompound(name).Add(tag);
+            return new NbtCompound(compoundName).Add(tagName, tag);
         }
     }
 }

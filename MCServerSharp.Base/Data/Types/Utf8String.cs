@@ -104,18 +104,20 @@ namespace MCServerSharp
 
         // TODO: possibly optimize with interning
 
-        public static explicit operator string(Utf8String value)
+        [return: NotNullIfNotNull("value")]
+        public static explicit operator string?(Utf8String? value)
         {
             if (value == null)
-                return null!;
+                return null;
 
             return value.ToString();
         }
 
-        public static explicit operator Utf8String(string value)
+        [return: NotNullIfNotNull("value")]
+        public static explicit operator Utf8String?(string? value)
         {
             if (value == null)
-                return null!;
+                return null;
 
             if (value.Length == 0)
                 return Empty;
@@ -123,9 +125,10 @@ namespace MCServerSharp
             return new Utf8String(value);
         }
 
-        public static Utf8String ToUtf8String(string value)
+        [return: NotNullIfNotNull("value")]
+        public static Utf8String? ToUtf8String(string? value)
         {
-            return (Utf8String)value;
+            return (Utf8String?)value;
         }
 
         public override int GetHashCode()
