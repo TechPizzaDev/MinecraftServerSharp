@@ -11,8 +11,8 @@ namespace MCServerSharp.Net.Packets
     {
         public const int UnderlyingDataSize = 4096;
 
-        [DataProperty(0)] public Chunk Chunk { get; }
-        [DataProperty(1)] public bool FullChunk { get; }
+        public Chunk Chunk { get; }
+        public bool FullChunk { get; }
 
         // TODO: create flash-copying (fast deep-clone) of chunks for serialization purposes
 

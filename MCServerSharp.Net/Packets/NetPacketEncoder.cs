@@ -4,11 +4,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
-using System.Threading.Tasks;
 using MCServerSharp.Collections;
 using MCServerSharp.Data.IO;
 using MCServerSharp.NBT;
-using Microsoft.VisualBasic.CompilerServices;
 
 namespace MCServerSharp.Net.Packets
 {
@@ -277,24 +275,25 @@ namespace MCServerSharp.Net.Packets
             ParameterExpression writerParam,
             Expression instance)
         {
-            (ParameterExpression? Writer, Expression[] Args) writeInfo;
-            MethodInfo? writeMethod;
-            Type? writeType;
+            void AddMethodCall(ParameterExpression? writerParam, MethodInfo writeMethod, Expression[] arguments)
+            {
+                expressions.Add(Expression.Call(writerParam, writeMethod, arguments));
+            }
 
             if (instance.Type.IsEnum)
             {
                 // Enums get sligthly special treatment.
-                writeType = instance.Type.GetEnumUnderlyingType();
+                Type writeType = instance.Type.GetEnumUnderlyingType();
 
                 var enumTypeKey = DataTypeKey.FromVoid(writeType);
-                if (!DataTypeHandlers.TryGetValue(enumTypeKey, out writeMethod))
+                if (!DataTypeHandlers.TryGetValue(enumTypeKey, out var writeMethod))
                     throw new Exception("Missing enum write method for \"" + enumTypeKey + "\".");
 
-                writeInfo = (writerParam, new[] { Expression.Convert(instance, writeType) });
+                AddMethodCall(writerParam, writeMethod, new[] { Expression.Convert(instance, writeType) });
             }
             else
             {
-                writeType = instance.Type;
+                Type writeType = instance.Type;
 
                 var writeInfos = new[]
                 {
@@ -307,18 +306,34 @@ namespace MCServerSharp.Net.Packets
                     Key: new DataTypeKey(typeof(void), typeof(NetBinaryWriter), writeType)),
                 };
 
-                writeInfo = default;
-                writeMethod = null;
                 foreach (var (Writer, Args, Key) in writeInfos)
                 {
-                    if (DataTypeHandlers.TryGetValue(Key, out writeMethod))
+                    if (DataTypeHandlers.TryGetValue(Key, out var writeMethod))
                     {
-                        writeInfo = (Writer, Args);
-                        break;
+                        AddMethodCall(Writer, writeMethod, Args);
+                        return;
                     }
                 }
 
-                if (writeMethod == null)
+                var dataObjectAttrib = writeType.GetCustomAttribute<DataObjectAttribute>();
+                if (dataObjectAttrib != null)
+                {
+                    if (!DataObjectActions.TryGetValue(writeType, out var writeDelegate))
+                    {
+                        var writeBody = new List<Expression>();
+                        var instanceParam = Expression.Parameter(writeType, "Instance");
+                        ReflectiveWrite(writeBody, writerParam, instanceParam);
+
+                        var writeBlock = Expression.Block(writeBody);
+                        var writeLambda = Expression.Lambda(writeBlock, new[] { writerParam, instanceParam });
+                        
+                        writeDelegate = writeLambda.Compile();
+                        DataObjectActions.Add(writeType, writeDelegate);
+                    }
+
+                    expressions.Add(Expression.Invoke(Expression.Constant(writeDelegate), writerParam, instance));
+                }
+                else
                 {
                     string msg = "Missing write method for \"" + writeType + "\".";
 
@@ -329,8 +344,6 @@ namespace MCServerSharp.Net.Packets
                     throw new Exception(msg);
                 }
             }
-
-            expressions.Add(Expression.Call(writeInfo.Writer, writeMethod, writeInfo.Args));
         }
 
         private void ApplyLengthPrefix(

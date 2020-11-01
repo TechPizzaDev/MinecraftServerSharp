@@ -37,6 +37,7 @@ namespace MCServerSharp.Net.Packets
         [Mapping(State.Play, 0x1f)] KeepAlive,
 
         [Mapping(State.Play, 0x20)] ChunkData,
+        [Mapping(State.Play, 0x23)] UpdateLight,
         [Mapping(State.Play, 0x24)] JoinGame,
         [Mapping(State.Play, 0x2d)] OpenWindow,
 

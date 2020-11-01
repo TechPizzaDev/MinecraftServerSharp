@@ -11,6 +11,8 @@ namespace MCServerSharp.Net.Packets
         where TPacketId : Enum
     {
         protected Dictionary<DataTypeKey, MethodInfo> DataTypeHandlers { get; }
+        protected Dictionary<Type, Delegate> DataObjectActions { get; }
+
         protected Dictionary<Type, PacketStructInfo> RegisteredPacketTypes { get; }
         protected Dictionary<Type, Delegate> PacketActions { get; }
 
@@ -32,6 +34,8 @@ namespace MCServerSharp.Net.Packets
         public NetPacketCoder()
         {
             DataTypeHandlers = new Dictionary<DataTypeKey, MethodInfo>();
+            DataObjectActions = new Dictionary<Type, Delegate>();
+
             RegisteredPacketTypes = new Dictionary<Type, PacketStructInfo>();
             PacketActions = new Dictionary<Type, Delegate>();
 

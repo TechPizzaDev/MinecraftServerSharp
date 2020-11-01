@@ -91,7 +91,7 @@ namespace MCServerSharp.NBT
 
         public NbtCompound Add(string name, NbTag value)
         {
-            return Add((Utf8String)name!, value);
+            return Add((Utf8String)name, value);
         }
 
         void IDictionary<Utf8String, NbTag>.Add(Utf8String name, NbTag value)

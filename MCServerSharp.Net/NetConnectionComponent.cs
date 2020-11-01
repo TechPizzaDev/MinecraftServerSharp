@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using MCServerSharp.Components;
 using MCServerSharp.Entities.Mobs;
 using MCServerSharp.Maths;
@@ -105,6 +106,40 @@ namespace MCServerSharp.Net
                     if (player.SentChunks.Add(cpos))
                     {
                         var chunk = player.Dimension.GetChunk(cpos);
+
+                        var sections = chunk.Sections.Span;
+
+                        var skyLights = new List<LightArray>();
+                        var blockLights = new List<LightArray>();
+
+                        var skyLightMask = 0;
+                        var emptySkyLightMask = 0;
+                        var blockLightMask = 0;
+                        var emptyBlockLightMask = 0;
+                        for (int s = 0; s < 18; s++)
+                        {
+                            if (s > 0 && s < 16 && !sections[s - 1].IsEmpty)
+                            {
+                                skyLightMask |= 1 << s;
+                                blockLightMask |= 1 << s;
+
+                                skyLights.Add(new LightArray());
+                                blockLights.Add(new LightArray());
+                            }
+                            else
+                            {
+                                emptySkyLightMask |= 1 << s;
+                                emptyBlockLightMask |= 1 << s;
+                            }
+                        }
+
+                        var updateLight = new ServerUpdateLight(
+                            chunk.X, chunk.Z, true, 
+                            skyLightMask, blockLightMask,
+                            emptySkyLightMask, emptyBlockLightMask,
+                            skyLights, blockLights);
+                        Connection.EnqueuePacket(updateLight);
+
                         var chunkData = new ServerChunkData(chunk, fullChunk: true);
                         Connection.EnqueuePacket(chunkData);
 
