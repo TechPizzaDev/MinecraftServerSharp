@@ -247,8 +247,8 @@ namespace MCServerSharp.Net.Packets
             {
                 currentMember = type.GetMember("Current", Binding).FirstOrDefault() ??
                     type.GetInterfaces()
-                    .FirstOrDefault(x => x.GetGenericTypeDefinition() == typeof(IEnumerator<>))?
-                    .GetMember("Current").FirstOrDefault()!;
+                    .FirstOrDefault(x => x.GetGenericTypeDefinition() == typeof(IEnumerator<>))
+                    ?.GetMember("Current").FirstOrDefault()!;
 
                 if (currentMember == null)
                     throw new ArgumentException("The enumerator does not have a \"Current\" member.");
@@ -411,22 +411,6 @@ namespace MCServerSharp.Net.Packets
 
             throw new Exception(
                 $"The expression is not of type {typeof(ICollection<>).Name} or {typeof(IReadOnlyCollection<>).Name}.");
-        }
-
-        private static void ForEachWrite<TEnumerator, T>(TEnumerator enumerator)
-            where TEnumerator : IEnumerator<T>
-        {
-            try
-            {
-                while (enumerator.MoveNext())
-                {
-
-                }
-            }
-            finally
-            {
-                enumerator.Dispose();
-            }
         }
     }
 }

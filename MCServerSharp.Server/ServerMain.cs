@@ -7,6 +7,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Numerics;
 using System.Reflection;
 using System.Runtime.InteropServices.ComTypes;
 using System.Text.Json;
@@ -79,6 +80,16 @@ namespace MCServerSharp.Runner
 
         private static void Main(string[] args)
         {
+            var q1 = Look.FromVectors(Vector3.Zero, new Vector3(0, 0, 1));
+            var q2 = Look.FromVectors(Vector3.Zero, new Vector3(1, 0, 0));
+            var q3 = Look.FromVectors(Vector3.Zero, new Vector3(0, 0, -1));
+            var q4 = Look.FromVectors(Vector3.Zero, new Vector3(-1, 0, 0));
+            var u1 = q1.ToUnitVector3();
+            var u2 = q2.ToUnitVector3();
+            var u3 = q3.ToUnitVector3();
+            var u4 = q4.ToUnitVector3();
+            Console.WriteLine();
+
             #region NBT Testing
             // TODO: move to sandbox
 
@@ -607,6 +618,11 @@ namespace MCServerSharp.Runner
                 }
 
                 player.LastPosition = player.Position;
+            }
+
+            static void PlayerRotationChange(NetConnection connection, float yaw, float pitch)
+            {
+                
             }
 
 
