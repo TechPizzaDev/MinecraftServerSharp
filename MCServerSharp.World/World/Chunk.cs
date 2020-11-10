@@ -17,6 +17,8 @@ namespace MCServerSharp.World
         public ChunkPosition Position { get; }
         public Dimension Dimension { get; }
 
+        // TODO: allow infinite™ amount of chunk sections
+
         public int X => Position.X;
         public int Z => Position.Z;
         public ReadOnlyMemory<ChunkSection?> Sections => _sections;

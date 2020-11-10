@@ -48,25 +48,25 @@ namespace MCServerSharp.World
             section0.FillLevelBlock(_directBlockPalette.blockLookup["minecraft:grass_block"].DefaultState, y++);
         }
 
+        // TODO: create actual world/chunk-manager
+        List<Chunk> chunksToRemove = new List<Chunk>();
+
         public void Tick()
         {
-            var toRemove = new List<Chunk>();
             foreach (var (chunk, info) in _chunkInfos)
             {
                 info.Age++;
 
                 if (info.Age > 200)
                 {
-                    toRemove.Add(chunk);
+                    chunksToRemove.Add(chunk);
                 }
             }
 
-            foreach (var chunk in toRemove)
+            foreach (var chunk in chunksToRemove)
             {
                 _chunks.Remove(chunk.Position);
                 _chunkInfos.Remove(chunk);
-
-
             }
 
             foreach (var player in players)

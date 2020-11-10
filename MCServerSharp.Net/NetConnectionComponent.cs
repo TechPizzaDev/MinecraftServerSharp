@@ -331,7 +331,7 @@ namespace MCServerSharp.Net
                 bool filled = true;
                 if (s > 0 && s < 16)
                 {
-                    filled = !sections[s - 1].IsEmpty;
+                    filled = !sections[s - 1]?.IsEmpty ?? false;
 
                     skyLightMask |= 1 << s;
                     skyLights.Add(new LightArray());
