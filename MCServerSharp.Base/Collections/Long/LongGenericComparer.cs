@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 
 namespace MCServerSharp.Collections
 {
-    internal class LongGenericComparer<T> : LongEqualityComparer<T>
+    internal sealed class LongGenericComparer<T> : LongEqualityComparer<T>
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override bool Equals([AllowNull] T x, [AllowNull] T y)

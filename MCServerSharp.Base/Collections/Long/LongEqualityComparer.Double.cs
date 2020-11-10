@@ -4,7 +4,7 @@ namespace MCServerSharp.Collections
 {
     internal sealed class LongDoubleComparer : LongEqualityComparer<double>
     {
-        public override unsafe long GetLongHashCode(double value)
+        public override long GetLongHashCode(double value)
         {
             // Ensure that 0 and -0 have the same hash code
             if (value == 0)

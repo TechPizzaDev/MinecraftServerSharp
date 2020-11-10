@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 
 namespace MCServerSharp.Collections
 {
-    public sealed class LongNullableComparer<T> : LongEqualityComparer<T?>
+    internal sealed class LongNullableComparer<T> : LongEqualityComparer<T?>
         where T : struct
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

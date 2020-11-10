@@ -17,8 +17,6 @@ namespace MCServerSharp.Collections
             if (x == null || y == null)
                 return false;
 
-            var defaultComparer = LongEqualityComparer<T>.Default;
-
             // If both sets use the same comparer, they're equal if they're the same
             // size and one is a "subset" of the other.
             if (LongHashSet<T>.EqualityComparersAreEqual(x, y))
@@ -27,22 +25,43 @@ namespace MCServerSharp.Collections
             }
 
             // Otherwise, do an O(N^2) match.
-            foreach (T yi in y)
+            if (typeof(T).IsValueType)
             {
-                bool found = false;
-                foreach (T xi in x)
+                foreach (T yi in y)
                 {
-                    if (defaultComparer.Equals(yi, xi))
+                    bool found = false;
+                    foreach (T xi in x)
                     {
-                        found = true;
-                        break;
+                        if (LongEqualityComparer<T>.Default.Equals(yi, xi))
+                        {
+                            found = true;
+                            break;
+                        }
                     }
+
+                    if (!found)
+                        return false;
                 }
-
-                if (!found)
-                    return false;
             }
+            else
+            {
+                var defaultComparer = LongEqualityComparer<T>.Default;
+                foreach (T yi in y)
+                {
+                    bool found = false;
+                    foreach (T xi in x)
+                    {
+                        if (defaultComparer.Equals(yi, xi))
+                        {
+                            found = true;
+                            break;
+                        }
+                    }
 
+                    if (!found)
+                        return false;
+                }
+            }
             return true;
         }
 

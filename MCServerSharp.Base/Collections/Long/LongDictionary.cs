@@ -25,6 +25,7 @@ namespace MCServerSharp.Collections
         private int _version;
         private KeyCollection? _keys;
         private ValueCollection? _values;
+        private ILongEqualityComparer<TKey>? _comparer;
 
         public int Count => _count - _freeCount;
 
@@ -32,7 +33,7 @@ namespace MCServerSharp.Collections
         /// Gets the <see cref="ILongEqualityComparer{T}"/> object that is 
         /// used to determine equality for the values in the set.
         /// </summary>
-        public ILongEqualityComparer<TKey> Comparer { get; private set; }
+        public ILongEqualityComparer<TKey> Comparer => _comparer ?? LongEqualityComparer<TKey>.Default;
 
         public KeyCollection Keys => _keys ??= new KeyCollection(this);
         ICollection<TKey> IDictionary<TKey, TValue>.Keys => Keys;
@@ -80,8 +81,20 @@ namespace MCServerSharp.Collections
             if (capacity > 0)
                 Initialize(capacity);
 
-            // To start, move off default comparer for string which is randomised
-            Comparer = comparer ?? LongEqualityComparer<TKey>.NonRandomDefault;
+            // First check for null to avoid forcing default comparer instantiation unnecessarily
+            if (comparer != null &&
+                comparer != LongEqualityComparer<TKey>.Default &&
+                comparer != LongEqualityComparer<TKey>.NonRandomDefault)
+                _comparer = comparer;
+
+            // We use a non-randomized comparer for improved perf, 
+            // falling back to a randomized comparer if the hash buckets become unbalanced.
+            if (_comparer == null)
+            {
+                var nonRandomComparer = LongEqualityComparer<TKey>.NonRandomDefault;
+                if (!nonRandomComparer.IsRandomized)
+                    _comparer = nonRandomComparer;
+            }
         }
 
         public LongDictionary(IDictionary<TKey, TValue> dictionary) : this(dictionary, null)
@@ -196,6 +209,7 @@ namespace MCServerSharp.Collections
         public bool ContainsValue(TValue value)
         {
             Entry[]? entries = _entries;
+
             if (value == null)
             {
                 for (int i = 0; i < _count; i++)
@@ -204,13 +218,24 @@ namespace MCServerSharp.Collections
                         return true;
                 }
             }
+            else if (typeof(TValue).IsValueType)
+            {
+                // ValueType: Devirtualize with LongEqualityComparer<TValue>.Default intrinsic
+                for (int i = 0; i < _count; i++)
+                {
+                    if (entries![i].Next >= -1 && LongEqualityComparer<TValue>.Default.Equals(entries[i].Value, value))
+                        return true;
+                }
+            }
             else
             {
+                // Object type: Shared Generic, LongEqualityComparer<TValue>.Default won't devirtualize
+                // https://github.com/dotnet/runtime/issues/10050
+                // So cache in a local rather than get per loop iteration
                 var defaultComparer = LongEqualityComparer<TValue>.Default;
                 for (int i = 0; i < _count; i++)
                 {
-                    if (entries![i].Next >= -1 &&
-                        defaultComparer.Equals(entries[i].Value, value))
+                    if (entries![i].Next >= -1 && defaultComparer.Equals(entries[i].Value, value))
                         return true;
                 }
             }
@@ -258,39 +283,113 @@ namespace MCServerSharp.Collections
             if (key == null)
                 throw new ArgumentNullException(nameof(key));
 
+            ref Entry entry = ref UnsafeR.NullRef<Entry>();
             if (_buckets != null)
             {
-                Debug.Assert(_entries != null, "expected entries to be != null");
-                ILongEqualityComparer<TKey> comparer = Comparer;
-                ulong hashCode = (ulong)comparer.GetLongHashCode(key);
-                int i = GetBucket(hashCode);
                 Entry[]? entries = _entries;
-                uint collisionCount = 0;
+                Debug.Assert(entries != null, "expected entries to be != null");
 
-                // Value in _buckets is 1-based; subtract 1 from i.
-                i--; // We do it here so it fuses with the following conditional.
-
-                do
+                ILongEqualityComparer<TKey>? comparer = _comparer;
+                if (comparer == null)
                 {
-                    if ((uint)i >= (uint)entries.Length)
-                        return ref UnsafeR.NullRef<TValue>();
+                    long hashCode = LongEqualityComparer<TKey>.Default.GetLongHashCode(key);
+                    int i = GetBucketRef(hashCode);
+                    uint collisionCount = 0;
+                    if (typeof(TKey).IsValueType)
+                    {
+                        // ValueType: Devirtualize with LongEqualityComparer<TValue>.Default intrinsic
 
-                    ref Entry entry = ref entries[i];
-                    if (entry.HashCode == hashCode && comparer.Equals(entry.Key, key))
-                        return ref entry.Value;
+                        i--; // Value in _buckets is 1-based; subtract 1 from i. We do it here so it fuses with the following conditional.
+                        do
+                        {
+                            // Should be a while loop https://github.com/dotnet/runtime/issues/9422
+                            // Test in if to drop range check for following array access
+                            if ((uint)i >= (uint)entries.Length)
+                                goto ReturnNotFound;
 
-                    i = entry.Next;
+                            entry = ref entries[i];
+                            if (entry.HashCode == hashCode && LongEqualityComparer<TKey>.Default.Equals(entry.Key, key))
+                                goto ReturnFound;
 
-                    collisionCount++;
+                            i = entry.Next;
+
+                            collisionCount++;
+                        } 
+                        while (collisionCount <= (uint)entries.Length);
+
+                        // The chain of entries forms a loop; which means a concurrent update has happened.
+                        // Break out of the loop and throw, rather than looping forever.
+                        goto ConcurrentOperation;
+                    }
+                    else
+                    {
+                        // Object type: Shared Generic, LongEqualityComparer<TValue>.Default won't devirtualize
+                        // https://github.com/dotnet/runtime/issues/10050
+                        // So cache in a local rather than get per loop iteration
+                        var defaultComparer = LongEqualityComparer<TKey>.Default;
+
+                        i--; // Value in _buckets is 1-based; subtract 1 from i. We do it here so it fuses with the following conditional.
+                        do
+                        {
+                            // Should be a while loop https://github.com/dotnet/runtime/issues/9422
+                            // Test in if to drop range check for following array access
+                            if ((uint)i >= (uint)entries.Length)
+                                goto ReturnNotFound;
+
+                            entry = ref entries[i];
+                            if (entry.HashCode == hashCode && defaultComparer.Equals(entry.Key, key))
+                                goto ReturnFound;
+
+                            i = entry.Next;
+
+                            collisionCount++;
+                        } 
+                        while (collisionCount <= (uint)entries.Length);
+
+                        // The chain of entries forms a loop; which means a concurrent update has happened.
+                        // Break out of the loop and throw, rather than looping forever.
+                        goto ConcurrentOperation;
+                    }
                 }
-                while (collisionCount <= (uint)entries.Length);
+                else
+                {
+                    long hashCode = comparer.GetLongHashCode(key);
+                    int i = GetBucketRef(hashCode);
+                    uint collisionCount = 0;
+                    i--; // Value in _buckets is 1-based; subtract 1 from i. We do it here so it fuses with the following conditional.
+                    do
+                    {
+                        // Should be a while loop https://github.com/dotnet/runtime/issues/9422
+                        // Test in if to drop range check for following array access
+                        if ((uint)i >= (uint)entries.Length)
+                            goto ReturnNotFound;
 
-                // The chain of entries forms a loop; which means a concurrent update has happened.
-                // Break out of the loop and throw, rather than looping forever.
-                throw CollectionExceptions.InvalidOperation_ConcurrentOperations();
+                        entry = ref entries[i];
+                        if (entry.HashCode == hashCode && comparer.Equals(entry.Key, key))
+                            goto ReturnFound;
+
+                        i = entry.Next;
+
+                        collisionCount++;
+                    } 
+                    while (collisionCount <= (uint)entries.Length);
+
+                    // The chain of entries forms a loop; which means a concurrent update has happened.
+                    // Break out of the loop and throw, rather than looping forever.
+                    goto ConcurrentOperation;
+                }
             }
+            goto ReturnNotFound;
 
-            return ref UnsafeR.NullRef<TValue>();
+            ConcurrentOperation:
+            CollectionExceptions.InvalidOperation_ConcurrentOperations();
+            ReturnFound:
+            ref TValue value = ref entry.Value;
+            Return:
+            return ref value;
+            ReturnNotFound:
+            value = ref UnsafeR.NullRef<TValue>();
+            goto Return;
         }
 
         private int Initialize(int capacity)
@@ -313,51 +412,127 @@ namespace MCServerSharp.Collections
         {
             if (key == null)
                 throw new ArgumentNullException(nameof(key));
-
+            
             if (_buckets == null)
                 Initialize(0);
-
             Debug.Assert(_buckets != null);
 
             Entry[]? entries = _entries;
             Debug.Assert(entries != null, "expected entries to be non-null");
 
-            ILongEqualityComparer<TKey> comparer = Comparer;
-            ulong hashCode = (ulong)comparer.GetLongHashCode(key);
+            ILongEqualityComparer<TKey>? comparer = _comparer;
+            long hashCode = comparer == null
+                ? LongEqualityComparer<TKey>.Default.GetLongHashCode(key) 
+                : comparer.GetLongHashCode(key);
 
             uint collisionCount = 0;
-            ref int bucket = ref GetBucket(hashCode);
+            ref int bucket = ref GetBucketRef(hashCode);
             int i = bucket - 1; // Value in _buckets is 1-based
 
-            while (true)
+            if (comparer == null)
             {
-                // Should be a while loop https://github.com/dotnet/runtime/issues/9422
-                // Test uint in if rather than loop condition to drop range check for following array access
-                if ((uint)i >= (uint)entries.Length)
-                    break;
-
-                if (entries[i].HashCode == hashCode && comparer.Equals(entries[i].Key, key))
+                if (typeof(TKey).IsValueType)
                 {
-                    if (behavior == LongInsertionBehavior.OverwriteExisting)
+                    // ValueType: Devirtualize with LongEqualityComparer<TValue>.Default
+                    while (true)
                     {
-                        entries[i].Value = value;
-                        return true;
+                        // Should be a while loop https://github.com/dotnet/runtime/issues/9422
+                        // Test uint in if rather than loop condition to drop range check for following array access
+                        if ((uint)i >= (uint)entries.Length)
+                            break;
+
+                        if (entries[i].HashCode == hashCode && LongEqualityComparer<TKey>.Default.Equals(entries[i].Key, key))
+                        {
+                            if (behavior == LongInsertionBehavior.OverwriteExisting)
+                            {
+                                entries[i].Value = value;
+                                return true;
+                            }
+
+                            if (behavior == LongInsertionBehavior.ThrowOnExisting)
+                                CollectionExceptions.Argument_DuplicateKey(key.ToString(), nameof(key));
+
+                            return false;
+                        }
+
+                        i = entries[i].Next;
+
+                        collisionCount++;
+                        if (collisionCount > (uint)entries.Length)
+                            // The chain of entries forms a loop; which means a concurrent update has happened.
+                            // Break out of the loop and throw, rather than looping forever.
+                            CollectionExceptions.InvalidOperation_ConcurrentOperations();
+                    }
+                }
+                else
+                {
+                    // Object type: Shared Generic, LongEqualityComparer<TValue>.Default won't devirtualize
+                    // https://github.com/dotnet/runtime/issues/10050
+                    // So cache in a local rather than get per loop iteration
+                    var defaultComparer = LongEqualityComparer<TKey>.Default;
+                    while (true)
+                    {
+                        // Should be a while loop https://github.com/dotnet/runtime/issues/9422
+                        // Test uint in if rather than loop condition to drop range check for following array access
+                        if ((uint)i >= (uint)entries.Length)
+                            break;
+                        
+                        if (entries[i].HashCode == hashCode && defaultComparer.Equals(entries[i].Key, key))
+                        {
+                            if (behavior == LongInsertionBehavior.OverwriteExisting)
+                            {
+                                entries[i].Value = value;
+                                return true;
+                            }
+
+                            if (behavior == LongInsertionBehavior.ThrowOnExisting)
+                                CollectionExceptions.Argument_DuplicateKey(key.ToString(), nameof(key));
+
+                            return false;
+                        }
+
+                        i = entries[i].Next;
+
+                        collisionCount++;
+                        if (collisionCount > (uint)entries.Length)
+                            // The chain of entries forms a loop; which means a concurrent update has happened.
+                            // Break out of the loop and throw, rather than looping forever.
+                            CollectionExceptions.InvalidOperation_ConcurrentOperations();
+                    }
+                }
+            }
+            else
+            {
+                while (true)
+                {
+                    // Should be a while loop https://github.com/dotnet/runtime/issues/9422
+                    // Test uint in if rather than loop condition to drop range check for following array access
+                    if ((uint)i >= (uint)entries.Length)
+                    {
+                        break;
                     }
 
-                    if (behavior == LongInsertionBehavior.ThrowOnExisting)
-                        throw CollectionExceptions.Argument_DuplicateKey(key?.ToString(), nameof(key));
+                    if (entries[i].HashCode == hashCode && comparer.Equals(entries[i].Key, key))
+                    {
+                        if (behavior == LongInsertionBehavior.OverwriteExisting)
+                        {
+                            entries[i].Value = value;
+                            return true;
+                        }
 
-                    return false;
-                }
+                        if (behavior == LongInsertionBehavior.ThrowOnExisting)
+                            CollectionExceptions.Argument_DuplicateKey(key.ToString(), nameof(key));
 
-                i = entries[i].Next;
+                        return false;
+                    }
 
-                collisionCount++;
-                if (collisionCount > (uint)entries.Length)
-                {
-                    // The chain of entries forms a loop; which means a concurrent update has happened.
-                    // Break out of the loop and throw, rather than looping forever.
-                    throw CollectionExceptions.InvalidOperation_ConcurrentOperations();
+                    i = entries[i].Next;
+
+                    collisionCount++;
+                    if (collisionCount > (uint)entries.Length)
+                        // The chain of entries forms a loop; which means a concurrent update has happened.
+                        // Break out of the loop and throw, rather than looping forever.
+                        CollectionExceptions.InvalidOperation_ConcurrentOperations();
                 }
             }
 
@@ -365,10 +540,8 @@ namespace MCServerSharp.Collections
             if (_freeCount > 0)
             {
                 index = _freeList;
-                Debug.Assert(
-                    (StartOfFreeList - entries[_freeList].Next) >= -1,
-                    "shouldn't overflow because `next` cannot underflow");
-
+                Debug.Assert((StartOfFreeList - entries[_freeList].Next) >= -1, 
+                    "shouldn't overflow because `Next` cannot underflow");
                 _freeList = StartOfFreeList - entries[_freeList].Next;
                 _freeCount--;
             }
@@ -378,7 +551,7 @@ namespace MCServerSharp.Collections
                 if (count == entries.Length)
                 {
                     Resize();
-                    bucket = ref GetBucket(hashCode);
+                    bucket = ref GetBucketRef(hashCode);
                 }
                 index = count;
                 _count = count + 1;
@@ -395,13 +568,13 @@ namespace MCServerSharp.Collections
 
             if (!typeof(TKey).IsValueType && // Value types never rehash
                 collisionCount > LongHashHelpers.HashCollisionThreshold &&
-                Comparer is LongEqualityComparer<TKey> longEC &&
-                !longEC.IsRandomized)
+                ReferenceEquals(_comparer, LongEqualityComparer<TKey>.NonRandomDefault))
             {
-                // If we hit the collision threshold we'll need to 
+                // If we hit the collision threshold we'll need to
                 // switch to the comparer which is using randomized string hashing
                 // i.e. LongEqualityComparer<string>.Default.
-                Comparer = LongEqualityComparer<TKey>.Default;
+                _comparer = null;
+
                 Resize(entries.Length, forceNewHashCodes: true);
             }
 
@@ -430,7 +603,7 @@ namespace MCServerSharp.Collections
                 for (int i = 0; i < count; i++)
                 {
                     if (entries[i].Next >= -1)
-                        entries[i].HashCode = (ulong)Comparer.GetLongHashCode(entries[i].Key);
+                        entries[i].HashCode = Comparer.GetLongHashCode(entries[i].Key);
                 }
             }
 
@@ -442,7 +615,7 @@ namespace MCServerSharp.Collections
             {
                 if (entries[i].Next >= -1)
                 {
-                    ref int bucket = ref GetBucket(entries[i].HashCode);
+                    ref int bucket = ref GetBucketRef(entries[i].HashCode);
                     entries[i].Next = bucket - 1; // Value in _buckets is 1-based
                     bucket = i + 1;
                 }
@@ -462,12 +635,13 @@ namespace MCServerSharp.Collections
 
             if (_buckets != null)
             {
-                Debug.Assert(_entries != null, "entries should be non-null");
+                Entry[]? entries = _entries;
+                Debug.Assert(entries != null, "entries should be non-null");
+
                 uint collisionCount = 0;
                 ILongEqualityComparer<TKey> comparer = Comparer;
-                ulong hashCode = (ulong)comparer.GetLongHashCode(key);
-                ref int bucket = ref GetBucket(hashCode);
-                Entry[]? entries = _entries;
+                long hashCode = comparer.GetLongHashCode(key);
+                ref int bucket = ref GetBucketRef(hashCode);
                 int last = -1;
                 int i = bucket - 1; // Value in buckets is 1-based
                 while (i >= 0)
@@ -526,12 +700,13 @@ namespace MCServerSharp.Collections
 
             if (_buckets != null)
             {
-                Debug.Assert(_entries != null, "entries should be non-null");
+                Entry[]? entries = _entries;
+                Debug.Assert(entries != null, "entries should be non-null");
+
                 uint collisionCount = 0;
                 ILongEqualityComparer<TKey> comparer = Comparer;
-                ulong hashCode = (ulong)comparer.GetLongHashCode(key);
-                ref int bucket = ref GetBucket(hashCode);
-                Entry[]? entries = _entries;
+                long hashCode = comparer.GetLongHashCode(key);
+                ref int bucket = ref GetBucketRef(hashCode);
                 int last = -1;
                 int i = bucket - 1; // Value in buckets is 1-based
                 while (i >= 0)
@@ -719,8 +894,8 @@ namespace MCServerSharp.Collections
                     ref Entry entry = ref entries![count];
                     entry = oldEntries[i];
 
-                    ulong hashCode = oldEntries![i].HashCode;
-                    ref int bucket = ref GetBucket(hashCode);
+                    long hashCode = oldEntries![i].HashCode;
+                    ref int bucket = ref GetBucketRef(hashCode);
                     entry.Next = bucket - 1; // Value in _buckets is 1-based
                     bucket = count + 1;
                     count++;
@@ -732,15 +907,15 @@ namespace MCServerSharp.Collections
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private ref int GetBucket(ulong hashCode)
+        private ref int GetBucketRef(long hashCode)
         {
             int[] buckets = _buckets!;
-            return ref buckets[hashCode % (ulong)buckets.LongLength];
+            return ref buckets[(ulong)hashCode % (ulong)buckets.LongLength];
         }
 
         private struct Entry
         {
-            public ulong HashCode;
+            public long HashCode;
 
             /// <summary>
             /// 0-based index of next entry in chain: -1 means end of chain

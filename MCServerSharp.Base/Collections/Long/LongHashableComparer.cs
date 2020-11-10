@@ -2,7 +2,7 @@
 
 namespace MCServerSharp.Collections
 {
-    public sealed class LongHashableComparer<T> : LongEqualityComparer<T>
+    internal sealed class LongHashableComparer<T> : LongEqualityComparer<T>
         where T : ILongHashable
     {
         public override long GetLongHashCode([DisallowNull] T value)
