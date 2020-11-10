@@ -517,9 +517,10 @@ namespace MCServerSharp.Utility
         /// <exception cref="ObjectDisposedException">Object has been disposed</exception>
         public int SafeRead(byte[] buffer, int offset, int count, ref int streamPosition)
         {
-            AssertNotDisposed();
             if (buffer == null)
                 throw new ArgumentNullException(nameof(buffer));
+
+            AssertNotDisposed();
 
             int amountRead = InternalRead(buffer.AsSpan(offset, count), streamPosition);
             streamPosition += amountRead;
@@ -565,7 +566,6 @@ namespace MCServerSharp.Utility
         /// <exception cref="ObjectDisposedException">Object has been disposed</exception>
         public override void Write(byte[] buffer, int offset, int count)
         {
-            AssertNotDisposed();
             if (buffer == null)
                 throw new ArgumentNullException(nameof(buffer));
 
@@ -579,6 +579,10 @@ namespace MCServerSharp.Utility
             if (count + offset > buffer.Length)
                 throw new ArgumentException("count must be greater than buffer.Length - offset");
 
+            if (count == 0)
+                return;
+
+            AssertNotDisposed();
             int blockSize = _memoryManager.BlockSize;
             long end = (long)_position + count;
             // Check for overflow
@@ -625,9 +629,11 @@ namespace MCServerSharp.Utility
         /// <exception cref="ObjectDisposedException">Object has been disposed</exception>
         public override void Write(ReadOnlySpan<byte> source)
         {
+            if (source.IsEmpty)
+                return;
+
             AssertNotDisposed();
 
-            int blockSize = _memoryManager.BlockSize;
             long end = (long)_position + source.Length;
             // Check for overflow
             if (end > MaxStreamLength)
@@ -637,6 +643,7 @@ namespace MCServerSharp.Utility
 
             if (_largeBuffer == null)
             {
+                int blockSize = _memoryManager.BlockSize;
                 var blockOffset = GetBlockOffset(_position);
 
                 while (source.Length > 0)
@@ -677,7 +684,6 @@ namespace MCServerSharp.Utility
         /// <exception cref="ObjectDisposedException">Object has been disposed</exception>
         public override void WriteByte(byte value)
         {
-            AssertNotDisposed();
             Span<byte> buffer = stackalloc byte[] { value };
             Write(buffer);
         }
@@ -790,7 +796,7 @@ namespace MCServerSharp.Utility
 
                     bytesRemaining -= amountToCopy;
 
-                    ++currentBlock;
+                    currentBlock++;
                 }
             }
             else
@@ -836,7 +842,7 @@ namespace MCServerSharp.Utility
 
         private int InternalRead(Span<byte> buffer, int fromPosition)
         {
-            if (_length - fromPosition <= 0)
+            if (buffer.IsEmpty || _length - fromPosition <= 0)
                 return 0;
 
             int amountToCopy;

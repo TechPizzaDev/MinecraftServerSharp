@@ -2,7 +2,7 @@
 
 namespace MCServerSharp.Maths
 {
-    public struct ChunkPosition : IEquatable<ChunkPosition>
+    public struct ChunkPosition : IEquatable<ChunkPosition>, ILongHashable
     {
         public int X;
         public int Z;
@@ -11,6 +11,11 @@ namespace MCServerSharp.Maths
         {
             X = x;
             Z = z;
+        }
+
+        public readonly long ToLong()
+        {
+            return (long)X << 32 | (long)Z;
         }
 
         public static double Dot(ChunkPosition a, ChunkPosition b)
@@ -40,8 +45,12 @@ namespace MCServerSharp.Maths
 
         public readonly bool Equals(ChunkPosition other)
         {
-            return X == other.X
-                && Z == other.Z;
+            return this == other;
+        }
+
+        public readonly long GetLongHashCode()
+        {
+            return ToLong();
         }
 
         public override readonly int GetHashCode()
@@ -59,14 +68,15 @@ namespace MCServerSharp.Maths
             return "{X:" + X + ", Z:" + Z + "}";
         }
 
-        public static bool operator ==(ChunkPosition left, ChunkPosition right)
+        public static bool operator ==(ChunkPosition a, ChunkPosition b)
         {
-            return left.Equals(right);
+            return a.X == b.X
+                && a.Z == b.Z;
         }
 
-        public static bool operator !=(ChunkPosition left, ChunkPosition right)
+        public static bool operator !=(ChunkPosition a, ChunkPosition b)
         {
-            return !(left == right);
+            return !(a == b);
         }
     }
 }

@@ -25,5 +25,20 @@ namespace MCServerSharp.Utility
         {
             return parameters.Select(x => x.ParameterType).ToArray();
         }
+
+        public static Type GetUnderlyingType(this MemberInfo member)
+        {
+            if (member == null)
+                throw new ArgumentNullException(nameof(member));
+
+            return member.MemberType switch
+            {
+                MemberTypes.Event => ((EventInfo)member).EventHandlerType ?? typeof(void),
+                MemberTypes.Field => ((FieldInfo)member).FieldType,
+                MemberTypes.Method => ((MethodInfo)member).ReturnType,
+                MemberTypes.Property => ((PropertyInfo)member).PropertyType,
+                _ => throw new ArgumentException(member.GetType() + " is not supported.")
+            };
+        }
     }
 }

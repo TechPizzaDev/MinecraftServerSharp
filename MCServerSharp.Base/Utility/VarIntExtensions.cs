@@ -7,13 +7,13 @@ namespace MCServerSharp
         public static TEnum AsEnum<TEnum>(this VarInt value)
             where TEnum : Enum
         {
-            return EnumConverter<TEnum>.Convert(value);
+            return EnumConverter.ToEnum<TEnum>(value);
         }
 
         public static TEnum AsEnum<TEnum>(this VarLong value)
             where TEnum : Enum
         {
-            return EnumConverter<TEnum>.Convert(value);
+            return EnumConverter.ToEnum<TEnum>(value);
         }
     }
 }

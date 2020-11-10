@@ -3,6 +3,8 @@ using System.IO;
 
 namespace MCServerSharp.Utility
 {
+    // TODO: skiplocalsinit on methods
+
     public static class StreamExtensions
     {
         /// <summary>

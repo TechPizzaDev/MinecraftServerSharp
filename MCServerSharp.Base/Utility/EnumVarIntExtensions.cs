@@ -7,7 +7,7 @@ namespace MCServerSharp
         public static VarInt ToVarInt<TEnum>(this TEnum value)
             where TEnum : Enum
         {
-            long num = EnumConverter<TEnum>.Convert(value);
+            long num = EnumConverter.ToInt64(value);
             if (num < int.MinValue || num > int.MaxValue)
                 throw new ArgumentOutOfRangeException(nameof(value));
             return (VarInt)num;
@@ -16,7 +16,7 @@ namespace MCServerSharp
         public static VarLong ToVarLong<TEnum>(this TEnum value)
             where TEnum : Enum
         {
-            long num = EnumConverter<TEnum>.Convert(value);
+            long num = EnumConverter.ToInt64(value);
             return (VarLong)num;
         }
     }
