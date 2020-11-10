@@ -7,6 +7,8 @@ using System.Reflection;
 using MCServerSharp.Data.IO;
 using MCServerSharp.NBT;
 
+// TODO: turn reflection into Source Generator
+
 namespace MCServerSharp.Net.Packets
 {
     public delegate OperationStatus NetPacketReaderAction<TPacket>(NetBinaryReader reader, out TPacket packet);

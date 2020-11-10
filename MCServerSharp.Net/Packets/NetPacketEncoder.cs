@@ -4,9 +4,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using MCServerSharp.Collections;
 using MCServerSharp.Data.IO;
 using MCServerSharp.NBT;
+
+// TODO: turn reflection into Source Generator
 
 namespace MCServerSharp.Net.Packets
 {
@@ -107,6 +110,32 @@ namespace MCServerSharp.Net.Packets
             return resultLambda.Compile();
         }
 
+        private static DataSerializeMode PickModeByType(DataSerializeMode mode, Type elementType)
+        {
+            if (mode == DataSerializeMode.Auto)
+            {
+                if (elementType == typeof(bool) ||
+                    elementType == typeof(sbyte) ||
+                    elementType == typeof(byte) ||
+                    elementType == typeof(short) ||
+                    elementType == typeof(ushort) ||
+                    elementType == typeof(int) ||
+                    elementType == typeof(uint) ||
+                    elementType == typeof(long) ||
+                    elementType == typeof(ulong) ||
+                    elementType == typeof(float) ||
+                    elementType == typeof(double))
+                {
+                    return DataSerializeMode.Copy;
+                }
+                else
+                {
+                    return DataSerializeMode.Serialize;
+                }
+            }
+            return mode;
+        }
+
         private void ReflectiveWrite(
             List<Expression> expressions,
             ParameterExpression writerParam,
@@ -131,50 +160,67 @@ namespace MCServerSharp.Net.Packets
             for (int i = 0; i < propList.Count; i++)
             {
                 var propInfo = propList[i];
-                var prop = Expression.Property(instance, propInfo.Property);
+                var propExpresion = Expression.Property(instance, propInfo.Property);
 
                 // TODO: clean this up
                 // TODO: adapt for lists?
+                // TODO: move expression code to generic methods (like with BlitArray)
 
-                if (propInfo.Property.GetCustomAttribute<DataEnumerableAttribute>() != null)
+                var dataEnumerable = propInfo.Property.GetCustomAttribute<DataEnumerableAttribute>();
+                if (dataEnumerable != null)
                 {
                     var collectionVariables = new List<ParameterExpression>();
                     var collectionExpressions = new List<Expression>();
 
                     // Write out collection length.
-                    ApplyLengthPrefix(collectionExpressions, propInfo, writerParam, prop);
+                    TryApplyLengthPrefix(collectionExpressions, propInfo, writerParam, propExpresion);
 
-                    if (prop.Type.IsArray)
+                    DataSerializeMode elementMode = dataEnumerable.ElementMode;
+
+                    // TODO: Span and Memory
+                    if (propExpresion.Type.IsArray)
                     {
-                        var arrayIndex = Expression.Variable(typeof(int), "i");
-                        collectionVariables.Add(arrayIndex);
+                        Type elementType = propExpresion.Type.GetElementType()!;
+                        elementMode = PickModeByType(elementMode, elementType);
 
-                        var writeBody = new List<Expression>();
-                        var arrayAccess = Expression.ArrayAccess(prop, arrayIndex);
-                        ReflectiveWriteElement(writeBody, writerParam, arrayAccess);
-                        writeBody.Add(Expression.PostIncrementAssign(arrayIndex));
-                        var writeBlock = Expression.Block(writeBody);
+                        if (elementMode == DataSerializeMode.Copy)
+                        {
+                            var blitMethod = BlitArrayMethod.MakeGenericMethod(elementType);
+                            var call = Expression.Call(blitMethod, writerParam, propExpresion);
+                            collectionExpressions.Add(call);
+                        }
+                        else
+                        {
+                            var arrayIndex = Expression.Variable(typeof(int), "i");
+                            collectionVariables.Add(arrayIndex);
 
-                        var arrayLength = Expression.ArrayLength(prop);
-                        var checkIndex = Expression.GreaterThanOrEqual(
-                            Expression.Convert(arrayIndex, typeof(uint)),
-                            Expression.Convert(arrayLength, typeof(uint)));
+                            var writeBody = new List<Expression>();
+                            var arrayAccess = Expression.ArrayAccess(propExpresion, arrayIndex);
+                            ReflectiveWriteElement(elementMode, writeBody, writerParam, arrayAccess);
+                            writeBody.Add(Expression.PostIncrementAssign(arrayIndex));
+                            var writeBlock = Expression.Block(writeBody);
 
-                        var breakTarget = Expression.Label("End");
-                        var checkOrBreak = Expression.IfThenElse(
-                            checkIndex,
-                            Expression.Break(breakTarget),
-                            writeBlock);
+                            var arrayLength = Expression.ArrayLength(propExpresion);
+                            var checkIndex = Expression.GreaterThanOrEqual(
+                                Expression.Convert(arrayIndex, typeof(uint)),
+                                Expression.Convert(arrayLength, typeof(uint)));
 
-                        var arrayLoop = Expression.Loop(checkOrBreak, breakTarget);
-                        collectionExpressions.Add(arrayLoop);
+                            var breakTarget = Expression.Label("End");
+                            var checkOrBreak = Expression.IfThenElse(
+                                checkIndex,
+                                Expression.Break(breakTarget),
+                                writeBlock);
+
+                            var arrayLoop = Expression.Loop(checkOrBreak, breakTarget);
+                            collectionExpressions.Add(arrayLoop);
+                        }
                     }
                     else
                     {
-                        var getEnumeratorMethod = prop.Type.GetMethod(
+                        var getEnumeratorMethod = propExpresion.Type.GetMethod(
                             "GetEnumerator", BindingFlags.Instance | BindingFlags.Public);
                         if (getEnumeratorMethod == null)
-                            throw new Exception($"Property {prop} is missing a \"GetEnumerator\" method.");
+                            throw new Exception($"Property {propExpresion} is missing a \"GetEnumerator\" method.");
 
                         AssertValidEnumerator(
                             getEnumeratorMethod.ReturnType,
@@ -187,13 +233,13 @@ namespace MCServerSharp.Net.Packets
                         collectionVariables.Add(enumeratorVar);
 
                         // Create and assign enumerator to it's variable.
-                        var enumeratorCall = Expression.Call(prop, getEnumeratorMethod);
+                        var enumeratorCall = Expression.Call(propExpresion, getEnumeratorMethod);
                         var enumeratorAssign = Expression.Assign(enumeratorVar, enumeratorCall);
                         collectionExpressions.Add(enumeratorAssign);
 
                         var writeBody = new List<Expression>();
                         var current = Expression.MakeMemberAccess(enumeratorVar, currentMember);
-                        ReflectiveWriteElement(writeBody, writerParam, current);
+                        ReflectiveWriteElement(elementMode, writeBody, writerParam, current);
                         var writeBlock = Expression.Block(writeBody);
 
                         var breakTarget = Expression.Label("End");
@@ -222,9 +268,9 @@ namespace MCServerSharp.Net.Packets
                 {
                     // TODO: Call WriteElement first as it may throw more descriptive errors.
                     var writeExpressions = new List<Expression>();
-                    ReflectiveWriteElement(writeExpressions, writerParam, prop);
+                    ReflectiveWriteElement(propInfo.PropertyAttrib.SerializeMode, writeExpressions, writerParam, propExpresion);
 
-                    ApplyLengthPrefix(expressions, propInfo, writerParam, instance);
+                    TryApplyLengthPrefix(expressions, propInfo, writerParam, instance);
                     expressions.AddRange(writeExpressions);
                 }
             }
@@ -271,10 +317,16 @@ namespace MCServerSharp.Net.Packets
         }
 
         private void ReflectiveWriteElement(
+            DataSerializeMode mode,
             List<Expression> expressions,
             ParameterExpression writerParam,
             Expression instance)
         {
+            if (mode == DataSerializeMode.Copy)
+                throw new NotImplementedException(nameof(DataSerializeMode) + "." + mode.ToString());
+
+            mode = PickModeByType(mode, instance.Type);
+
             void AddMethodCall(ParameterExpression? writerParam, MethodInfo writeMethod, Expression[] arguments)
             {
                 expressions.Add(Expression.Call(writerParam, writeMethod, arguments));
@@ -326,7 +378,7 @@ namespace MCServerSharp.Net.Packets
 
                         var writeBlock = Expression.Block(writeBody);
                         var writeLambda = Expression.Lambda(writeBlock, new[] { writerParam, instanceParam });
-                        
+
                         writeDelegate = writeLambda.Compile();
                         DataObjectActions.Add(writeType, writeDelegate);
                     }
@@ -346,7 +398,7 @@ namespace MCServerSharp.Net.Packets
             }
         }
 
-        private void ApplyLengthPrefix(
+        private void TryApplyLengthPrefix(
             List<Expression> expressions,
             DataPropertyInfo propInfo,
             ParameterExpression writerParam,
@@ -401,7 +453,7 @@ namespace MCServerSharp.Net.Packets
             }
         }
 
-        private static Expression CollectionLength(Expression instance)
+        public static Expression CollectionLength(Expression instance)
         {
             if (instance.Type.GetGenericTypeDefinition() == typeof(ICollection<>))
                 return Expression.Property(instance, typeof(ICollection<>).GetProperty("Count"));
@@ -411,6 +463,52 @@ namespace MCServerSharp.Net.Packets
 
             throw new Exception(
                 $"The expression is not of type {typeof(ICollection<>).Name} or {typeof(IReadOnlyCollection<>).Name}.");
+        }
+
+        public static MethodInfo BlitArrayMethod { get; } =
+            ((Action<NetBinaryWriter, int[]>)BlitArray).Method.GetGenericMethodDefinition();
+
+        public static void BlitArray<T>(NetBinaryWriter writer, T[] array)
+            where T : unmanaged
+        {
+            if (typeof(T) == typeof(short))
+            {
+                throw new NotImplementedException();
+                //var shorts = MemoryMarshal.Cast<T, short>(array.AsSpan());
+                //writer.Write(shorts);
+            }
+            else if (typeof(T) == typeof(ushort))
+            {
+                throw new NotImplementedException();
+                //var shorts = MemoryMarshal.Cast<T, ushort>(array.AsSpan());
+                //writer.Write(shorts);
+            }
+            else if (typeof(T) == typeof(int))
+            {
+                var ints = MemoryMarshal.Cast<T, int>(array.AsSpan());
+                writer.Write(ints);
+            }
+            else if (typeof(T) == typeof(uint))
+            {
+                throw new NotImplementedException();
+                //var ints = MemoryMarshal.Cast<T, uint>(array.AsSpan());
+                //writer.Write(ints);
+            }
+            else if (typeof(T) == typeof(long))
+            {
+                var longs = MemoryMarshal.Cast<T, long>(array.AsSpan());
+                writer.Write(longs);
+            }
+            else if (typeof(T) == typeof(ulong))
+            {
+                var longs = MemoryMarshal.Cast<T, ulong>(array.AsSpan());
+                writer.Write(longs);
+            }
+            else
+            {
+                var bytes = MemoryMarshal.AsBytes(array.AsSpan());
+                writer.Write(bytes);
+            }
         }
     }
 }

@@ -12,12 +12,13 @@ namespace MCServerSharp.World
         public const int LevelBlockCount = Width * Width;
         public const int BlockCount = LevelBlockCount * Height;
 
+        // TODO: compress based on palette
         private BlockState[] _blocks;
 
         public Chunk Parent { get; }
         public int SectionY { get; }
 
-        // TODO: add dynamic palette that gets trimmed on serialize?
+        // TODO: add dynamic palette (that gets trimmed on serialize) and compressed block storage 
         public IBlockPalette BlockPalette { get; }
         public BlockState AirBlock { get; }
 
@@ -25,6 +26,7 @@ namespace MCServerSharp.World
         public int Z => Parent.Z;
         public Dimension Dimension => Parent.Dimension;
 
+        // TODO: make this dynamic based on a dynamic block palette 
         public bool IsEmpty { get; private set; }
 
         /// <summary>

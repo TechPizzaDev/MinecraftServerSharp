@@ -1,5 +1,7 @@
 ﻿
+using System;
 using System.Collections.Generic;
+using MCServerSharp.Collections;
 using MCServerSharp.Maths;
 using MCServerSharp.World;
 
@@ -10,59 +12,31 @@ namespace MCServerSharp.Entities.Mobs
         public string? UserName { get; set; }
         public UUID UserUUID { get; set; }
 
-        public ChunkPosition ChunkPosition { get; set; }
-        public ChunkPosition LastChunkPosition { get; set; }
+        public ChunkPosition CameraPosition { get; set; }
+        public int ViewDistance { get; set; } = 8;
 
         public Vector3d Position { get; set; }
-        public Vector3d LastPosition { get; set; }
-        public int IntY { get; set; }
-        public int LastIntY { get; set; }
 
-        public HashSet<ChunkPosition> SentChunks = new HashSet<ChunkPosition>();
-        public List<ChunkPosition> ChunksToSend = new List<ChunkPosition>();
-        public HashSet<Player> PlayersInRange = new HashSet<Player>();
+        public int ChunkX => (int)Math.Floor(Position.X) / 16;
+        public int ChunkZ => (int)Math.Floor(Position.Z) / 16;
+        public ChunkPosition ChunkPosition => new ChunkPosition(ChunkX, ChunkZ);
+
+        public bool ScheduleFullChunkView;
+        public LongHashSet<ChunkPosition> LoadedChunks;
+        public LongHashSet<ChunkPosition> ChunksToUnload;
+        public List<List<ChunkPosition>> ChunkLoadLists;
+
+        public LongHashSet<ChunkPosition> ChunkLoadSet; // TODO: get rid of this
+
+        public long SentChunkCount;
 
         public Player(Dimension dimension) : base(dimension)
         {
-        }
+            LoadedChunks = new LongHashSet<ChunkPosition>();
+            ChunksToUnload = new LongHashSet<ChunkPosition>();
+            ChunkLoadLists = new List<List<ChunkPosition>>();
 
-        public void UpdateChunksToSend(int viewDistance)
-        {
-            int xoffset = ChunkPosition.X;
-            int zoffset = ChunkPosition.Z;
-
-            ChunksToSend.Clear();
-            for (int z = -viewDistance; z < viewDistance; z++)
-            {
-                for (int x = -viewDistance; x < viewDistance; x++)
-                {
-                    int cx = x + xoffset;
-                    int cz = z + zoffset;
-
-                    ChunksToSend.Add(new ChunkPosition(cx, cz));
-                }
-            }
-
-            ChunksToSend.Sort(new ChunkPositionDistanceComparer(ChunkPosition));
+            ChunkLoadSet = new LongHashSet<ChunkPosition>();
         }
     }
-
-    public class ChunkPositionDistanceComparer : IComparer<ChunkPosition>
-    {
-        public ChunkPosition Origin { get; }
-
-        public ChunkPositionDistanceComparer(ChunkPosition origin)
-        {
-            Origin = origin;
-        }
-
-        public int Compare(ChunkPosition x, ChunkPosition y)
-        {
-            var dx = ChunkPosition.DistanceSquared(x, Origin);
-            var dy = ChunkPosition.DistanceSquared(y, Origin);
-
-            return dx.CompareTo(dy);
-        }
-    }
-
 }

@@ -266,8 +266,6 @@ namespace MCServerSharp.Net
 
                 writeResult = packetWriteAction.Invoke(
                     packetHolder, _packetWriteBuffer, _packetCompressionBuffer);
-
-                Console.WriteLine("wrote " + packetHolder.PacketType);
             }
             finally
             {

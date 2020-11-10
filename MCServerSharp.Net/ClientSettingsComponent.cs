@@ -19,9 +19,10 @@ namespace MCServerSharp.Net
             {
                 SettingsChanged = false;
 
-                Entity.SentChunks.Clear();
+                Entity.ViewDistance = Settings.ViewDistance;
 
-                Entity.UpdateChunksToSend(Settings.ViewDistance);
+                Entity.ScheduleFullChunkView = true;
+                //Entity.UpdateChunksToSend(Settings.ViewDistance);
             }
         }
     }

@@ -80,15 +80,17 @@ namespace MCServerSharp.Runner
 
         private static void Main(string[] args)
         {
-            var q1 = Look.FromVectors(Vector3.Zero, new Vector3(0, 0, 1));
-            var q2 = Look.FromVectors(Vector3.Zero, new Vector3(1, 0, 0));
-            var q3 = Look.FromVectors(Vector3.Zero, new Vector3(0, 0, -1));
-            var q4 = Look.FromVectors(Vector3.Zero, new Vector3(-1, 0, 0));
-            var u1 = q1.ToUnitVector3();
-            var u2 = q2.ToUnitVector3();
-            var u3 = q3.ToUnitVector3();
-            var u4 = q4.ToUnitVector3();
-            Console.WriteLine();
+            // TODO: Create unit tests
+            #region Look Testing
+            //var q1 = Look.FromVectors(Vector3.Zero, new Vector3(0, 0, 1));
+            //var q2 = Look.FromVectors(Vector3.Zero, new Vector3(1, 0, 0));
+            //var q3 = Look.FromVectors(Vector3.Zero, new Vector3(0, 0, -1));
+            //var q4 = Look.FromVectors(Vector3.Zero, new Vector3(-1, 0, 0));
+            //var u1 = q1.ToUnitVector3();
+            //var u2 = q2.ToUnitVector3();
+            //var u3 = q3.ToUnitVector3();
+            //var u4 = q4.ToUnitVector3();
+            #endregion
 
             #region NBT Testing
             // TODO: move to sandbox
@@ -390,13 +392,13 @@ namespace MCServerSharp.Runner
                 //if (updateCount > 0)
                 //    Console.WriteLine(activeCount + " connections");
 
-                Console.WriteLine(
-                    "Tick Time: " +
-                    ticker.ElapsedTime.TotalMilliseconds.ToString("00.0") +
-                    "/" +
-                    ticker.TargetTime.TotalMilliseconds.ToString("00") + " ms" +
-                    " | " +
-                    (ticker.ElapsedTime.Ticks / (float)ticker.TargetTime.Ticks * 100f).ToString("00") + "%");
+                //Console.WriteLine(
+                //    "Tick Time: " +
+                //    ticker.ElapsedTime.TotalMilliseconds.ToString("00.0") +
+                //    "/" +
+                //    ticker.TargetTime.TotalMilliseconds.ToString("00") + " ms" +
+                //    " | " +
+                //    (ticker.ElapsedTime.Ticks / (float)ticker.TargetTime.Ticks * 100f).ToString("00") + "%");
             }
 
             _mainDimension.Tick();
@@ -467,8 +469,8 @@ namespace MCServerSharp.Runner
                     return;
 
                 var setCompression = new ServerSetCompression(128);
-                //connection.EnqueuePacket(setCompression);
-                //connection.CompressionThreshold = setCompression.Threshold;
+                connection.EnqueuePacket(setCompression);
+                connection.CompressionThreshold = setCompression.Threshold;
 
                 var uuid = new UUID(0, 1);
                 var name = loginStart.Name;
@@ -577,7 +579,7 @@ namespace MCServerSharp.Runner
                     (Utf8String)"overworld",
                     0,
                     16,
-                    10,
+                    32, // TODO: respect view distance in NetConnectionComponent
                     false,
                     true,
                     false,
@@ -595,7 +597,7 @@ namespace MCServerSharp.Runner
 
                 connection.EnqueuePacket(new ServerPlayerAbilities(
                     PlayerAbilityFlags.AllowFlying | PlayerAbilityFlags.Flying,
-                    0.33f,
+                    0.8f, // 0.5f, // 0.33f,
                     0.1f));
             });
 
@@ -606,23 +608,23 @@ namespace MCServerSharp.Runner
 
                 player.Position = new Vector3d(x, y, z);
 
-                player.IntY = (int)Math.Round(player.Position.Y);
-                if (player.LastIntY != player.IntY)
-                {
-                    player.LastIntY = player.IntY;
-
-                    connection.EnqueuePacket(
-                        new ServerUpdateViewPosition(
-                            player.ChunkPosition.X,
-                            player.ChunkPosition.Z));
-                }
-
-                player.LastPosition = player.Position;
+                //player.IntY = (int)Math.Round(player.Position.Y);
+                //if (player.LastIntY != player.IntY)
+                //{
+                //    player.LastIntY = player.IntY;
+                //
+                //    connection.EnqueuePacket(
+                //        new ServerUpdateViewPosition(
+                //            player.ChunkPosition.X,
+                //            player.ChunkPosition.Z));
+                //}
+                //
+                //player.LastPosition = player.Position;
             }
 
             static void PlayerRotationChange(NetConnection connection, float yaw, float pitch)
             {
-                
+
             }
 
 
@@ -742,7 +744,7 @@ namespace MCServerSharp.Runner
             {
                 // The player object should be created early in the pipeline.
                 var component = connection.Components.GetOrAdd(
-            connection, (c) => new ClientSettingsComponent(c.GetPlayer()));
+                    connection, (c) => new ClientSettingsComponent(c.GetPlayer()));
 
                 component.Settings = clientSettings;
                 component.SettingsChanged = true;

@@ -34,11 +34,13 @@ namespace MCServerSharp.Net.Packets
         [Mapping(State.Play, 0x14)] WindowProperty,
         [Mapping(State.Play, 0x17)] PluginMessage,
         [Mapping(State.Play, 0x19)] PlayDisconnect,
+        [Mapping(State.Play, 0x1c)] UnloadChunk,
         [Mapping(State.Play, 0x1f)] KeepAlive,
 
         [Mapping(State.Play, 0x20)] ChunkData,
         [Mapping(State.Play, 0x23)] UpdateLight,
         [Mapping(State.Play, 0x24)] JoinGame,
+        [Mapping(State.Play, 0x29)] EntityRotation,
         [Mapping(State.Play, 0x2d)] OpenWindow,
 
         [Mapping(State.Play, 0x30)] PlayerAbilities,

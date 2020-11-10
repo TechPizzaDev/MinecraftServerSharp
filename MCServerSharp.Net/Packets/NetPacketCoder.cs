@@ -72,7 +72,7 @@ namespace MCServerSharp.Net.Packets
                         if (packetStructAttrib.PacketId.Equals(enumValue))
                         {
                             var mapRawId = mappingInfo.Attribute.RawId;
-                            var mapId = EnumConverter<TPacketId>.Convert(packetStructAttrib.PacketId);
+                            var mapId = EnumConverter.ToEnum<TPacketId>(packetStructAttrib.PacketId);
                             var definition = new PacketIdDefinition(typeEntry.Key, mapRawId, mapId);
 
                             PacketIdMaps[stateIndex].Add(definition.RawId, definition);

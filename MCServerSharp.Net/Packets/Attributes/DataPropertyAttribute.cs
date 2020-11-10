@@ -6,10 +6,12 @@ namespace MCServerSharp.Net.Packets
     public class DataPropertyAttribute : Attribute
     {
         public int Order { get; }
+        public DataSerializeMode SerializeMode { get; }
 
-        public DataPropertyAttribute(int order)
+        public DataPropertyAttribute(int order, DataSerializeMode serializeMode = DataSerializeMode.Auto)
         {
             Order = order;
+            SerializeMode = serializeMode;
         }
     }
 }

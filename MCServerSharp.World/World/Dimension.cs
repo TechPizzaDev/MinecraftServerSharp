@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using MCServerSharp.Blocks;
 using MCServerSharp.Collections;
 using MCServerSharp.Entities.Mobs;
@@ -15,8 +16,9 @@ namespace MCServerSharp.World
     public class Dimension : ITickable
     {
         private DirectBlockPalette _directBlockPalette;
+        private Chunk _templateChunk;
 
-        private LongDictionary<long, Chunk> _chunks;
+        private LongDictionary<ChunkPosition, Chunk> _chunks;
         private Dictionary<Chunk, ChunkInfo> _chunkInfos;
 
         public List<Player> players = new List<Player>();
@@ -27,8 +29,23 @@ namespace MCServerSharp.World
         {
             _directBlockPalette = directBlockPalette ?? throw new ArgumentNullException(nameof(directBlockPalette));
 
-            _chunks = new LongDictionary<long, Chunk>();
+            _chunks = new LongDictionary<ChunkPosition, Chunk>();
             _chunkInfos = new Dictionary<Chunk, ChunkInfo>();
+
+
+
+            var air = _directBlockPalette.blockLookup["minecraft:air"].DefaultState;
+            _templateChunk = new Chunk(this, new ChunkPosition(), air, directBlockPalette);
+
+            var section0 = _templateChunk.Sections.Span[0];
+
+            int y = 0;
+            section0.FillLevelBlock(_directBlockPalette.blockLookup["minecraft:bedrock"].DefaultState, y++);
+
+            for (int j = 0; j < 3; j++)
+                section0.FillLevelBlock(_directBlockPalette.blockLookup["minecraft:dirt"].DefaultState, y++);
+
+            section0.FillLevelBlock(_directBlockPalette.blockLookup["minecraft:grass_block"].DefaultState, y++);
         }
 
         public void Tick()
@@ -46,50 +63,41 @@ namespace MCServerSharp.World
 
             foreach (var chunk in toRemove)
             {
-                _chunks.Remove(GetChunkKey(chunk));
+                _chunks.Remove(chunk.Position);
                 _chunkInfos.Remove(chunk);
 
 
             }
 
-            foreach(var player in players)
+            foreach (var player in players)
             {
                 player.Components.Tick();
             }
         }
 
-        public static long GetChunkKey(int x, int z)
+        public Chunk GetChunk(ChunkPosition position)
         {
-            return (long)x << 32 | (long)z;
-        }
-
-        public static long GetChunkKey(Chunk chunk)
-        {
-            return GetChunkKey(chunk.X, chunk.Z);
-        }
-
-        public Chunk GetChunk(int x, int z)
-        {
-            long key = GetChunkKey(x, z);
-            if (!_chunks.TryGetValue(key, out var chunk))
+            if (!_chunks.TryGetValue(position, out var chunk))
             {
-                var air = _directBlockPalette.blockLookup["minecraft:air"].DefaultState;
+                //var air = _directBlockPalette.blockLookup["minecraft:air"].DefaultState;
 
-                chunk = new Chunk(x, z, this, air, _directBlockPalette);
+                chunk = new Chunk(this, position, _directBlockPalette);
+                chunk._sections = _templateChunk._sections;
+
                 _chunkInfos.Add(chunk, new ChunkInfo());
 
                 var section0 = chunk.Sections.Span[0];
 
-                int y = 0;
-                section0.FillLevelBlock(_directBlockPalette.blockLookup["minecraft:bedrock"].DefaultState, y++);
+                //int y = 0;
+                //section0.FillLevelBlock(_directBlockPalette.blockLookup["minecraft:bedrock"].DefaultState, y++);
+                //
+                //for (int j = 0; j < 3; j++)
+                //    section0.FillLevelBlock(_directBlockPalette.blockLookup["minecraft:dirt"].DefaultState, y++);
+                //
+                //section0.FillLevelBlock(_directBlockPalette.blockLookup["minecraft:grass_block"].DefaultState, y++);
 
-                for (int j = 0; j < 3; j++)
-                    section0.FillLevelBlock(_directBlockPalette.blockLookup["minecraft:dirt"].DefaultState, y++);
 
-                section0.FillLevelBlock(_directBlockPalette.blockLookup["minecraft:grass_block"].DefaultState, y++);
-
-
-                _chunks.Add(key, chunk);
+                _chunks.Add(position, chunk);
             }
 
             var chunkInfo = _chunkInfos[chunk];
@@ -97,9 +105,9 @@ namespace MCServerSharp.World
             return chunk;
         }
 
-        public Chunk GetChunk(ChunkPosition position)
+        public Chunk GetChunk(int x, int z)
         {
-            return GetChunk(position.X, position.Z);
+            return GetChunk(new ChunkPosition(x, z));
         }
     }
 }

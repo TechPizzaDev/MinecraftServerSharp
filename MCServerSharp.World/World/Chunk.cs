@@ -1,5 +1,6 @@
 ﻿using System;
 using MCServerSharp.Blocks;
+using MCServerSharp.Maths;
 
 namespace MCServerSharp.World
 {
@@ -9,23 +10,29 @@ namespace MCServerSharp.World
         public const int Height = SectionCount * ChunkSection.Height;
         public const int BlockCount = SectionCount * ChunkSection.BlockCount;
 
-        private ChunkSection[] _sections;
+        public ChunkSection?[] _sections;
 
-        public ChunkSection this[int y] => _sections[y];
+        public ChunkSection? this[int y] => _sections[y];
 
-        public int X { get; }
-        public int Z { get; }
+        public ChunkPosition Position { get; }
         public Dimension Dimension { get; }
 
-        public ReadOnlyMemory<ChunkSection> Sections => _sections;
+        public int X => Position.X;
+        public int Z => Position.Z;
+        public ReadOnlyMemory<ChunkSection?> Sections => _sections;
 
-        public Chunk(int x, int z, Dimension dimension, BlockState airBlock, IBlockPalette blockPalette)
+        public Chunk(Dimension dimension, ChunkPosition position, IBlockPalette blockPalette)
         {
-            X = x;
-            Z = z;
             Dimension = dimension ?? throw new ArgumentNullException(nameof(dimension));
+            Position = position;
+        }
 
-            _sections = new ChunkSection[SectionCount];
+        public Chunk(Dimension dimension, ChunkPosition position, BlockState airBlock, IBlockPalette blockPalette)
+        {
+            Dimension = dimension ?? throw new ArgumentNullException(nameof(dimension));
+            Position = position;
+
+            _sections = new ChunkSection?[SectionCount];
             for (int y = 0; y < _sections.Length; y++)
             {
                 _sections[y] = new ChunkSection(this, y, airBlock, blockPalette);
@@ -35,6 +42,18 @@ namespace MCServerSharp.World
         public int GetBiome(int x, int y, int z)
         {
             return 127; // VOID
+        }
+
+        public int GetSectionMask()
+        {
+            int sectionMask = 0;
+            for (int sectionY = 0; sectionY < _sections.Length; sectionY++)
+            {
+                var section = _sections[sectionY];
+                if (section != null)
+                    sectionMask |= 1 << sectionY; // Set that bit to true in the mask
+            }
+            return sectionMask;
         }
     }
 }

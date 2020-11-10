@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using MCServerSharp.Data.IO;
 
 namespace MCServerSharp.Blocks
@@ -9,9 +11,9 @@ namespace MCServerSharp.Blocks
         public BlockState[] _blocks;
 
         public int BitsPerBlock { get; }
-
         public int Count => _blocks.Length;
 
+        // TODO: remove this field
         public Dictionary<Identifier, BlockDescription> blockLookup;
 
         public DirectBlockPalette(BlockState[] blocks)
@@ -21,13 +23,14 @@ namespace MCServerSharp.Blocks
             BitsPerBlock = (int)Math.Ceiling(Math.Log2(Count));
         }
 
+        [SuppressMessage("Design", "CA1062", Justification = "Performance")]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public uint IdForBlock(BlockState state)
         {
-            if (state == null)
-                throw new ArgumentNullException(nameof(state));
             return state.Id;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public BlockState BlockForId(uint id)
         {
             return _blocks[id];

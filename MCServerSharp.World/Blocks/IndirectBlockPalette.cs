@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using MCServerSharp.Data.IO;
 
 namespace MCServerSharp.Blocks
@@ -11,7 +12,6 @@ namespace MCServerSharp.Blocks
         private Dictionary<BlockState, uint> _blockToId;
 
         public int BitsPerBlock { get; private set; }
-
         public int Count => _idToBlock.Length;
 
         private IndirectBlockPalette()
@@ -20,14 +20,34 @@ namespace MCServerSharp.Blocks
             _blockToId = new Dictionary<BlockState, uint>();
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public BlockState BlockForId(uint id)
         {
             return _idToBlock[id];
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public uint IdForBlock(BlockState state)
         {
             return _blockToId[state];
+        }
+
+        public void Write(NetBinaryWriter writer)
+        {
+            // Palette Length
+            writer.WriteVar(Count);
+
+            // Palette
+            for (uint id = 0; id < _idToBlock.Length; id++)
+            {
+                BlockState state = _idToBlock[id];
+                writer.WriteVar(state.Id);
+            }
+        }
+
+        public int GetEncodedSize()
+        {
+            throw new NotImplementedException();
         }
 
         public static OperationStatus Read(
@@ -57,24 +77,6 @@ namespace MCServerSharp.Blocks
             blockPalette.BitsPerBlock = (int)Math.Ceiling(Math.Log2(blockPalette.Count));
 
             return OperationStatus.Done;
-        }
-
-        public void Write(NetBinaryWriter writer)
-        {
-            // Palette Length
-            writer.WriteVar(Count);
-
-            // Palette
-            for (uint id = 0; id < _idToBlock.Length; id++)
-            {
-                BlockState state = _idToBlock[id];
-                writer.WriteVar(state.Id);
-            }
-        }
-
-        public int GetEncodedSize()
-        {
-            throw new NotImplementedException();
         }
     }
 }

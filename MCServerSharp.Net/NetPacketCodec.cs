@@ -102,12 +102,12 @@ namespace MCServerSharp.Net
             return packetHandler;
         }
 
+        /// <summary>
         /// Connection flow/lifetime: 
         /// Every connection begins in <see cref="EngageClientConnection"/>, where a loop reads 
         /// asynchrounsly from the client socket. 
         /// Successful reads get copied to the connection's receive buffer.
-        /// 
-
+        /// </summary>
         public async Task EngageClientConnection(NetConnection connection, CancellationToken cancellationToken)
         {
             if (connection == null)
@@ -138,7 +138,6 @@ namespace MCServerSharp.Net
 
                     // We process by the message length (unless it's a legacy server list ping), 
                     // so don't worry if we received parts of the next message.
-
                     OperationStatus handleStatus;
                     while ((handleStatus = HandlePacket(ref state)) == OperationStatus.Done)
                     {
