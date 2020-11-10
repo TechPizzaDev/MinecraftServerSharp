@@ -26,6 +26,9 @@ using MCServerSharp.World;
 
 namespace MCServerSharp.Runner
 {
+    // TODO: don't print anything for status connections
+    //       (maybe print abnormal amount of pings from one address)
+
     public static class ServerMain
     {
         // TODO: move these to a Game class

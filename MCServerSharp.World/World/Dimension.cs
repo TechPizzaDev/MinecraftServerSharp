@@ -53,6 +53,8 @@ namespace MCServerSharp.World
 
         public void Tick()
         {
+            chunksToRemove.Clear();
+
             foreach (var (chunk, info) in _chunkInfos)
             {
                 info.Age++;
@@ -81,7 +83,7 @@ namespace MCServerSharp.World
             {
                 //var air = _directBlockPalette.blockLookup["minecraft:air"].DefaultState;
 
-                chunk = new Chunk(this, position, _directBlockPalette);
+                chunk = new Chunk(this, position);
                 chunk._sections = _templateChunk._sections;
 
                 _chunkInfos.Add(chunk, new ChunkInfo());

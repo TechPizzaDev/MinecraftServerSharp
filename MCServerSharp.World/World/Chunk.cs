@@ -23,7 +23,9 @@ namespace MCServerSharp.World
         public int Z => Position.Z;
         public ReadOnlyMemory<ChunkSection?> Sections => _sections;
 
-        public Chunk(Dimension dimension, ChunkPosition position, IBlockPalette blockPalette)
+        // TODO: fix this funky constructor mess (needs redesign)
+
+        public Chunk(Dimension dimension, ChunkPosition position)
         {
             Dimension = dimension ?? throw new ArgumentNullException(nameof(dimension));
             Position = position;
