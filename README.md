@@ -1,11 +1,11 @@
 # ![](icon.png) MCServerSharp
 Minecraft server implementation in C# and NET5, not affiliated with Mojang.  
 
-This is currently just a passion project and the points below are more of a vision for the future.
+This is currently just a passion project.
 
 <br>
 
-# Vision
+# Overview
 
 #### 🧩🌎 Extendable and Cross-platform
 Component-based plugins will play a big role in implementing game logic and extensibility.
@@ -23,7 +23,7 @@ The purpose of this project is to innovate where the vanilla server is lacking, 
 
 # Features
 The server will be a shell for plugins.
-This many systems like chunks, blocks, entities, items, and many more.  
+This includes systems like chunks, blocks, entities, items, and many more.  
 Vanilla will then be implemented as a plugin.
 
 Roadmap to be announced
