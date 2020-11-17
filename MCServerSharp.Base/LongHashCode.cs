@@ -2,12 +2,16 @@
 
 using System;
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using MCServerSharp.Collections;
 
 namespace MCServerSharp
 {
+    [SuppressMessage("Design", "CA1066:Implement IEquatable when overriding Object.Equals", Justification = "<Pending>")]
+    [SuppressMessage("Usage", "CA2231:Overload operator equals on overriding value type Equals", Justification = "<Pending>")]
+    [SuppressMessage("Performance", "CA1815:Override equals and operator equals on value types", Justification = "<Pending>")]
     public struct LongHashCode
     {
         private static ulong Seed { get; } = MarvinHash64.GenerateSeed();

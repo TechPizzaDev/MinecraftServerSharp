@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Buffers.Binary;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace MCServerSharp.Data.IO
@@ -20,7 +21,7 @@ namespace MCServerSharp.Data.IO
                 writer.Write(MemoryMarshal.AsBytes(source));
             }
 
-            // TODO: skiplocalsinit
+            [SkipLocalsInit]
             static void WriteReverse(NetBinaryWriter writer, ReadOnlySpan<int> source)
             {
                 Span<int> buffer = stackalloc int[Math.Min(source.Length, 2048 / sizeof(int))];
@@ -63,7 +64,7 @@ namespace MCServerSharp.Data.IO
                 writer.Write(MemoryMarshal.AsBytes(source));
             }
 
-            // TODO: skiplocalsinit
+            [SkipLocalsInit]
             static void WriteReverse(NetBinaryWriter writer, ReadOnlySpan<uint> source)
             {
                 Span<uint> buffer = stackalloc uint[Math.Min(source.Length, 2048 / sizeof(uint))];
@@ -106,7 +107,7 @@ namespace MCServerSharp.Data.IO
                 writer.Write(MemoryMarshal.AsBytes(source));
             }
 
-            // TODO: skiplocalsinit
+            [SkipLocalsInit]
             static void WriteReverse(NetBinaryWriter writer, ReadOnlySpan<ulong> source)
             {
                 Span<ulong> buffer = stackalloc ulong[Math.Min(source.Length, 2048 / sizeof(ulong))];
@@ -149,7 +150,7 @@ namespace MCServerSharp.Data.IO
                 writer.Write(MemoryMarshal.AsBytes(source));
             }
 
-            // TODO: skiplocalsinit
+            [SkipLocalsInit]
             static void WriteReverse(NetBinaryWriter writer, ReadOnlySpan<long> source)
             {
                 Span<long> buffer = stackalloc long[Math.Min(source.Length, 2048 / sizeof(ulong))];
@@ -184,16 +185,16 @@ namespace MCServerSharp.Data.IO
             }
         }
 
-        // TODO: skiplocalsinit
+        [SkipLocalsInit]
         public static void WriteVar(this NetBinaryWriter writer, ReadOnlySpan<int> values)
         {
-            Span<byte> buffer = stackalloc byte[1024];
+            Span<byte> buffer = stackalloc byte[2048];
             Span<byte> span = buffer;
 
             for (int i = 0; i < values.Length; i++)
             {
                 int written = new VarInt(values[i]).Encode(span);
-                span = span.Slice(written);
+                span = span[written..];
 
                 if (span.Length < VarInt.MaxEncodedSize)
                 {
@@ -205,16 +206,16 @@ namespace MCServerSharp.Data.IO
             writer.Write(buffer.Slice(0, buffer.Length - span.Length));
         }
 
-        // TODO: skiplocalsinit
+        [SkipLocalsInit]
         public static void WriteVar(this NetBinaryWriter writer, ReadOnlySpan<long> values)
         {
-            Span<byte> buffer = stackalloc byte[1024];
+            Span<byte> buffer = stackalloc byte[2048];
             Span<byte> span = buffer;
 
             for (int i = 0; i < values.Length; i++)
             {
                 int written = new VarLong(values[i]).Encode(span);
-                span = span.Slice(written);
+                span = span[written..];
 
                 if (span.Length < VarLong.MaxEncodedSize)
                 {

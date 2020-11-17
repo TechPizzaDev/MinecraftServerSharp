@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers.Binary;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Text;
 
 namespace MCServerSharp.Data.IO
@@ -44,6 +45,7 @@ namespace MCServerSharp.Data.IO
             BaseStream.WriteByte(value);
         }
 
+        [SkipLocalsInit]
         public void Write(short value)
         {
             Span<byte> tmp = stackalloc byte[sizeof(short)];
@@ -54,6 +56,7 @@ namespace MCServerSharp.Data.IO
             Write(tmp);
         }
 
+        [SkipLocalsInit]
         public void Write(ushort value)
         {
             Span<byte> tmp = stackalloc byte[sizeof(ushort)];
@@ -64,6 +67,7 @@ namespace MCServerSharp.Data.IO
             Write(tmp);
         }
 
+        [SkipLocalsInit]
         public void Write(int value)
         {
             Span<byte> tmp = stackalloc byte[sizeof(int)];
@@ -74,6 +78,7 @@ namespace MCServerSharp.Data.IO
             Write(tmp);
         }
 
+        [SkipLocalsInit]
         public void Write(long value)
         {
             Span<byte> tmp = stackalloc byte[sizeof(long)];
@@ -90,6 +95,7 @@ namespace MCServerSharp.Data.IO
 
         // TODO: make into extensions
 
+        [SkipLocalsInit]
         public void Write(VarInt value)
         {
             Span<byte> tmp = stackalloc byte[VarInt.MaxEncodedSize];
@@ -102,6 +108,7 @@ namespace MCServerSharp.Data.IO
             Write((VarInt)value);
         }
 
+        [SkipLocalsInit]
         public void Write(VarLong value)
         {
             Span<byte> tmp = stackalloc byte[VarLong.MaxEncodedSize];
@@ -148,6 +155,7 @@ namespace MCServerSharp.Data.IO
             WriteString(value?.ToString(), StringHelper.Utf8, false);
         }
 
+        [SkipLocalsInit]
         private void WriteString(string? value, Encoding encoding, bool includeLength)
         {
             value ??= string.Empty;

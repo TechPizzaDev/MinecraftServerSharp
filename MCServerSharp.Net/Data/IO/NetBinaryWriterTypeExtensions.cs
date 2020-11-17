@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Buffers.Binary;
+using System.Runtime.CompilerServices;
 
 namespace MCServerSharp.Data.IO
 {
@@ -25,19 +26,20 @@ namespace MCServerSharp.Data.IO
             writer.Write((Utf8String)identifier.Value);
         }
 
+        [SkipLocalsInit]
         public static void Write(this NetBinaryWriter writer, UUID uuid)
         {
             Span<byte> buffer = stackalloc byte[sizeof(ulong) * 2];
             if (writer.Options.IsBigEndian)
             {
                 BinaryPrimitives.WriteUInt64BigEndian(buffer, uuid.X);
-                BinaryPrimitives.WriteUInt64BigEndian(buffer.Slice(sizeof(ulong)), uuid.Y);
+                BinaryPrimitives.WriteUInt64BigEndian(buffer[sizeof(ulong)..], uuid.Y);
             }
             else
             {
                 throw new NotImplementedException();
                 BinaryPrimitives.WriteUInt64LittleEndian(buffer, uuid.X);
-                BinaryPrimitives.WriteUInt64LittleEndian(buffer.Slice(sizeof(ulong)), uuid.Y);
+                BinaryPrimitives.WriteUInt64LittleEndian(buffer[sizeof(ulong)..], uuid.Y);
             }
             writer.Write(buffer);
         }

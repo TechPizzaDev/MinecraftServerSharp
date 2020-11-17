@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.InteropServices;
 
 namespace MCServerSharp.Components
 {
@@ -78,7 +79,7 @@ namespace MCServerSharp.Components
 
             var component = factory.Invoke();
             if (component == null)
-                throw new InvalidOperationException("The factory return null.");
+                throw new InvalidOperationException("The factory returned null.");
 
             return Add(component);
         }
@@ -99,7 +100,7 @@ namespace MCServerSharp.Components
 
             var component = factory.Invoke(state);
             if (component == null)
-                throw new InvalidOperationException("The factory return null.");
+                throw new InvalidOperationException("The factory returned null.");
 
             return Add(component);
         }
@@ -141,24 +142,20 @@ namespace MCServerSharp.Components
 
         public void Tick()
         {
-            //var tickables = GetTickableSpan();
-            //for (int i = 0; i < tickables.Length; i++)
-            //    tickables[i].Tick();
-
-            for (int i = 0; i < _tickables.Count; i++)
-                _tickables[i].Tick();
+            var tickables = GetTickableSpan();
+            for (int i = 0; i < tickables.Length; i++)
+                tickables[i].Tick();
         }
 
-        // TODO: NET5
-        //public ReadOnlySpan<Component> GetComponentSpan()
-        //{
-        //    return CollectionsMarshal.AsSpan(_components);
-        //}
+        public ReadOnlySpan<Component> GetComponentSpan()
+        {
+            return CollectionsMarshal.AsSpan(_components);
+        }
 
-        //public ReadOnlySpan<ITickable> GetTickableSpan()
-        //{
-        //    return CollectionsMarshal.AsSpan(_tickables);
-        //}
+        public ReadOnlySpan<ITickable> GetTickableSpan()
+        {
+            return CollectionsMarshal.AsSpan(_tickables);
+        }
 
         public List<Component>.Enumerator GetEnumerator()
         {

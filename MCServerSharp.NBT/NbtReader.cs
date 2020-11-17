@@ -196,13 +196,13 @@ namespace MCServerSharp.NBT
 
             // TODO: check if last tag was fully read
 
-            var slice = _data.Slice(_consumed);
+            var slice = _data[_consumed..];
             int read = 0;
 
             PeekStack:
             bool inList = false;
             ref ContainerFrame frame = ref _state._containerInfoStack.TryPeek();
-            if (!UnsafeR.IsNullRef(ref frame))
+            if (!Unsafe.IsNullRef(ref frame))
             {
                 if (frame.ListEntriesRemaining == 0)
                 {
@@ -233,7 +233,7 @@ namespace MCServerSharp.NBT
                 {
                     TagFlags |= NbtFlags.Named;
 
-                    int nameLength = ReadStringLength(slice.Slice(read), Options, out int nameLengthBytes);
+                    int nameLength = ReadStringLength(slice[read..], Options, out int nameLengthBytes);
                     read += nameLengthBytes;
 
                     NameSpan = slice.Slice(read, nameLength);
@@ -263,7 +263,7 @@ namespace MCServerSharp.NBT
                     var listType = (NbtType)slice[read];
 
                     TagCollectionLength = ReadListLength(
-                        slice.Slice(sizeof(byte) + read), Options, out int listLengthBytes);
+                        slice[(sizeof(byte) + read)..], Options, out int listLengthBytes);
 
                     if (TagCollectionLength <= 0 && listType != NbtType.End)
                     {
@@ -285,7 +285,7 @@ namespace MCServerSharp.NBT
 
                 case NbtType.ByteArray:
                 {
-                    TagCollectionLength = ReadArrayLength(slice.Slice(read), Options, out int arrayLengthBytes);
+                    TagCollectionLength = ReadArrayLength(slice[read..], Options, out int arrayLengthBytes);
                     read += arrayLengthBytes;
 
                     ValueSpan = slice.Slice(read, TagCollectionLength * sizeof(sbyte));
@@ -294,7 +294,7 @@ namespace MCServerSharp.NBT
 
                 case NbtType.IntArray:
                 {
-                    TagCollectionLength = ReadArrayLength(slice.Slice(read), Options, out int arrayLengthBytes);
+                    TagCollectionLength = ReadArrayLength(slice[read..], Options, out int arrayLengthBytes);
                     read += arrayLengthBytes;
 
                     ValueSpan = slice.Slice(read, TagCollectionLength * sizeof(int));
@@ -303,7 +303,7 @@ namespace MCServerSharp.NBT
 
                 case NbtType.LongArray:
                 {
-                    TagCollectionLength = ReadArrayLength(slice.Slice(read), Options, out int arrayLengthBytes);
+                    TagCollectionLength = ReadArrayLength(slice[read..], Options, out int arrayLengthBytes);
                     read += arrayLengthBytes;
 
                     ValueSpan = slice.Slice(read, TagCollectionLength * sizeof(long));
@@ -311,7 +311,7 @@ namespace MCServerSharp.NBT
                 }
 
                 case NbtType.String:
-                    TagCollectionLength = ReadStringLength(slice.Slice(read), Options, out int stringLengthBytes);
+                    TagCollectionLength = ReadStringLength(slice[read..], Options, out int stringLengthBytes);
                     read += stringLengthBytes;
 
                     ValueSpan = slice.Slice(read, TagCollectionLength);
@@ -461,13 +461,13 @@ namespace MCServerSharp.NBT
             ReadOnlyMemory<byte> source, NbtOptions options)
         {
             int nameLength = ReadStringLength(source.Span, options, out int lengthBytes);
-            return source.Slice(lengthBytes + nameLength);
+            return source[(lengthBytes + nameLength)..];
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static ReadOnlyMemory<byte> SkipTagType(ReadOnlyMemory<byte> source)
         {
-            return source.Slice(sizeof(byte));
+            return source[sizeof(byte)..];
         }
 
         public static int ReadStringLength(

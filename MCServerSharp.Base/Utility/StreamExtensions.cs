@@ -1,10 +1,9 @@
 ﻿using System;
 using System.IO;
+using System.Runtime.CompilerServices;
 
 namespace MCServerSharp.Utility
 {
-    // TODO: skiplocalsinit on methods
-
     public static class StreamExtensions
     {
         /// <summary>
@@ -37,11 +36,11 @@ namespace MCServerSharp.Utility
                     var previousBlock = stream.GetBlock(previous);
 
                     var bytesToMoveBack = currentBlock.Slice(0, helper.Offset);
-                    var backDst = previousBlock.Slice(previousBlock.Length - helper.Offset);
+                    var backDst = previousBlock[^helper.Offset..];
                     bytesToMoveBack.CopyTo(backDst);
                 }
 
-                var bytesToShift = currentBlock.Slice(helper.Offset);
+                var bytesToShift = currentBlock[helper.Offset..];
                 bytesToShift.Span.CopyTo(currentBlock.Span);
             }
 
@@ -52,6 +51,7 @@ namespace MCServerSharp.Utility
         /// Reads the bytes from the current stream and writes them to another stream
         /// using a stack-allocated buffer.
         /// </summary>
+        [SkipLocalsInit]
         public static long SpanCopyTo(this Stream source, Stream destination)
         {
             if (source == null)
@@ -74,6 +74,7 @@ namespace MCServerSharp.Utility
         /// Reads the bytes from the current stream and writes them to another stream
         /// using a stack-allocated buffer and reporting every write.
         /// </summary>
+        [SkipLocalsInit]
         public static long SpanCopyTo(
             this Stream source, Stream destination, Action<int>? onWrite)
         {
@@ -101,6 +102,7 @@ namespace MCServerSharp.Utility
         /// Reads the bytes from the current stream and writes them to another stream
         /// using a stack-allocated buffer.
         /// </summary>
+        [SkipLocalsInit]
         public static long SpanWriteTo(this Stream source, Stream destination, long maxWrite)
         {
             if (source == null)
@@ -126,6 +128,7 @@ namespace MCServerSharp.Utility
         /// Reads the bytes from the current stream and writes them to another stream
         /// using a stack-allocated buffer and reporting every write.
         /// </summary>
+        [SkipLocalsInit]
         public static long SpanWriteTo(
             this Stream source, Stream destination, long maxWrite, Action<int>? onWrite)
         {

@@ -6,7 +6,7 @@ using System.Diagnostics;
 namespace MCServerSharp.Collections
 {
     [DebuggerDisplay("Count = {Count}")]
-    public class ReadOnlySet<T> : IReadOnlySet<T>, ISet<T>
+    public class ReadOnlySet<T> : IReadOnlySet<T>
     {
         private static ReadOnlySet<T>? _empty;
 
@@ -22,21 +22,9 @@ namespace MCServerSharp.Collections
             }
         }
 
-        private readonly ISet<T>? _set;
-        private readonly IReadOnlySet<T>? _roSet;
+        private readonly IReadOnlySet<T> _set;
 
-        public bool IsReadOnly => true;
-
-        public int Count => _set != null ? _set.Count : _roSet!.Count;
-
-        /// <summary>
-        /// Constructs a <see cref="ReadOnlySet{T}"/> that uses an <see cref="ISet{T}"/> as it's backing store.
-        /// </summary>
-        /// <param name="set">The set to wrap.</param>
-        public ReadOnlySet(ISet<T> set)
-        {
-            _set = set ?? throw new ArgumentNullException(nameof(set));
-        }
+        public int Count => _set.Count;
 
         /// <summary>
         /// Constructs a <see cref="ReadOnlySet{T}"/> that uses an <see cref="IReadOnlySet{T}"/> as it's backing store.
@@ -44,7 +32,7 @@ namespace MCServerSharp.Collections
         /// <param name="set">The set to wrap.</param>
         public ReadOnlySet(IReadOnlySet<T> set)
         {
-            _roSet = set ?? throw new ArgumentNullException(nameof(set));
+            _set = set ?? throw new ArgumentNullException(nameof(set));
         }
 
         /// <summary>
@@ -67,102 +55,53 @@ namespace MCServerSharp.Collections
 
         public bool Contains(T item)
         {
-            return _set != null ? _set.Contains(item) : _roSet!.Contains(item);
+            return _set.Contains(item);
         }
 
         public bool IsProperSubsetOf(IEnumerable<T> other)
         {
-            return _set != null ? _set.IsProperSubsetOf(other) : _roSet!.IsProperSubsetOf(other);
+            return _set.IsProperSubsetOf(other);
         }
 
         public bool IsProperSupersetOf(IEnumerable<T> other)
         {
-            return _set != null ? _set.IsProperSupersetOf(other) : _roSet!.IsProperSupersetOf(other);
+            return _set.IsProperSupersetOf(other);
         }
 
         public bool IsSubsetOf(IEnumerable<T> other)
         {
-            return _set != null ? _set.IsSubsetOf(other) : _roSet!.IsSubsetOf(other);
+            return _set.IsSubsetOf(other);
         }
 
         public bool IsSupersetOf(IEnumerable<T> other)
         {
-            return _set != null ? _set.IsSupersetOf(other) : _roSet!.IsSupersetOf(other);
+            return _set.IsSupersetOf(other);
         }
 
         public bool Overlaps(IEnumerable<T> other)
         {
-            return _set != null ? _set.Overlaps(other) : _roSet!.Overlaps(other);
+            return _set.Overlaps(other);
         }
 
         public bool SetEquals(IEnumerable<T> other)
         {
-            return _set != null ? _set.SetEquals(other) : _roSet!.SetEquals(other);
+            return _set.SetEquals(other);
         }
 
         public Enumerator GetEnumerator()
         {
-            return _set != null ? new Enumerator(_set) : new Enumerator(_roSet!);
+            return new Enumerator(_set);
         }
 
         IEnumerator<T> IEnumerable<T>.GetEnumerator()
         {
-            return _set != null ? _set.GetEnumerator() : _roSet!.GetEnumerator();
+            return _set.GetEnumerator();
         }
 
         IEnumerator IEnumerable.GetEnumerator()
         {
-            return _set != null ? _set.GetEnumerator() : _roSet!.GetEnumerator();
+            return _set.GetEnumerator();
         }
-
-        #region ISet<T> (and ICollection<T>)
-
-        bool ISet<T>.Add(T item)
-        {
-            throw new InvalidOperationException();
-        }
-
-        void ISet<T>.ExceptWith(IEnumerable<T> other)
-        {
-            throw new InvalidOperationException();
-        }
-
-        void ISet<T>.IntersectWith(IEnumerable<T> other)
-        {
-            throw new InvalidOperationException();
-        }
-
-        void ISet<T>.SymmetricExceptWith(IEnumerable<T> other)
-        {
-            throw new InvalidOperationException();
-        }
-
-        void ISet<T>.UnionWith(IEnumerable<T> other)
-        {
-            throw new InvalidOperationException();
-        }
-
-        void ICollection<T>.Add(T item)
-        {
-            throw new InvalidOperationException();
-        }
-
-        void ICollection<T>.Clear()
-        {
-            throw new InvalidOperationException();
-        }
-
-        void ICollection<T>.CopyTo(T[] array, int arrayIndex)
-        {
-            throw new InvalidOperationException();
-        }
-
-        bool ICollection<T>.Remove(T item)
-        {
-            throw new InvalidOperationException();
-        }
-
-        #endregion
 
         public struct Enumerator : IEnumerator<T>, IEnumerator, IDisposable
         {

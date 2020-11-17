@@ -29,7 +29,7 @@ namespace MCServerSharp.NBT
                     if (_currentIndex < 0)
                         return default;
 
-                    var slice = _arrayData.Slice(_currentIndex).Span;
+                    var slice = _arrayData[_currentIndex..].Span;
 
                     if (typeof(T) == typeof(int))
                     {

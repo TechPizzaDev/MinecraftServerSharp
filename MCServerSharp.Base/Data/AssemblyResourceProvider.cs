@@ -31,7 +31,7 @@ namespace MCServerSharp.Data
                     int extraCutoff = 
                         name.Length > RootNamespace.Length && name[RootNamespace.Length] == '.' ? 1 : 0;
                     
-                    string subName = name.Substring(RootNamespace.Length + extraCutoff);
+                    string subName = name[(RootNamespace.Length + extraCutoff)..];
                     string resourceName = ManifestNameToResourceName(subName, Path.DirectorySeparatorChar);
                     string altResourceName = ManifestNameToResourceName(subName, Path.AltDirectorySeparatorChar);
 
