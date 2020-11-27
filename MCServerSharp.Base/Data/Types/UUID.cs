@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Buffers.Binary;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using MCServerSharp.Utility;
 
@@ -73,6 +74,7 @@ namespace MCServerSharp
             return (Utf8String)ToString(UUIDRepresentation.HyphenHex, false);
         }
 
+        [SkipLocalsInit]
         public string ToString(UUIDRepresentation representation, bool compact)
         {
             Span<char> tmp = stackalloc char[MaxStringLength];
@@ -82,6 +84,7 @@ namespace MCServerSharp
             return new string(tmp.Slice(0, charsWritten));
         }
 
+        [SkipLocalsInit]
         public Utf8String ToUtf8String(UUIDRepresentation representation, bool compact)
         {
             Span<char> tmp = stackalloc char[MaxStringLength];
@@ -91,6 +94,7 @@ namespace MCServerSharp
             return new Utf8String(tmp.Slice(0, charsWritten));
         }
 
+        [SkipLocalsInit]
         public bool TryFormat(
             Span<char> destination,
             out int charsWritten,
@@ -107,7 +111,7 @@ namespace MCServerSharp
             {
                 static bool WriteInt(int value, Span<char> dst, ref int offset)
                 {
-                    bool result = value.TryFormat(dst.Slice(offset), out int len);
+                    bool result = value.TryFormat(dst[offset..], out int len);
                     offset += len;
                     return result;
                 }
@@ -141,13 +145,13 @@ namespace MCServerSharp
 
             static void CopyTo(Span<char> src, Span<char> dst, ref int offset)
             {
-                src.CopyTo(dst.Slice(offset));
+                src.CopyTo(dst[offset..]);
                 offset += src.Length;
             }
 
             Span<byte> data = stackalloc byte[sizeof(ulong) * 2];
             BinaryPrimitives.WriteUInt64LittleEndian(data, X);
-            BinaryPrimitives.WriteUInt64LittleEndian(data.Slice(sizeof(ulong)), Y);
+            BinaryPrimitives.WriteUInt64LittleEndian(data[sizeof(ulong)..], Y);
 
             Span<char> p = stackalloc char[MaxHexStringLength];
             HexUtility.ToHexString(data, p);
@@ -186,9 +190,7 @@ namespace MCServerSharp
 
                 case UUIDRepresentation.Hex:
                     if (compact)
-                    {
                         TrimStart(ref p1);
-                    }
 
                     charsWritten = 0;
                     if (destination.Length < p1.Length + p2.Length + p3.Length + p4.Length + p5.Length)

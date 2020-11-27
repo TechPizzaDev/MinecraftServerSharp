@@ -817,7 +817,7 @@ namespace MCServerSharp.Collections
                 if (entry.Next >= -1)
                 {
                     destination[0] = entry.Value;
-                    destination = destination.Slice(1);
+                    destination = destination[1..];
                 }
             }
         }
@@ -1006,7 +1006,7 @@ namespace MCServerSharp.Collections
             long hashCode;
 
             uint collisionCount = 0;
-            ref int bucket = ref UnsafeR.NullRef<int>();
+            ref int bucket = ref Unsafe.NullRef<int>();
 
             if (comparer == null)
             {

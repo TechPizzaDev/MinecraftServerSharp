@@ -2,6 +2,7 @@
 using System.Buffers;
 using System.Buffers.Binary;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace MCServerSharp.Data.IO
@@ -20,6 +21,7 @@ namespace MCServerSharp.Data.IO
             return result;
         }
 
+        [SkipLocalsInit]
         public static OperationStatus WriteTo(this NetBinaryReader reader, Stream output, int count)
         {
             if (output == null)
@@ -53,6 +55,7 @@ namespace MCServerSharp.Data.IO
                 return reader.Read(MemoryMarshal.AsBytes(destination));
             }
 
+            [SkipLocalsInit]
             static OperationStatus ReadReverse(NetBinaryReader reader, Span<int> destination)
             {
                 Span<int> buffer = stackalloc int[Math.Min(destination.Length, 2048 / sizeof(int))];
@@ -92,6 +95,7 @@ namespace MCServerSharp.Data.IO
             }
         }
 
+        [SkipLocalsInit]
         public static int TryReadBytes(this NetBinaryReader reader, int count, Stream output)
         {
             if (output == null)

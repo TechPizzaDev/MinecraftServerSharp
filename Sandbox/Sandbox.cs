@@ -41,13 +41,13 @@ namespace Sandbox
                     throw new Exception();
 
                 hasher.AppendData(buffer.Slice(0, written));
-                src = src.Slice(read);
+                src = src[read..];
             }
 
             if (!hasher.TryGetHashAndReset(buffer, out int hashWritten))
                 throw new Exception();
 
-            Span<byte> remainingBuffer = buffer.Slice(hashWritten);
+            Span<byte> remainingBuffer = buffer[hashWritten..];
             int charCount = HexUtility.GetHexCharCount(hashWritten);
             Span<char> hexBuffer = MemoryMarshal.Cast<byte, char>(remainingBuffer).Slice(0, charCount + 1);
             hexBuffer[0] = '0'; // reserve one char for minus sign
@@ -62,7 +62,7 @@ namespace Sandbox
                 hash[^1] ^= 0xfe;
             }
 
-            HexUtility.ToHexString(hash, hexBuffer.Slice(1));
+            HexUtility.ToHexString(hash, hexBuffer[1..]);
 
             int zeroCount = 0;
             while (zeroCount < hexBuffer.Length && hexBuffer[zeroCount] == '0')
@@ -70,12 +70,12 @@ namespace Sandbox
 
             if (signBit == 1)
             {
-                hexBuffer = hexBuffer.Slice(zeroCount - 1);
+                hexBuffer = hexBuffer[(zeroCount - 1)..];
                 hexBuffer[0] = '-';
             }
             else
             {
-                hexBuffer = hexBuffer.Slice(zeroCount);
+                hexBuffer = hexBuffer[zeroCount..];
             }
 
             string hex = "";

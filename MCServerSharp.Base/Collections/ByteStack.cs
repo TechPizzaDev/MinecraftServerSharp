@@ -97,7 +97,7 @@ namespace MCServerSharp.Collections
         public ref T TryPeek()
         {
             if (TopOfStack > _rentedBuffer.Length - Unsafe.SizeOf<T>())
-                return ref UnsafeR.NullRef<T>();
+                return ref Unsafe.NullRef<T>();
 
             return ref MemoryMarshal.AsRef<T>(_rentedBuffer.AsSpan(TopOfStack));
         }

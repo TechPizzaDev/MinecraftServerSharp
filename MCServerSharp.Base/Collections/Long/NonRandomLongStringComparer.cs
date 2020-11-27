@@ -35,11 +35,11 @@ namespace MCServerSharp.Collections
             {
                 hash1 = (BitOperations.RotateLeft(hash1, 5) + hash1) ^ ints[0];
                 hash2 = (BitOperations.RotateLeft(hash2, 5) + hash2) ^ ints[1];
-                ints = ints.Slice(2); // Slice away four chars.
+                ints = ints[2..]; // Slice away four chars.
             }
 
             // Slice away the consumed chars.
-            span = span.Slice((intCount - ints.Length) * 2);
+            span = span[((intCount - ints.Length) * 2)..];
 
             // Process zero or one remaining chars.
             for (int i = 0; i < span.Length; i++)

@@ -48,7 +48,7 @@ namespace MCServerSharp.Collections
             get
             {
                 ref TValue value = ref FindValue(key);
-                if (!UnsafeR.IsNullRef(ref value))
+                if (!Unsafe.IsNullRef(ref value))
                     return value;
                 throw new KeyNotFoundException();
             }
@@ -164,7 +164,7 @@ namespace MCServerSharp.Collections
         {
             ref TValue value = ref FindValue(keyValuePair.Key);
 
-            if (!UnsafeR.IsNullRef(ref value) &&
+            if (!Unsafe.IsNullRef(ref value) &&
                 LongEqualityComparer<TValue>.Default.Equals(value, keyValuePair.Value))
                 return true;
 
@@ -175,7 +175,7 @@ namespace MCServerSharp.Collections
         {
             ref TValue value = ref FindValue(keyValuePair.Key);
 
-            if (!UnsafeR.IsNullRef(ref value) &&
+            if (!Unsafe.IsNullRef(ref value) &&
                 LongEqualityComparer<TValue>.Default.Equals(value, keyValuePair.Value))
             {
                 Remove(keyValuePair.Key);
@@ -203,7 +203,7 @@ namespace MCServerSharp.Collections
 
         public bool ContainsKey(TKey key)
         {
-            return !UnsafeR.IsNullRef(ref FindValue(key));
+            return !Unsafe.IsNullRef(ref FindValue(key));
         }
 
         public bool ContainsValue(TValue value)
@@ -283,7 +283,7 @@ namespace MCServerSharp.Collections
             if (key == null)
                 throw new ArgumentNullException(nameof(key));
 
-            ref Entry entry = ref UnsafeR.NullRef<Entry>();
+            ref Entry entry = ref Unsafe.NullRef<Entry>();
             if (_buckets != null)
             {
                 Entry[]? entries = _entries;
@@ -388,7 +388,7 @@ namespace MCServerSharp.Collections
             Return:
             return ref value;
             ReturnNotFound:
-            value = ref UnsafeR.NullRef<TValue>();
+            value = ref Unsafe.NullRef<TValue>();
             goto Return;
         }
 
@@ -761,7 +761,7 @@ namespace MCServerSharp.Collections
         public bool TryGetValue(TKey key, [MaybeNullWhen(false)] out TValue value)
         {
             ref TValue valRef = ref FindValue(key);
-            if (!UnsafeR.IsNullRef(ref valRef))
+            if (!Unsafe.IsNullRef(ref valRef))
             {
                 value = valRef;
                 return true;

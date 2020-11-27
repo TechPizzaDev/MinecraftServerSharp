@@ -2,6 +2,7 @@
 using System.Buffers;
 using System.Buffers.Binary;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace MCServerSharp.Data.IO
@@ -65,7 +66,7 @@ namespace MCServerSharp.Data.IO
 
             int read;
             while ((read = ReadBytes(buffer)) > 0)
-                buffer = buffer.Slice(read);
+                buffer = buffer[read..];
 
             if (!buffer.IsEmpty)
                 // this should not happen if everything else works correctly
@@ -74,6 +75,7 @@ namespace MCServerSharp.Data.IO
             return OperationStatus.Done;
         }
 
+        [SkipLocalsInit]
         public OperationStatus Read(out bool value)
         {
             Span<byte> buffer = stackalloc byte[sizeof(bool)];
@@ -87,6 +89,7 @@ namespace MCServerSharp.Data.IO
             return OperationStatus.Done;
         }
 
+        [SkipLocalsInit]
         public OperationStatus Read(out sbyte value)
         {
             Span<byte> buffer = stackalloc byte[sizeof(sbyte)];
@@ -100,6 +103,7 @@ namespace MCServerSharp.Data.IO
             return OperationStatus.Done;
         }
 
+        [SkipLocalsInit]
         public OperationStatus Read(out byte value)
         {
             Span<byte> buffer = stackalloc byte[sizeof(byte)];
@@ -113,6 +117,7 @@ namespace MCServerSharp.Data.IO
             return OperationStatus.Done;
         }
 
+        [SkipLocalsInit]
         public OperationStatus Read(out short value)
         {
             Span<byte> buffer = stackalloc byte[sizeof(short)];
@@ -129,6 +134,7 @@ namespace MCServerSharp.Data.IO
             return OperationStatus.Done;
         }
 
+        [SkipLocalsInit]
         public OperationStatus Read(out ushort value)
         {
             Span<byte> buffer = stackalloc byte[sizeof(ushort)];
@@ -145,6 +151,7 @@ namespace MCServerSharp.Data.IO
             return OperationStatus.Done;
         }
 
+        [SkipLocalsInit]
         public OperationStatus Read(out int value)
         {
             Span<byte> buffer = stackalloc byte[sizeof(int)];
@@ -161,6 +168,7 @@ namespace MCServerSharp.Data.IO
             return OperationStatus.Done;
         }
 
+        [SkipLocalsInit]
         public OperationStatus Read(out long value)
         {
             Span<byte> buffer = stackalloc byte[sizeof(long)];
@@ -177,6 +185,7 @@ namespace MCServerSharp.Data.IO
             return OperationStatus.Done;
         }
 
+        [SkipLocalsInit]
         public OperationStatus Read(out float value)
         {
             var status = Read(out int intValue);
@@ -189,6 +198,7 @@ namespace MCServerSharp.Data.IO
             return OperationStatus.Done;
         }
 
+        [SkipLocalsInit]
         public OperationStatus Read(out double value)
         {
             var status = Read(out long intValue);
@@ -265,6 +275,7 @@ namespace MCServerSharp.Data.IO
                 if ((state.Code = state.Reader.Read(outputBytes)) != OperationStatus.Done)
                     return;
 
+                // Decode in place to validate the data.
                 StringHelper.BigUtf16.GetChars(outputBytes, output);
             });
             return code;

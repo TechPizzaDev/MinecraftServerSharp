@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Unicode;
@@ -83,6 +84,7 @@ namespace MCServerSharp.NBT
             return _parent.GetContainerElement(_index, index);
         }
 
+        [SkipLocalsInit]
         public NbtElement GetCompoundElement(
             ReadOnlySpan<byte> utf8Name, StringComparison comparison = StringComparison.OrdinalIgnoreCase)
         {
@@ -118,6 +120,7 @@ namespace MCServerSharp.NBT
             }
         }
 
+        [SkipLocalsInit]
         public NbtElement GetCompoundElement(
             ReadOnlySpan<char> name, StringComparison comparison = StringComparison.OrdinalIgnoreCase)
         {
@@ -143,8 +146,8 @@ namespace MCServerSharp.NBT
                     if (!query.Slice(0, written).Equals(elementNameBuffer.Slice(0, written), comparison))
                         break;
 
-                    query = query.Slice(written);
-                    elementName = elementName.Slice(read);
+                    query = query[written..];
+                    elementName = elementName[read..];
                 }
                 while (elementName.Length > 0);
 

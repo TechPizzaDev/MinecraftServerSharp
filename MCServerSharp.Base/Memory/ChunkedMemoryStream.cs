@@ -655,7 +655,7 @@ namespace MCServerSharp.Utility
                     source.Slice(0, amountToWriteInBlock)
                         .CopyTo(currentBlock.AsSpan(blockOffset.Offset));
 
-                    source = source.Slice(amountToWriteInBlock);
+                    source = source[amountToWriteInBlock..];
 
                     blockOffset.Block++;
                     blockOffset.Offset = 0;
@@ -860,7 +860,7 @@ namespace MCServerSharp.Utility
                         bytesRemaining);
 
                     _blocks[blockOffset.Block].AsSpan(blockOffset.Offset, amountToCopy)
-                        .CopyTo(buffer.Slice(bytesWritten));
+                        .CopyTo(buffer[bytesWritten..]);
 
                     bytesWritten += amountToCopy;
                     bytesRemaining -= amountToCopy;

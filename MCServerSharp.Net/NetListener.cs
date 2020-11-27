@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Net.Sockets;
 
@@ -8,7 +7,7 @@ namespace MCServerSharp.Net
     /// <summary>
     /// Entry point for network connections.
     /// </summary>
-    public class NetListener
+    public class NetListener : IDisposable
     {
         public const int CloseTimeout = 10000;
 
@@ -21,6 +20,9 @@ namespace MCServerSharp.Net
 
         public event ConnectionEvent? Connection;
         public event ConnectionEvent? Disconnection;
+
+        private SocketAsyncEventArgs _acceptEvent = new SocketAsyncEventArgs();
+        private bool _isDisposed;
 
         public NetOrchestrator Orchestrator { get; }
         public PrimaryConnectionEvent PrimaryConnectionHandler { get; }
@@ -41,19 +43,14 @@ namespace MCServerSharp.Net
             Socket.Bind(localEndPoint);
         }
 
-        [SuppressMessage(
-            "Reliability",
-            "CA2000:Dispose objects before losing scope", 
-            Justification = "Async Sockets")]
         public void Start(int backlog)
         {
-            var acceptEvent = new SocketAsyncEventArgs();
-            acceptEvent.Completed += (s, e) => ProcessAccept(e);
+            _acceptEvent.Completed += (s, e) => ProcessAccept(e);
 
             Socket.Listen(backlog);
             Started?.Invoke(this);
 
-            StartAccept(acceptEvent);
+            StartAccept(_acceptEvent);
         }
 
         public void StartAccept(SocketAsyncEventArgs acceptEvent)
@@ -70,9 +67,13 @@ namespace MCServerSharp.Net
 
         private void ProcessAccept(SocketAsyncEventArgs acceptEvent)
         {
+            var acceptSocket = acceptEvent.AcceptSocket;
+            if (acceptSocket == null)
+                throw new ArgumentException("The event accept socket is null.", nameof(acceptEvent));
+
             var connection = new NetConnection(
                 Orchestrator,
-                acceptEvent.AcceptSocket,
+                acceptSocket,
                 closeAction: CloseClientSocket);
           
             // TODO: Use delay when sending initial data, 
@@ -107,6 +108,30 @@ namespace MCServerSharp.Net
         {
             Socket.Close();
             Stopped?.Invoke(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_isDisposed)
+            {
+                if (disposing)
+                {
+                    _acceptEvent.Dispose();
+                }
+
+                _isDisposed = true;
+            }
+        }
+
+        ~NetListener()
+        {
+            Dispose(disposing: false);
+        }
+
+        public void Dispose()
+        {
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
         }
     }
 }

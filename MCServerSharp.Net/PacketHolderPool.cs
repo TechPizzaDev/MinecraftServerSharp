@@ -29,13 +29,13 @@ namespace MCServerSharp.Net
             NetConnection connection,
             in TPacket packet)
         {
+            // Check for null before renting a holder.
 #pragma warning disable IDE0016 // Use 'throw' expression
             if (writer == null)
                 throw new ArgumentNullException(nameof(writer));
             if (connection == null)
                 throw new ArgumentNullException(nameof(connection));
-#pragma warning restore IDE0016 // Use 'throw' expression
-
+#pragma warning restore IDE0016
             if (packet == null)
                 throw new ArgumentNullException(nameof(packet));
 

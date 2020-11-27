@@ -1,7 +1,7 @@
 ﻿using System;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using MCServerSharp.Collections;
-using MCServerSharp.Utility;
 
 namespace MCServerSharp.NBT
 {
@@ -80,7 +80,7 @@ namespace MCServerSharp.NBT
 
                 PeekStack:
                 ref ContainerFrame frame = ref stack.TryPeek();
-                if (!UnsafeR.IsNullRef(ref frame))
+                if (!Unsafe.IsNullRef(ref frame))
                 {
                     if (frame.ListEntriesRemaining == 0)
                     {

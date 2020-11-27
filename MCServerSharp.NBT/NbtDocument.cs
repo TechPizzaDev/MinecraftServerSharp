@@ -155,7 +155,7 @@ namespace MCServerSharp.NBT
             int start = row.Location;
             int endIndex = GetEndIndex(index, row);
             if (endIndex == _metaDb.ByteLength)
-                return _data.Slice(start);
+                return _data[start..];
 
             int end = _metaDb.GetLocation(endIndex);
             return _data[start..end];
@@ -166,7 +166,7 @@ namespace MCServerSharp.NBT
             if (!row.Flags.HasFlag(NbtFlags.Named))
                 return ReadOnlyMemory<byte>.Empty;
 
-            ReadOnlyMemory<byte> segment = _data.Slice(row.Location);
+            ReadOnlyMemory<byte> segment = _data[row.Location..];
 
             if (row.Flags.HasFlag(NbtFlags.Typed))
                 segment = SkipTagType(segment);
@@ -185,7 +185,7 @@ namespace MCServerSharp.NBT
 
         internal ReadOnlyMemory<byte> GetTagPayload(in DbRow row)
         {
-            ReadOnlyMemory<byte> segment = _data.Slice(row.Location);
+            ReadOnlyMemory<byte> segment = _data[row.Location..];
 
             if (row.Flags.HasFlag(NbtFlags.Typed))
                 segment = SkipTagType(segment);

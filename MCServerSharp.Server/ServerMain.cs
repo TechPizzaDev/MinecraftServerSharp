@@ -201,6 +201,8 @@ namespace MCServerSharp.Runner
             _manager.Listen(backlog);
             Console.WriteLine("Listening for connections...");
 
+            // TODO: one thread per dimension
+
             _ticker = new Ticker(targetTickTime: TimeSpan.FromMilliseconds(50));
             _ticker.Tick += Game_Tick;
             _ticker.Run();
@@ -325,8 +327,12 @@ namespace MCServerSharp.Runner
 
                     static string GetEnumString(JsonElement element)
                     {
+                        string? str = element.GetString();
+                        if (str == null)
+                            throw new ArgumentException("The element value as string is null.");
+                        
                         // TODO: improve by converting to snake_case to PascalCase somewhere..
-                        return element.GetString().Replace("_", "", StringComparison.Ordinal);
+                        return str.Replace("_", "", StringComparison.Ordinal);
                     }
 
                     var blockProps = Array.Empty<IStateProperty>();
