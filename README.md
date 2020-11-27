@@ -5,6 +5,17 @@ This is currently just a passion project.
 
 <br>
 
+![.NET](https://github.com/TechnologicalPizza/MinecraftServerSharp/workflows/.NET/badge.svg)
+
+# Features
+The server will be a shell for plugins.
+This includes systems like chunks, blocks, entities, items, and many more.  
+Vanilla will then be implemented as a plugin.
+
+Roadmap to be announced
+
+<br>
+
 # Overview
 
 #### 🧩🌎 Extendable and Cross-platform
@@ -18,15 +29,6 @@ One thread per dimension is planned.
 
 #### 💡⚒️ Innovative and Expansive
 The purpose of this project is to innovate where the vanilla server is lacking, creating heavily optimized components for various workloads. A robust world save format with backups and distributed hosting is planned. 
-
-<br>
-
-# Features
-The server will be a shell for plugins.
-This includes systems like chunks, blocks, entities, items, and many more.  
-Vanilla will then be implemented as a plugin.
-
-Roadmap to be announced
 
 <br>
 
