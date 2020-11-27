@@ -1,10 +1,9 @@
 ﻿using System;
-using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 
 namespace MCServerSharp.Maths
 {
-    public struct Vector3d : IEquatable<Vector3d>
+    public struct Vector3d : IEquatable<Vector3d>, ILongHashable
     {
         public double X;
         public double Y;
@@ -24,9 +23,7 @@ namespace MCServerSharp.Maths
 
         public readonly bool Equals(Vector3d other)
         {
-            return X == other.X
-                && Y == other.Y
-                && Z == other.Z;
+            return this == other;
         }
 
         public override readonly bool Equals(object? obj)
@@ -39,9 +36,26 @@ namespace MCServerSharp.Maths
             return HashCode.Combine(X, Y, Z);
         }
 
+        public readonly long GetLongHashCode()
+        {
+            return LongHashCode.Combine(X, Y, Z);
+        }
+
         public override readonly string ToString()
         {
             return "<" + X + "  " + Y + "  " + Z + ">";
+        }
+
+        public static bool operator ==(Vector3d a, Vector3d b)
+        {
+            return a.X == b.X
+                && a.Y == b.Y
+                && a.Z == b.Z;
+        }
+
+        public static bool operator !=(Vector3d a, Vector3d b)
+        {
+            return !(a == b);
         }
     }
 }

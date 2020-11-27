@@ -12,9 +12,11 @@ namespace MCServerSharp.Collections
         public T Current { get; private set; }
         object? IEnumerator.Current => Current;
 
-        public ArrayEnumerator(T[] array) : this()
+        public ArrayEnumerator(T[] array)
         {
             _array = array ?? throw new ArgumentNullException(nameof(array));
+            _index = 0;
+            Current = default!;
         }
 
         public bool MoveNext()

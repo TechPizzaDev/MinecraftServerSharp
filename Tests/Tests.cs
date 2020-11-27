@@ -10,7 +10,6 @@ using MCServerSharp.Data.IO;
 using MCServerSharp.IO.Compression;
 using MCServerSharp.NBT;
 using MCServerSharp.Utility;
-using MCServerSharp.World;
 
 namespace Tests
 {
@@ -73,12 +72,13 @@ namespace Tests
             int chunkZ = 0;
 
             var files = Directory.GetFiles($@"..\..\..\..\MCJarServer\1.15.2\world\region");
-            foreach (var file in files)
+            foreach (string file in files)
             {
                 //using var stream = File.OpenRead(
                 //   $@"..\..\..\..\MCJarServer\1.15.2\world\region\r.{chunkX}.{chunkZ}.mca");
-                using var stream = File.OpenRead(file);
 
+                using var stream = File.OpenRead(file);
+                
                 int regionX = chunkX / 32;
                 int regionZ = chunkZ / 32;
 
@@ -87,14 +87,14 @@ namespace Tests
                 var locations = new ChunkLocation[1024];
                 var locationsStatus = reader.Read(MemoryMarshal.AsBytes(locations.AsSpan()));
 
+                var timestamps = new int[1024];
+                var timestampsStatus = reader.Read(timestamps);
+
                 var locationIndices = new int[1024];
                 for (int i = 0; i < locationIndices.Length; i++)
                     locationIndices[i] = i;
 
                 Array.Sort(locations, locationIndices);
-
-                var timestamps = new int[1024];
-                var timestampsStatus = reader.Read(timestamps);
 
                 // Find the first valid chunk location.
                 int firstValidLocation = 0;
@@ -117,22 +117,31 @@ namespace Tests
                 {
                     int locationIndex = firstValidLocation + i;
                     var location = locations[locationIndex];
-                    int chunkIndex = locationIndices[locationIndex];
+
+                    // Some files have empty sectors between chunks so check if skip is needed.
+                    long sectorPosition = location.SectorOffset * 4096;
+                    if (reader.Position != sectorPosition) // this should always be a multiple of 4096
+                    {
+                        long toSkip = sectorPosition - reader.Position;
+                        if (toSkip < 0) // locations are ordered by offset so this should never throw
+                            throw new InvalidDataException();
+                        reader.Seek(toSkip, SeekOrigin.Current);
+                    }
 
                     var lengthStatus = reader.Read(out int actualDataLength);
                     if (lengthStatus != OperationStatus.Done)
-                        continue;
+                        throw new EndOfStreamException();
 
                     var compressionTypeStatus = reader.Read(out byte compressionType);
                     if (compressionTypeStatus != OperationStatus.Done)
-                        continue;
+                        throw new EndOfStreamException();
 
                     int remainingByteCount = location.SectorCount * 4096 - sizeof(int) - sizeof(byte);
 
                     compressedData.Position = 0;
                     var compressedDataStatus = reader.WriteTo(compressedData, remainingByteCount);
                     if (compressedDataStatus != OperationStatus.Done)
-                        continue;
+                        throw new EndOfStreamException();
 
                     compressedData.SetLength(actualDataLength - 1);
                     compressedData.Position = 0;
@@ -150,8 +159,10 @@ namespace Tests
                     dataStream.SpanCopyTo(decompressedData);
 
                     var chunkData = decompressedData.GetBuffer().AsMemory(0, (int)decompressedData.Length);
+
+                    int chunkIndex = locationIndices[locationIndex];
                     var chunkDocument = NbtDocument.Parse(chunkData, out int bytesConsumed, NbtOptions.JavaDefault);
-                    chunkList[i] = (i, chunkDocument);
+                    chunkList[i] = (chunkIndex, chunkDocument);
 
                     var rootCompound = chunkDocument.RootTag;
                     var rootClone = rootCompound.Clone();

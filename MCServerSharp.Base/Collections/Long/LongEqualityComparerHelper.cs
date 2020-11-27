@@ -1,9 +1,14 @@
 ﻿using System;
+using System.Diagnostics.CodeAnalysis;
 
 namespace MCServerSharp.Collections
 {
     internal static class LongEqualityComparerHelper
     {
+        [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(LongNullableComparer<>))]
+        [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(LongEnumComparer<>))]
+        [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(LongHashableComparer<>))]
+        [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(LongGenericComparer<>))]
         public static object CreateComparer(Type type, bool randomized)
         {
             if (type.IsGenericTypeDefinition &&
