@@ -36,9 +36,11 @@ The purpose of this project is to innovate where the vanilla server is lacking, 
 ## Source
 1. Clone the source: `git clone https://github.com/TechnologicalPizza/MinecraftServerSharp`  
     - Feel free to fork the project or contribute
-1. Set up submodules: `git submodule update --init`  
-1. Open the solution (latest Visual Studio 2019 with '.NET desktop development' should "just work")  
+2. Set up submodules: `git submodule update --init`
+3. Open the solution 
+    - .NET 5 SDK is required to build the project
 
+Latest Visual Studio 2019 with '.NET desktop development' should work out of the box.
 <br>
 
 ## Scrapped
