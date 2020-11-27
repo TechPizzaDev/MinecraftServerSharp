@@ -33,8 +33,9 @@ Roadmap to be announced
 # Source
 1. Clone the source: `git clone https://github.com/TechnologicalPizza/MinecraftServerSharp`  
     - Feel free to fork the project or contribute
-1. Set up submodules: `git submodule update --init`  
-1. Open the solution (latest Visual Studio 2019 with '.NET desktop development' should "just work")  
+2. Set up submodules: `git submodule update --init`
+2. Install .NET Core 3.1
+3. Open the solution (latest Visual Studio 2019 with '.NET desktop development' should "just work")  
 
 <br>
 
