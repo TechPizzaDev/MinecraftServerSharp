@@ -8,7 +8,11 @@ namespace MCServerSharp.Blocks
         private StatePropertyValue[] _properties;
 
         public BlockDescription Block { get; }
-        public uint Id { get; }
+        public uint StateId { get; }
+
+        public BlockState DefaultState => Block.DefaultState;
+        public uint BlockId => Block.BlockId;
+        public Identifier BlockIdentifier => Block.Identifier;
 
         public ReadOnlyMemory<StatePropertyValue> Properties => _properties;
 
@@ -16,7 +20,7 @@ namespace MCServerSharp.Blocks
         {
             Block = block ?? throw new ArgumentNullException(nameof(block));
             _properties = properties ?? throw new ArgumentNullException(nameof(properties));
-            Id = id;
+            StateId = id;
         }
 
         public override string ToString()

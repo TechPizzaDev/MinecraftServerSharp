@@ -5,6 +5,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Reflection.Metadata;
 using System.Runtime.InteropServices;
+using System.Threading;
 using MCServerSharp;
 using MCServerSharp.Data.IO;
 using MCServerSharp.IO.Compression;
@@ -20,11 +21,38 @@ namespace Tests
             TestVarInt();
             Console.WriteLine(nameof(TestVarInt) + " passed");
 
+            TestUtf8String();
+            Console.WriteLine(nameof(TestUtf8String) + " passed");
+            return;
+
             TestStreamTrimStart();
             Console.WriteLine(nameof(TestStreamTrimStart) + " passed");
 
             TestNbtRegionFileRead();
             Console.WriteLine(nameof(TestNbtRegionFileRead) + " passed");
+        }
+
+        private static void TestUtf8String()
+        {
+            Utf8String utf8 = "this  is cool  ".ToUtf8String();
+            
+            Console.WriteLine("split:");
+            var split = utf8.EnumerateRangeSplit(" ".ToUtf8String());
+            foreach (Range range in split)
+            {
+                Utf8String sub = utf8.Substring(range);
+                //Console.WriteLine($"\"{sub}\"");
+            }
+
+            Console.WriteLine("remove empty split:");
+            var removesplit = utf8.EnumerateRangeSplit(" ".ToUtf8String(), StringSplitOptions.RemoveEmptyEntries);
+            foreach (Range range in removesplit)
+            {
+                Utf8String sub = utf8.Substring(range);
+                //Console.WriteLine($"\"{sub}\"");
+            }
+
+            Console.WriteLine();
         }
 
         private static void TestStreamTrimStart()
@@ -78,7 +106,7 @@ namespace Tests
                 //   $@"..\..\..\..\MCJarServer\1.15.2\world\region\r.{chunkX}.{chunkZ}.mca");
 
                 using var stream = File.OpenRead(file);
-                
+
                 int regionX = chunkX / 32;
                 int regionZ = chunkZ / 32;
 

@@ -4,10 +4,10 @@ namespace MCServerSharp.Net.Packets
     [PacketStruct(ClientPacketId.SetDisplayedRecipe)]
     public readonly struct ClientSetDisplayedRecipe
     {
-        public Identifier RecipeId { get; }
+        public Utf8Identifier RecipeId { get; }
 
         [PacketConstructor]
-        public ClientSetDisplayedRecipe(Identifier recipeId)
+        public ClientSetDisplayedRecipe(Utf8Identifier recipeId)
         {
             RecipeId = recipeId;
         }

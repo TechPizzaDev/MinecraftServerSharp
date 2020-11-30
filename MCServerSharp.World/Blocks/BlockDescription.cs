@@ -9,7 +9,7 @@ namespace MCServerSharp.Blocks
         private int _defaultStateIndex;
 
         public Identifier Identifier { get; }
-        public uint Id { get; }
+        public uint BlockId { get; }
 
         public int StateCount => _states.Length;
         public BlockState DefaultState => _states[_defaultStateIndex];
@@ -28,7 +28,7 @@ namespace MCServerSharp.Blocks
             _properties = properties ?? throw new ArgumentNullException(nameof(properties));
             _defaultStateIndex = defaultStateIndex;
             Identifier = identifier;
-            Id = id;
+            BlockId = id;
         }
 
         public ReadOnlySpan<BlockState> GetStateSpan()

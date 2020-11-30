@@ -10,9 +10,27 @@ namespace MCServerSharp.Data.IO
         {
             var status = reader.Read(out Utf8String identifierString);
             if (status != OperationStatus.Done)
+            {
+                identifier = default;
                 return status;
+            }
 
-            if (!Identifier.TryParse(identifierString, out identifier))
+            if (!Identifier.TryParse(identifierString.ToString(), out identifier))
+                return OperationStatus.InvalidData;
+
+            return OperationStatus.Done;
+        }
+
+        public static OperationStatus Read(this NetBinaryReader reader, out Utf8Identifier identifier)
+        {
+            var status = reader.Read(out Utf8String identifierString);
+            if (status != OperationStatus.Done)
+            {
+                identifier = default;
+                return status;
+            }
+
+            if (!Utf8Identifier.TryParse(identifierString, out identifier))
                 return OperationStatus.InvalidData;
 
             return OperationStatus.Done;

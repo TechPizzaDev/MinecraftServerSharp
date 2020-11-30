@@ -41,7 +41,7 @@ namespace MCServerSharp.Blocks
             for (uint id = 0; id < _idToBlock.Length; id++)
             {
                 BlockState state = _idToBlock[id];
-                writer.WriteVar(state.Id);
+                writer.WriteVar(state.StateId);
             }
         }
 

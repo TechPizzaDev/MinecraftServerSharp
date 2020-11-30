@@ -62,6 +62,7 @@ namespace MCServerSharp.Net.Packets
             RegisterDataType(typeof(NetBinaryWriter), typeof(Angle));
             RegisterDataType(typeof(NetBinaryWriter), typeof(Position));
             RegisterDataType(typeof(NetBinaryWriter), typeof(Identifier));
+            RegisterDataType(typeof(NetBinaryWriter), typeof(Utf8Identifier));
             RegisterDataType(typeof(NetBinaryWriter), typeof(UUID));
             RegisterDataType(typeof(NetBinaryWriter), typeof(NbTag));
             RegisterDataType(typeof(NetBinaryWriter), typeof(NbtCompound));

@@ -47,19 +47,13 @@ namespace MCServerSharp.Collections
 
         public override int GetHashCode(Utf8String? value)
         {
-            if (value == null)
-                return 0;
-
-            var (h1, h2) = Hash(value.Bytes);
+            var (h1, h2) = Hash(value.AsSpan());
             return (int)(h1 + (h2 * 1566083941));
         }
 
         public override long GetLongHashCode(Utf8String? value)
         {
-            if (value == null)
-                return 0;
-
-            var (h1, h2) = Hash(value.Bytes);
+            var (h1, h2) = Hash(value.AsSpan());
             return (long)((ulong)h2 << 32 | h1);
         }
     }

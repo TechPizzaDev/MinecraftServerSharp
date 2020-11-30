@@ -4,9 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Text;
-using System.Text.Unicode;
 
 namespace MCServerSharp.NBT
 {
@@ -88,39 +86,18 @@ namespace MCServerSharp.NBT
         public NbtElement GetCompoundElement(
             ReadOnlySpan<byte> utf8Name, StringComparison comparison = StringComparison.OrdinalIgnoreCase)
         {
-            // Shortcut for ordinal comparison. 
-            if (comparison == StringComparison.Ordinal)
-            {
-                AssertValidInstance();
-                if (Type != NbtType.Compound)
-                    throw new InvalidOperationException("The tag is not a compound.");
+            AssertValidInstance();
+            if (Type != NbtType.Compound)
+                throw new InvalidOperationException("The tag is not a compound.");
 
-                foreach (var element in EnumerateContainer())
-                {
-                    if (utf8Name.SequenceEqual(element.Name.Span))
-                        return element;
-                }
-                throw new KeyNotFoundException();
-            }
-
-            // Other comparisons are easy after conversion to Utf16.
-            int maxCharBytes = StringHelper.Utf8.GetMaxCharCount(utf8Name.Length) * sizeof(char);
-            byte[]? nameRented = maxCharBytes > 2048 ? ArrayPool<byte>.Shared.Rent(maxCharBytes) : null;
-            Span<byte> nameByteBuffer = nameRented ?? (stackalloc byte[maxCharBytes]);
-            try
+            foreach (NbtElement element in EnumerateContainer())
             {
-                Span<char> nameBuffer = MemoryMarshal.Cast<byte, char>(nameByteBuffer);
-                int charCount = StringHelper.Utf8.GetChars(utf8Name, nameBuffer);
-                return GetCompoundElement(nameBuffer.Slice(0, charCount), comparison);
+                if (Utf8String.Equals(utf8Name, element.Name.Span, comparison))
+                    return element;
             }
-            finally
-            {
-                if (nameRented != null)
-                    ArrayPool<byte>.Shared.Return(nameRented);
-            }
+            throw new KeyNotFoundException();
         }
 
-        [SkipLocalsInit]
         public NbtElement GetCompoundElement(
             ReadOnlySpan<char> name, StringComparison comparison = StringComparison.OrdinalIgnoreCase)
         {
@@ -128,30 +105,9 @@ namespace MCServerSharp.NBT
             if (Type != NbtType.Compound)
                 throw new InvalidOperationException("The tag is not a compound.");
 
-            Span<char> elementNameBuffer = stackalloc char[64]; // TODO: increase after applying SkipLocalsInit?
-            foreach (var element in EnumerateContainer())
+            foreach (NbtElement element in EnumerateContainer())
             {
-                ReadOnlySpan<char> query = name;
-                ReadOnlySpan<byte> elementName = element.Name.Span;
-                do
-                {
-                    var status = Utf8.ToUtf16(elementName, elementNameBuffer, out int read, out int written);
-                    if (status != OperationStatus.Done &&
-                        status != OperationStatus.DestinationTooSmall)
-                        throw new Exception("Failed to convert UTF-8 to UTF-16.");
-
-                    if (written > query.Length)
-                        break;
-
-                    if (!query.Slice(0, written).Equals(elementNameBuffer.Slice(0, written), comparison))
-                        break;
-
-                    query = query[written..];
-                    elementName = elementName[read..];
-                }
-                while (elementName.Length > 0);
-
-                if (elementName.IsEmpty)
+                if (Utf8String.Equals(name, element.Name.Span, comparison))
                     return element;
             }
             throw new KeyNotFoundException();

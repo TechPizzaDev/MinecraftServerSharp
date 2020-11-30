@@ -61,6 +61,7 @@ namespace MCServerSharp.Net.Packets
             RegisterDataTypeAsOut(typeof(string));
 
             RegisterDataTypeAsOut(typeof(NetBinaryReader), typeof(Identifier));
+            RegisterDataTypeAsOut(typeof(NetBinaryReader), typeof(Utf8Identifier));
             RegisterDataTypeAsOut(typeof(NetBinaryReader), typeof(Position));
             RegisterDataTypeAsOut(typeof(NetBinaryReader), typeof(Slot));
             RegisterDataTypeAsOut(typeof(NetBinaryReader), typeof(NbtDocument));

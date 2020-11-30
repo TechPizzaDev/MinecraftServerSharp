@@ -1,19 +1,14 @@
 ﻿using System;
-using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Numerics;
 using System.Reflection;
-using System.Runtime.InteropServices.ComTypes;
 using System.Text.Json;
 using System.Threading;
 using MCServerSharp.Blocks;
-using MCServerSharp.Components;
 using MCServerSharp.Data;
 using MCServerSharp.Entities.Mobs;
 using MCServerSharp.Enums;
@@ -24,12 +19,12 @@ using MCServerSharp.Net.Packets;
 using MCServerSharp.Utility;
 using MCServerSharp.World;
 
-namespace MCServerSharp.Runner
+namespace MCServerSharp.Server
 {
     // TODO: don't print anything for status connections
     //       (maybe print abnormal amount of pings from one address)
 
-    public static class ServerMain
+    public static partial class ServerMain
     {
         // TODO: move these to a Game class
         public const string PongResource = "Minecraft/Net/Pong.json";
@@ -38,20 +33,19 @@ namespace MCServerSharp.Runner
         private static NetManager _manager;
         private static string? _requestPongBase;
 
-        private static Dictionary<Identifier, BlockDescription> _blockLookup;
-        private static Dictionary<uint, BlockState> _stateLookup;
-        private static BlockState[] _blockStates;
+        private static List<BlockDescription> _blocks;
         private static DirectBlockPalette _directBlockPalette;
 
         private static Ticker _ticker;
+        private static ChunkColumnManager _mainChunkColumnManager;
         private static Dimension _mainDimension;
 
-        private static List<NetConnection> _connectionsList = new List<NetConnection>();
+        private static List<NetConnection> _connectionsList = new();
 
-        private static ConcurrentQueue<Player> _joiningPlayers = new ConcurrentQueue<Player>();
-        private static ConcurrentQueue<Player> _leavingPlayers = new ConcurrentQueue<Player>();
+        private static ConcurrentQueue<Player> _joiningPlayers = new();
+        private static ConcurrentQueue<Player> _leavingPlayers = new();
 
-        private static (Type, HashSet<string>)[] _stateEnumSets = new (Type, HashSet<string>)[]
+        private static (Type, HashSet<string>)[] _stateEnumSets = new[]
         {
             GetEnumSet<Axis>(),
             GetEnumSet<HorizontalAxis>(),
@@ -166,15 +160,13 @@ namespace MCServerSharp.Runner
             //Log(root);
             #endregion
 
-            var configProvider = new FallbackResourceProvider(
+            FallbackResourceProvider configProvider = new(
                 new FileResourceProvider("Config", includeDirectoryName: false),
                 new AssemblyResourceProvider(
                     Assembly.GetExecutingAssembly(), "MCServerSharp.Server.Templates.Config"));
 
             LoadGameData();
 
-            _directBlockPalette = new DirectBlockPalette(_blockStates);
-            _directBlockPalette.blockLookup = _blockLookup;
             _mainDimension = new Dimension(_directBlockPalette);
 
             using var pong = configProvider.OpenResourceReader(PongResource);
@@ -218,38 +210,19 @@ namespace MCServerSharp.Runner
             {
                 Console.WriteLine("Loading blocks...");
 
-                _blockLookup = LoadBlocks();
-                _stateLookup = new Dictionary<uint, BlockState>();
-                int stateCount = 0;
-                uint maxStateId = 0;
-                foreach (var block in _blockLookup.Values)
-                {
-                    stateCount += block.StateCount;
-                    foreach (var state in block.GetStateSpan())
-                    {
-                        _stateLookup.Add(state.Id, state);
-                        maxStateId = Math.Max(maxStateId, state.Id);
-                    }
-                }
-                Console.WriteLine($"Loaded {_blockLookup.Count} blocks, {stateCount} states");
+                _blocks = LoadBlocks();
+                _directBlockPalette = new DirectBlockPalette(_blocks);
 
-                _blockStates = new BlockState[maxStateId + 1];
-                for (uint stateId = 0; stateId < _blockStates.Length; stateId++)
-                {
-                    if (!_stateLookup.TryGetValue(stateId, out var state))
-                        throw new Exception("Missing state for Id " + stateId);
-                    _blockStates[stateId] = state;
-                }
+                Console.WriteLine($"Loaded {_blocks.Count} blocks, {_directBlockPalette.Count} states");
             }
         }
 
         static (Type, HashSet<string>) GetEnumSet<TEnum>()
             where TEnum : struct, Enum
         {
-            return (
-                typeof(EnumStateProperty<TEnum>),
-                new HashSet<string>(typeof(TEnum).GetEnumNames(), StringComparer.OrdinalIgnoreCase)
-                );
+            Type type = typeof(EnumStateProperty<TEnum>);
+            HashSet<string> set = new(typeof(TEnum).GetEnumNames(), StringComparer.OrdinalIgnoreCase);
+            return (type, set);
         }
 
         private static IStateProperty ParseStateProperty(string name, List<string> values)
@@ -283,7 +256,7 @@ namespace MCServerSharp.Runner
             {
                 if (enumValues.SetEquals(values))
                 {
-                    var enumProperty = Activator.CreateInstance(propertyType, name);
+                    object? enumProperty = Activator.CreateInstance(propertyType, name);
                     if (enumProperty == null)
                         throw new Exception("Failed to create enum property.");
                     return (IStateProperty)enumProperty;
@@ -293,29 +266,31 @@ namespace MCServerSharp.Runner
             throw new Exception($"Missing enum for values \"{name}\": {{{values.ToListString()}}}");
         }
 
-        private static Dictionary<Identifier, BlockDescription> LoadBlocks()
+        private static List<BlockDescription> LoadBlocks()
         {
+            // TODO: cleanup/make more readable
+
             JsonDocument blocksDocument;
             using (var blocksFile = File.OpenRead("GameData/reports/blocks.json"))
                 blocksDocument = JsonDocument.Parse(blocksFile);
 
             using (blocksDocument)
             {
-                var blocksDictionary = new Dictionary<Identifier, BlockDescription>();
-                var blockStatePropBuilder = new List<IStateProperty>();
+                List<BlockDescription> blocksList = new();
+                List<IStateProperty> blockStatePropBuilder = new();
 
                 uint blockId = 0;
                 foreach (var blockProperty in blocksDocument.RootElement.EnumerateObject())
                 {
-                    var blockName = new Identifier(blockProperty.Name);
-                    var blockObject = blockProperty.Value;
+                    Identifier blockName = new(blockProperty.Name);
+                    JsonElement blockObject = blockProperty.Value;
 
-                    var stateArray = blockObject.GetProperty("states");
+                    JsonElement stateArray = blockObject.GetProperty("states");
                     int stateCount = stateArray.GetArrayLength();
                     int? defaultStateIndex = null;
                     for (int i = 0; i < stateCount; i++)
                     {
-                        if (stateArray[i].TryGetProperty("default", out var defaultElement) &&
+                        if (stateArray[i].TryGetProperty("default", out JsonElement defaultElement) &&
                             defaultElement.GetBoolean())
                         {
                             defaultStateIndex = i;
@@ -330,46 +305,46 @@ namespace MCServerSharp.Runner
                         string? str = element.GetString();
                         if (str == null)
                             throw new ArgumentException("The element value as string is null.");
-                        
+
                         // TODO: improve by converting to snake_case to PascalCase somewhere..
                         return str.Replace("_", "", StringComparison.Ordinal);
                     }
 
-                    var blockProps = Array.Empty<IStateProperty>();
-                    if (blockObject.TryGetProperty("properties", out var blockPropsObject))
+                    IStateProperty[] blockProps = Array.Empty<IStateProperty>();
+                    if (blockObject.TryGetProperty("properties", out JsonElement blockPropsObject))
                     {
                         blockStatePropBuilder.Clear();
-                        foreach (var blockPropProp in blockPropsObject.EnumerateObject())
+                        foreach (JsonProperty blockPropProp in blockPropsObject.EnumerateObject())
                         {
-                            var propNames = blockPropProp.Value.EnumerateArray()
+                            List<string> propNames = blockPropProp.Value.EnumerateArray()
                                 .Select(x => GetEnumString(x))
                                 .ToList();
 
-                            var parsedProp = ParseStateProperty(blockPropProp.Name, propNames);
+                            IStateProperty parsedProp = ParseStateProperty(blockPropProp.Name, propNames);
                             blockStatePropBuilder.Add(parsedProp);
                         }
                         blockProps = blockStatePropBuilder.ToArray();
                     }
 
-                    var blockStates = new BlockState[stateCount];
-                    var block = new BlockDescription(
+                    BlockState[] blockStates = new BlockState[stateCount];
+                    BlockDescription block = new(
                         blockStates, blockProps,
                         blockName, blockId, defaultStateIndex.GetValueOrDefault());
 
                     for (int i = 0; i < blockStates.Length; i++)
                     {
-                        var stateObject = stateArray[i];
-                        var idProp = stateObject.GetProperty("id");
-                        var propValues = Array.Empty<StatePropertyValue>();
+                        JsonElement stateObject = stateArray[i];
+                        JsonElement idProp = stateObject.GetProperty("id");
+                        StatePropertyValue[] propValues = Array.Empty<StatePropertyValue>();
 
                         if (blockProps.Length != 0)
                         {
                             propValues = new StatePropertyValue[blockProps.Length];
-                            var statePropsObject = stateObject.GetProperty("properties");
+                            JsonElement statePropsObject = stateObject.GetProperty("properties");
                             int propertyIndex = 0;
-                            foreach (var statePropProp in statePropsObject.EnumerateObject())
+                            foreach (JsonProperty statePropProp in statePropsObject.EnumerateObject())
                             {
-                                var blockStateProp = blockProps.First(x => statePropProp.NameEquals(x.Name));
+                                IStateProperty blockStateProp = blockProps.First(x => statePropProp.NameEquals(x.Name));
                                 int valueIndex = blockStateProp.ParseIndex(GetEnumString(statePropProp.Value));
                                 propValues[propertyIndex++] = StatePropertyValue.Create(blockStateProp, valueIndex);
                             }
@@ -377,16 +352,18 @@ namespace MCServerSharp.Runner
                         blockStates[i] = new BlockState(block, propValues, idProp.GetUInt32());
                     }
 
-                    blocksDictionary.Add(blockName, block);
+                    blocksList.Add(block);
                     blockId++;
                 }
-                return blocksDictionary;
+                return blocksList;
             }
         }
 
         private static void Game_Tick(Ticker ticker)
         {
-            while (_joiningPlayers.TryDequeue(out var joining))
+            // TODO: turn into proper API
+
+            while (_joiningPlayers.TryDequeue(out Player? joining))
                 _mainDimension.players.Add(joining);
 
             _connectionsList.Clear();
@@ -525,7 +502,7 @@ namespace MCServerSharp.Runner
                     false,
                     1,
                     -1,
-                    new Identifier[] { "minecraft:overworld" },
+                    new Utf8Identifier[] { new Utf8Identifier("minecraft:overworld") },
                     new NbtCompound
                     {
                         { "minecraft:dimension_type", new NbtCompound

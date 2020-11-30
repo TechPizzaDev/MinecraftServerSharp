@@ -14,7 +14,7 @@ namespace MCServerSharp.Net.Packets
         [DataProperty(4)]
         [DataEnumerable]
         [DataLengthPrefixed(typeof(VarInt))]
-        public Identifier[] WorldNames { get; }
+        public Utf8Identifier[] WorldNames { get; }
 
         [DataProperty(5)] public NbtCompound DimensionCodec { get; }
         [DataProperty(6)] public NbtCompound Dimension { get; }
@@ -32,7 +32,7 @@ namespace MCServerSharp.Net.Packets
             bool isHardcore,
             byte gamemode,
             sbyte previousGamemode,
-            Identifier[] worldNames,
+            Utf8Identifier[] worldNames,
             NbtCompound dimensionCodec,
             NbtCompound dimension,
             Utf8String worldName,

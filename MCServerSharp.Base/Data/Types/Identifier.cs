@@ -1,33 +1,23 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
+using System.Linq;
+using System.Text;
+using MCServerSharp.Text;
 
 namespace MCServerSharp
 {
-    public readonly struct Identifier :
-        IEquatable<Identifier>, IComparable<Identifier>,
-        IEquatable<string>, IComparable<string>
+    public readonly struct Identifier : IIdentifier<Identifier>
     {
-        private static HashSet<char> _validLocationCharacters;
-        private static HashSet<char> _validNamespaceCharacters;
+        public static ReadOnlyMemory<Rune> ValidLocationCharacters { get; }
+        public static ReadOnlyMemory<Rune> ValidNamespaceCharacters { get; }
 
-        public static ReadOnlyMemory<char> ValidLocationCharacters { get; } = new char[]
-        {
-            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-            'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j',
-            'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
-            'u', 'v', 'w', 'x', 'y', 'z', '-', '_', '/', '.'
-        };
-
-        public static ReadOnlyMemory<char> ValidNamespaceCharacters { get; } = ValidLocationCharacters[0..^2];
-
-        // TODO: move this somewhere else
+        // TODO: move this somewhere else?
         public const string DefaultNamespace = "minecraft";
         public const string Separator = ":";
 
         public string Value { get; }
         public string Namespace { get; }
         public string Location { get; }
+        private int HashCode { get; }
 
         public bool IsValid => Value != null;
 
@@ -35,8 +25,16 @@ namespace MCServerSharp
 
         static Identifier()
         {
-            _validLocationCharacters = new HashSet<char>(ValidLocationCharacters.ToArray());
-            _validNamespaceCharacters = new HashSet<char>(ValidNamespaceCharacters.ToArray());
+            char[] validLocationCharacters = new char[]
+            {
+                '/', '.',
+                '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+                'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j',
+                'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
+                'u', 'v', 'w', 'x', 'y', 'z', '-', '_'
+            };
+            ValidLocationCharacters = validLocationCharacters.Select(c => new Rune(c)).ToArray();
+            ValidNamespaceCharacters = ValidLocationCharacters[2..];
         }
 
         public Identifier(string value)
@@ -49,46 +47,38 @@ namespace MCServerSharp
                 throw new ArgumentException(
                     "Could not separate identifier into a namespace and location.", nameof(value));
             }
-            ValidateParts(parts[0], parts[1]);
+            ValidateNamespace(parts[0]);
+            ValidateLocation(parts[1]);
 
             Namespace = parts[0];
             Location = parts[1];
+            HashCode = Value.GetHashCode();
         }
 
         public Identifier(string @namespace, string location)
         {
-            ValidateParts(@namespace, location);
-
+            ValidateNamespace(@namespace);
+            ValidateLocation(location);
+            
             Namespace = @namespace ?? DefaultNamespace;
             Location = location;
             Value = Namespace + Separator + Location;
+            HashCode = Value.GetHashCode();
         }
 
         #endregion
 
-        public static bool TryParse(Utf8String value, out Identifier identifier)
+        public Utf8Identifier ToUtf8Identifier()
+        {
+            return new Utf8Identifier(Value);
+        }
+
+        public static bool TryParse(string value, out Identifier identifier)
         {
             if (value == null)
                 throw new ArgumentNullException(nameof(value));
 
-            // TODO: Could be useful if we implement Utf8Identifier
-            //int colonIndex = value.Bytes.IndexOf((byte)':');
-            //if (colonIndex == -1)
-            //{
-            //    identifier = default;
-            //    return false;
-            //}
-            //
-            //int nextColonIndex = value.Bytes.Slice(colonIndex + 1).IndexOf((byte)':');
-            //if (nextColonIndex != -1)
-            //{
-            //    identifier = default;
-            //    return false;
-            //}
-
-            string value16 = value.ToString();
-
-            string[] parts = value16.Split(Separator, StringSplitOptions.None);
+            string[] parts = value.Split(Separator, StringSplitOptions.None);
             if (parts.Length != 2)
                 goto Fail;
 
@@ -106,56 +96,56 @@ namespace MCServerSharp
             return false;
         }
 
-        public bool Equals(Identifier other)
+        public static void ValidateNamespace(RuneEnumerator runes)
         {
-            return Equals(other.Value);
+            if (!IsValidNamespace(runes))
+                throw new ArgumentException("The namespace contains invalid characters.", nameof(runes));
         }
 
-        public bool Equals(string? other)
+        public static void ValidateLocation(RuneEnumerator runes)
         {
-            return Value.Equals(other, StringComparison.Ordinal);
+            if (!IsValidLocation(runes))
+                throw new ArgumentException("The location contains invalid characters.", nameof(runes));
         }
 
-        public int CompareTo(Identifier other)
+        public static bool IsValidNamespace(RuneEnumerator runes)
         {
-            return CompareTo(other.Value);
-        }
-
-        public int CompareTo(string? other)
-        {
-            return string.CompareOrdinal(Value, other);
-        }
-
-        private static void ValidateParts(string @namespace, string location)
-        {
-            if (!IsValidNamespace(@namespace))
-                throw new ArgumentException("The namespace contains invalid characters.", nameof(@namespace));
-
-            if (location == null)
-                throw new ArgumentNullException(nameof(location));
-
-            if (!IsValidLocation(location))
-                throw new ArgumentException("The location contains invalid characters.", nameof(location));
-        }
-
-        public static bool IsValidNamespace(ReadOnlySpan<char> value)
-        {
-            for (int i = 0; i < value.Length; i++)
+            ReadOnlySpan<Rune> validChars = ValidNamespaceCharacters.Span;
+            foreach (Rune c in runes)
             {
-                if (!_validNamespaceCharacters.Contains(value[i]))
+                if (!validChars.Contains(c))
                     return false;
             }
             return true;
         }
 
-        public static bool IsValidLocation(ReadOnlySpan<char> value)
+        public static bool IsValidLocation(RuneEnumerator runes)
         {
-            for (int i = 0; i < value.Length; i++)
+            ReadOnlySpan<Rune> validChars = ValidLocationCharacters.Span;
+            foreach (Rune c in runes)
             {
-                if (!_validLocationCharacters.Contains(value[i]))
+                if (!validChars.Contains(c))
                     return false;
             }
             return true;
+        }
+
+        public RuneEnumerator EnumerateValue() => Value;
+        public RuneEnumerator EnumerateNamespace() => Namespace;
+        public RuneEnumerator EnumerateLocation() => Location;
+
+        public bool Equals(Identifier other, StringComparison comparison) => Value.Equals(other.Value, comparison);
+
+        public bool Equals(Identifier other) => Equals(other.Value, StringComparison.Ordinal);
+
+        public override bool Equals(object? obj)
+        {
+            return obj is Identifier other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            return HashCode;
         }
 
         public override string ToString()
@@ -163,9 +153,14 @@ namespace MCServerSharp
             return Value;
         }
 
-        public static implicit operator Identifier(string value)
+        public static bool operator ==(Identifier left, Identifier right)
         {
-            return new Identifier(value);
+            return left.Equals(right);
+        }
+
+        public static bool operator !=(Identifier left, Identifier right)
+        {
+            return !(left == right);
         }
     }
 }

@@ -26,6 +26,11 @@ namespace MCServerSharp.Data.IO
             writer.Write((Utf8String)identifier.Value);
         }
 
+        public static void Write(this NetBinaryWriter writer, Utf8Identifier identifier)
+        {
+            writer.Write(identifier.Value);
+        }
+
         [SkipLocalsInit]
         public static void Write(this NetBinaryWriter writer, UUID uuid)
         {

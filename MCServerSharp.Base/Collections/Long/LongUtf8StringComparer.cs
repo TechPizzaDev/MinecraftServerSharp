@@ -10,7 +10,7 @@ namespace MCServerSharp.Collections
             if (Utf8String.IsNullOrEmpty(value))
                 return 0;
 
-            var span = value.Bytes;
+            var span = value.AsSpan();
             var hash = MarvinHash64.ComputeHash(span, MarvinHash64.DefaultSeed);
             return MarvinHash64.CollapseHash32(hash);
         }
@@ -20,7 +20,7 @@ namespace MCServerSharp.Collections
             if (Utf8String.IsNullOrEmpty(value))
                 return 0;
 
-            var span = value.Bytes;
+            var span = value.AsSpan();
             var hash = MarvinHash64.ComputeHash(span, MarvinHash64.DefaultSeed);
             return MarvinHash64.CollapseHash64(hash);
         }
