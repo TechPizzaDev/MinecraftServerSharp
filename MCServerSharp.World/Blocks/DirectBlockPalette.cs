@@ -30,6 +30,7 @@ namespace MCServerSharp.Blocks
             _blockLookup = new Dictionary<Identifier, BlockDescription>();
             _utf8BlockLookup = new Dictionary<Utf8Identifier, BlockDescription>();
 
+            // TODO: optimize/dont use an intermediate dictionary?
             var stateLookup = new Dictionary<uint, BlockState>();
             int stateCount = 0;
             uint maxStateId = 0;

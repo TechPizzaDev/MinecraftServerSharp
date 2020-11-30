@@ -37,7 +37,6 @@ namespace MCServerSharp.Server
         private static DirectBlockPalette _directBlockPalette;
 
         private static Ticker _ticker;
-        private static ChunkColumnManager _mainChunkColumnManager;
         private static Dimension _mainDimension;
 
         private static List<NetConnection> _connectionsList = new();

@@ -34,18 +34,18 @@ namespace MCServerSharp.World
 
 
 
-            var air = _directBlockPalette.blockLookup["minecraft:air"].DefaultState;
+            var air = _directBlockPalette["minecraft:air"].DefaultState;
             _templateChunk = new Chunk(this, new ChunkPosition(), air, directBlockPalette);
 
             var section0 = _templateChunk.Sections.Span[0];
 
             int y = 0;
-            section0.FillLevelBlock(_directBlockPalette.blockLookup["minecraft:bedrock"].DefaultState, y++);
+            section0.FillLevelBlock(_directBlockPalette["minecraft:bedrock"].DefaultState, y++);
 
             for (int j = 0; j < 3; j++)
-                section0.FillLevelBlock(_directBlockPalette.blockLookup["minecraft:dirt"].DefaultState, y++);
+                section0.FillLevelBlock(_directBlockPalette["minecraft:dirt"].DefaultState, y++);
 
-            section0.FillLevelBlock(_directBlockPalette.blockLookup["minecraft:grass_block"].DefaultState, y++);
+            section0.FillLevelBlock(_directBlockPalette["minecraft:grass_block"].DefaultState, y++);
         }
 
         // TODO: create actual world/chunk-manager
