@@ -14,7 +14,7 @@ namespace MCServerSharp.Entities.Mobs
             return components.Get<Component<Player>>().Entity;
         }
 
-        public static Player GetPlayer(this ComponentEntity entity)
+        public static Player GetPlayer(this IComponentEntity entity)
         {
             if (entity == null)
                 throw new ArgumentNullException(nameof(entity));
@@ -46,7 +46,7 @@ namespace MCServerSharp.Entities.Mobs
         }
 
         public static bool GetPlayer(
-            this ComponentEntity entity, [NotNullWhen(true)] out Player? player)
+            this IComponentEntity entity, [NotNullWhen(true)] out Player? player)
         {
             if (entity == null)
                 throw new ArgumentNullException(nameof(entity));

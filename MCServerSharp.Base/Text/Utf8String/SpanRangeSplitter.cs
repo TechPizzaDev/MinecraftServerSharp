@@ -2,20 +2,18 @@
 
 namespace MCServerSharp
 {
-    public ref struct SpanRangeSplitEnumerator<T>
+    public ref struct SpanRangeSplitter<T>
         where T : IEquatable<T>
     {
-        private int _offset;
-        private bool _isLastSeparator;
+        private ReadOnlySpan<T> _value;
 
-        public ReadOnlySpan<T> Value { get; }
         public ReadOnlySpan<T> Separator { get; }
         public StringSplitOptions SplitOptions { get; }
         public int? MaxCount { get; }
 
         public Range Current { get; private set; }
 
-        public SpanRangeSplitEnumerator(
+        public SpanRangeSplitter(
             ReadOnlySpan<T> value,
             ReadOnlySpan<T> separator,
             StringSplitOptions splitOptions,
@@ -61,7 +59,7 @@ namespace MCServerSharp
                         Current = new Range(start, _offset);
                         _offset += separator.Length;
 
-                        if (SplitOptions.HasAnyFlag(StringSplitOptions.RemoveEmptyEntries))
+                        if ((SplitOptions & StringSplitOptions.RemoveEmptyEntries) != 0)
                         {
                             if (_offset - start == 1)
                             {
@@ -90,7 +88,7 @@ namespace MCServerSharp
             return false;
         }
 
-        public SpanRangeSplitEnumerator<T> GetEnumerator()
+        public SpanRangeSplitter<T> GetEnumerator()
         {
             return this;
         }

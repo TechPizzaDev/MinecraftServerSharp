@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 using MCServerSharp.Components;
 using MCServerSharp.Entities.Mobs;
 using MCServerSharp.Maths;
@@ -13,6 +15,7 @@ namespace MCServerSharp.Net
     public class NetConnectionComponent : Component<NetConnection>, ITickable
     {
         private bool _firstSend = true;
+        private Task _sendTask = Task.CompletedTask;
 
         public GameTimeComponent GameTime { get; }
 
@@ -38,7 +41,7 @@ namespace MCServerSharp.Net
             UpdateTickAlive();
         }
 
-        public void UpdatePlayer(Player player)
+        private void UpdatePlayer(Player player)
         {
             if (Connection.GetComponent<ClientSettingsComponent>(out var clientSettings))
             {
@@ -47,8 +50,11 @@ namespace MCServerSharp.Net
 
             if (ProtocolState == ProtocolState.Play)
             {
-                GatherChunksToSend(player);
-                SendChunks(player);
+                if (_sendTask.IsCompleted)
+                {
+                    GatherChunksToSend(player);
+                    _sendTask = SendChunks(player);
+                }
             }
         }
 
@@ -95,7 +101,7 @@ namespace MCServerSharp.Net
             Connection.EnqueuePacket(packet);
         }
 
-        public void SendChunks(Player player)
+        private async Task SendChunks(Player player)
         {
             try
             {
@@ -132,8 +138,8 @@ namespace MCServerSharp.Net
 
                         if (player.LoadedChunks.Add(chunkPos))
                         {
-                            var chunk = player.Dimension.GetChunk(chunkPos);
-                            SendChunk(chunk);
+                            IChunkColumn chunk = await player.Dimension.GetOrAddChunkColumn(chunkPos).Unchain();
+                            SendChunkColumn(chunk);
                             player.SentChunkCount++;
 
                             if (--maxToSend == 0)
@@ -159,20 +165,20 @@ namespace MCServerSharp.Net
             }
         }
 
-        public static int GetChebyshevDistance(ChunkPosition a, ChunkPosition b)
+        public static int GetChebyshevDistance(ChunkColumnPosition a, ChunkColumnPosition b)
         {
             int dX = a.X - b.X;
             int dZ = a.Z - b.Z;
             return Math.Max(Math.Abs(dX), Math.Abs(dZ));
         }
 
-        private void SendAllChunks(Player player, ChunkPosition origin, int viewDistance)
+        private static void SendAllChunks(Player player, ChunkColumnPosition origin, int viewDistance)
         {
             for (int x = origin.X - viewDistance; x <= origin.X + viewDistance; x++)
             {
                 for (int z = origin.Z - viewDistance; z <= origin.Z + viewDistance; z++)
                 {
-                    var position = new ChunkPosition(x, z);
+                    var position = new ChunkColumnPosition(x, z);
                     if (player.ChunkLoadSet.Add(position))
                     {
                         EnqueueChunkForLoad(player, position);
@@ -185,8 +191,8 @@ namespace MCServerSharp.Net
         {
             int viewDistance = player.ViewDistance;
 
-            ChunkPosition previousPos = player.CameraPosition;
-            ChunkPosition currentPos = player.ChunkPosition;
+            ChunkColumnPosition previousPos = player.CameraPosition;
+            ChunkColumnPosition currentPos = player.ChunkPosition;
 
             if (_firstSend)
             {
@@ -235,7 +241,7 @@ namespace MCServerSharp.Net
                 {
                     for (int z = minZ; z <= maxZ; z++)
                     {
-                        var chunkPos = new ChunkPosition(x, z);
+                        var chunkPos = new ChunkColumnPosition(x, z);
                         bool withinView = GetChebyshevDistance(chunkPos, currentPos) <= viewDistance;
                         bool withinMaxView = GetChebyshevDistance(chunkPos, previousPos) <= viewDistance;
 
@@ -258,7 +264,7 @@ namespace MCServerSharp.Net
                 {
                     for (int z = previousPos.Z - viewDistance; z <= previousPos.Z + viewDistance; z++)
                     {
-                        player.ChunksToUnload.Add(new ChunkPosition(x, z));
+                        player.ChunksToUnload.Add(new ChunkColumnPosition(x, z));
                     }
                 }
 
@@ -304,21 +310,19 @@ namespace MCServerSharp.Net
             }
         }
 
-        private static void EnqueueChunkForLoad(Player player, ChunkPosition position)
+        private static void EnqueueChunkForLoad(Player player, ChunkColumnPosition position)
         {
             int distance = GetChebyshevDistance(player.CameraPosition, position);
 
             while (player.ChunkLoadLists.Count <= distance)
-                player.ChunkLoadLists.Add(new List<ChunkPosition>());
+                player.ChunkLoadLists.Add(new List<ChunkColumnPosition>());
 
             var loadList = player.ChunkLoadLists[distance];
             loadList.Add(position);
         }
 
-        private void SendChunk(Chunk chunk)
+        private void SendChunkColumn(IChunkColumn chunkColumn)
         {
-            var sections = chunk.Sections.Span;
-
             var skyLights = new List<LightArray>();
             var blockLights = new List<LightArray>();
 
@@ -326,37 +330,32 @@ namespace MCServerSharp.Net
             var filledSkyLightMask = 0;
             var blockLightMask = 0;
             var filledBlockLightMask = 0;
-            for (int s = 0; s < 3; s++)
+            for (int y = 0; y < 18; y++)
             {
-                bool filled = true;
-                if (s > 0 && s < 16)
+                Chunk? chunk = chunkColumn.TryGetChunk(y - 1);
+                if (chunk != null && !chunk.IsEmpty)
                 {
-                    filled = !sections[s - 1]?.IsEmpty ?? false;
-
-                    skyLightMask |= 1 << s;
+                    skyLightMask |= 1 << y;
                     skyLights.Add(new LightArray());
 
-                    //blockLightMask |= 1 << s;
-                    //blockLights.Add(new LightArray());
-                    filledBlockLightMask |= 1 << s;
+                    blockLightMask |= 1 << y;
+                    blockLights.Add(new LightArray());
                 }
                 else
                 {
-                    filledSkyLightMask |= 1 << s;
+                    filledSkyLightMask |= 1 << y;
+                    filledBlockLightMask |= 1 << y;
                 }
-
-                if (filled)
-                    filledBlockLightMask |= 1 << s;
             }
 
             var updateLight = new ServerUpdateLight(
-                chunk.X, chunk.Z, true,
+                chunkColumn.Position.X, chunkColumn.Position.Z, true,
                 skyLightMask, blockLightMask,
                 filledSkyLightMask, filledBlockLightMask,
                 skyLights, blockLights);
             Connection.EnqueuePacket(updateLight);
 
-            var chunkData = new ServerChunkData(chunk, 65535);
+            var chunkData = new ServerChunkData(chunkColumn, 65535);
             Connection.EnqueuePacket(chunkData);
         }
     }

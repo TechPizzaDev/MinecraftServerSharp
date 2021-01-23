@@ -1,55 +1,34 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using MCServerSharp.Blocks;
-using MCServerSharp.Collections;
+using MCServerSharp.Components;
 using MCServerSharp.Entities.Mobs;
 using MCServerSharp.Maths;
 
 namespace MCServerSharp.World
 {
-    public class ChunkInfo
+    // TODO: create proper world/chunk-manager
+    // this system would also be distributed (possibly over different processes or even machines)
+
+    // TODO?: DimensionTaskScheduler: allows async tasks to run while the dimension thread continues to tick
+
+    public class Dimension : ComponentEntity, ITickable 
     {
-        public int Age;
-    }
+        public ChunkColumnManager ChunkColumnManager { get; }
+        public DirectBlockPalette GlobalBlockPalette => ChunkColumnManager.GlobalBlockPalette;
 
-    public class Dimension : ITickable
-    {
-        private DirectBlockPalette _directBlockPalette;
-        private Chunk _templateChunk;
-
-        private LongDictionary<ChunkPosition, Chunk> _chunks;
-        private Dictionary<Chunk, ChunkInfo> _chunkInfos;
-
-        public List<Player> players = new List<Player>();
+        // TODO: turn players into proper API
+        public List<Player> players = new();
 
         public bool HasSkylight => true;
 
-        public Dimension(DirectBlockPalette directBlockPalette)
+        public Dimension(ChunkColumnManager chunkColumnManager)
         {
-            _directBlockPalette = directBlockPalette ?? throw new ArgumentNullException(nameof(directBlockPalette));
-
-            _chunks = new LongDictionary<ChunkPosition, Chunk>();
-            _chunkInfos = new Dictionary<Chunk, ChunkInfo>();
-
-
-
-            var air = _directBlockPalette.blockLookup["minecraft:air"].DefaultState;
-            _templateChunk = new Chunk(this, new ChunkPosition(), air, directBlockPalette);
-
-            var section0 = _templateChunk.Sections.Span[0];
-
-            int y = 0;
-            section0.FillLevelBlock(_directBlockPalette.blockLookup["minecraft:bedrock"].DefaultState, y++);
-
-            for (int j = 0; j < 3; j++)
-                section0.FillLevelBlock(_directBlockPalette.blockLookup["minecraft:dirt"].DefaultState, y++);
-
-            section0.FillLevelBlock(_directBlockPalette.blockLookup["minecraft:grass_block"].DefaultState, y++);
+            ChunkColumnManager = chunkColumnManager ?? throw new ArgumentNullException(nameof(chunkColumnManager));
         }
 
-        // TODO: create actual world/chunk-manager
-        List<Chunk> chunksToRemove = new List<Chunk>();
+        List<BasicChunkColumn> chunksToRemove = new List<BasicChunkColumn>();
 
         public void Tick()
         {
@@ -67,7 +46,7 @@ namespace MCServerSharp.World
 
             foreach (var chunk in chunksToRemove)
             {
-                _chunks.Remove(chunk.Position);
+                _chunkColumns.Remove(chunk.Position);
                 _chunkInfos.Remove(chunk);
             }
 
@@ -77,39 +56,14 @@ namespace MCServerSharp.World
             }
         }
 
-        public Chunk GetChunk(ChunkPosition position)
+        public ValueTask<IChunkColumn> GetOrAddChunkColumn(ChunkColumnPosition position)
         {
-            if (!_chunks.TryGetValue(position, out var chunk))
-            {
-                //var air = _directBlockPalette.blockLookup["minecraft:air"].DefaultState;
-
-                chunk = new Chunk(this, position);
-                chunk._sections = _templateChunk._sections;
-
-                _chunkInfos.Add(chunk, new ChunkInfo());
-
-                var section0 = chunk.Sections.Span[0];
-
-                //int y = 0;
-                //section0.FillLevelBlock(_directBlockPalette.blockLookup["minecraft:bedrock"].DefaultState, y++);
-                //
-                //for (int j = 0; j < 3; j++)
-                //    section0.FillLevelBlock(_directBlockPalette.blockLookup["minecraft:dirt"].DefaultState, y++);
-                //
-                //section0.FillLevelBlock(_directBlockPalette.blockLookup["minecraft:grass_block"].DefaultState, y++);
-
-
-                _chunks.Add(position, chunk);
-            }
-
-            var chunkInfo = _chunkInfos[chunk];
-            chunkInfo.Age = 0;
-            return chunk;
+            return ChunkColumnManager.GetOrAddChunkColumn(position);
         }
 
-        public Chunk GetChunk(int x, int z)
+        public ValueTask<IChunkColumn> GetOrAddChunkColumn(int x, int z)
         {
-            return GetChunk(new ChunkPosition(x, z));
+            return GetOrAddChunkColumn(new ChunkColumnPosition(x, z));
         }
     }
 }

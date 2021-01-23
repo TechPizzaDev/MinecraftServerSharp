@@ -1,9 +1,5 @@
 ﻿using System;
-using System.Diagnostics.CodeAnalysis;
-using System.Numerics;
 using System.Runtime.CompilerServices;
-using System.Runtime.Intrinsics;
-using System.Runtime.Intrinsics.X86;
 using MCServerSharp.Blocks;
 using MCServerSharp.Data.IO;
 using MCServerSharp.NBT;
@@ -14,24 +10,43 @@ namespace MCServerSharp.Net.Packets
     [PacketStruct(ServerPacketId.ChunkData)]
     public struct ServerChunkData : IDataWritable
     {
+        public const int ColumnHeight = 16;
+
         public const int UnderlyingDataSize = 4096;
 
-        public Chunk Chunk { get; }
+        public IChunkColumn ChunkColumn { get; }
         public int IncludedSectionsMask { get; }
         public bool FullChunk => IncludedSectionsMask == 65535;
 
-        // TODO: create flash-copying (fast deep-clone) of chunks for serialization purposes
+        // TODO?: create flash-copying (fast deep-clone) of chunks for serialization purposes,
+        // possibly with some kind of locking on end of dimension tick
 
-        public ServerChunkData(Chunk chunk, int includedSectionsMask)
+        public ServerChunkData(IChunkColumn chunkColumn, int includedSectionsMask)
         {
-            Chunk = chunk;
+            ChunkColumn = chunkColumn;
             IncludedSectionsMask = includedSectionsMask;
         }
 
+        public static int GetSectionMask(IChunkColumn chunkColumn)
+        {
+            if (chunkColumn == null)
+                throw new ArgumentNullException(nameof(chunkColumn));
+
+            int sectionMask = 0;
+            for (int sectionY = 0; sectionY < ColumnHeight; sectionY++)
+            {
+                var section = chunkColumn[sectionY];
+                if (section != null)
+                    sectionMask |= 1 << sectionY;
+            }
+            return sectionMask;
+        }
+
+        [SkipLocalsInit]
         public void Write(NetBinaryWriter writer)
         {
-            writer.Write(Chunk.X);
-            writer.Write(Chunk.Z);
+            writer.Write(ChunkColumn.Position.X);
+            writer.Write(ChunkColumn.Position.Z);
             writer.Write(FullChunk);
             writer.WriteVar(IncludedSectionsMask);
 
@@ -48,9 +63,9 @@ namespace MCServerSharp.Net.Packets
                 writer.WriteVar(biomes);
             }
 
-            int sectionDataLength = GetChunkSectionDataLength(Chunk);
+            int sectionDataLength = GetChunkSectionDataLength(ChunkColumn);
             writer.WriteVar(sectionDataLength);
-            WriteChunk(writer, Chunk);
+            WriteChunk(writer, ChunkColumn);
 
             // If you don't support block entities yet, use 0
             // If you need to implement it by sending block entities later with the update block entity packet,
@@ -64,35 +79,35 @@ namespace MCServerSharp.Net.Packets
             //}
         }
 
-        public static int GetChunkSectionDataLength(Chunk chunk)
+        public static int GetChunkSectionDataLength(IChunkColumn chunkColumn)
         {
-            if (chunk == null)
-                throw new ArgumentNullException(nameof(chunk));
+            if (chunkColumn == null)
+                throw new ArgumentNullException(nameof(chunkColumn));
 
             int length = 0;
 
-            for (int sectionY = 0; sectionY < Chunk.SectionCount; sectionY++)
+            for (int chunkY = 0; chunkY < ColumnHeight; chunkY++)
             {
-                var section = chunk[sectionY];
-                if (section != null)
-                    length += GetChunkSectionDataLength(section);
+                Chunk? chunk = chunkColumn[chunkY];
+                if (chunk != null)
+                    length += GetChunkSectionDataLength(chunk);
             }
 
             return length;
         }
 
-        public static void WriteChunk(NetBinaryWriter writer, Chunk chunk)
+        public static void WriteChunk(NetBinaryWriter writer, IChunkColumn chunkColumn)
         {
-            if (chunk == null)
-                throw new ArgumentNullException(nameof(chunk));
+            if (chunkColumn == null)
+                throw new ArgumentNullException(nameof(chunkColumn));
 
-            for (int sectionY = 0; sectionY < Chunk.SectionCount; sectionY++)
+            for (int chunkY = 0; chunkY < ColumnHeight; chunkY++)
             {
-                var section = chunk[sectionY];
-                if (section != null)
+                Chunk? chunk = chunkColumn[chunkY];
+                if (chunk != null)
                 {
-                    ReadOnlySpan<BlockState> blocks = section.Blocks.Span;
-                    WriteBlocks(writer, blocks, section.BlockPalette);
+                    ReadOnlySpan<BlockState> blocks = chunk.Blocks.Span;
+                    WriteBlocks(writer, blocks, chunk.BlockPalette);
                 }
             }
         }
@@ -104,7 +119,7 @@ namespace MCServerSharp.Net.Packets
             return longCount;
         }
 
-        public static int GetChunkSectionDataLength(ChunkSection section)
+        public static int GetChunkSectionDataLength(Chunk section)
         {
             if (section == null)
                 throw new ArgumentNullException(nameof(section));
@@ -128,7 +143,7 @@ namespace MCServerSharp.Net.Packets
             if (palette == null)
                 throw new ArgumentNullException(nameof(palette));
 
-            // Creating these struct abstractions allow the JIT to inline IdForBlock
+            // Creating these struct abstractions allow the JIT to inline+devirtualize
             // which yields almost 2x performance. These savings measure up quickly as
             // the function is called millions of times when loading chunks.
 
@@ -140,7 +155,7 @@ namespace MCServerSharp.Net.Packets
                 WriteBlocks(writer, blocks, palette);
         }
 
-        // TODO: skiplocalsinit
+        [SkipLocalsInit]
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         public static void WriteBlocks<TPalette>(
             NetBinaryWriter writer, ReadOnlySpan<BlockState> blocks, TPalette palette)
@@ -152,7 +167,7 @@ namespace MCServerSharp.Net.Packets
             int bitsPerBlock = palette.BitsPerBlock;
             int dataLength = GetUnderlyingDataLength(UnderlyingDataSize, bitsPerBlock);
 
-            writer.Write((short)ChunkSection.BlockCount);
+            writer.Write((short)Chunk.BlockCount);
             writer.Write((byte)bitsPerBlock);
             palette.Write(writer);
             writer.WriteVar(dataLength);
@@ -188,7 +203,7 @@ namespace MCServerSharp.Net.Packets
                 }
 
                 buffer[bufferOffset++] = bitBuffer & bitBufferMask;
-                blocks = blocks.Slice(blocksPerLong);
+                blocks = blocks[blocksPerLong..];
             }
 
             for (int i = 0; i < blocks.Length;)

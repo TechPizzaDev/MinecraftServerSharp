@@ -22,21 +22,21 @@ namespace MCServerSharp.Utility
             if (length == 0)
                 return;
 
-            var helper = stream.GetBlockOffset(length);
+            ChunkedMemoryStream.BlockOffset helper = stream.GetBlockOffset(length);
             stream.RemoveBlockRange(0, helper.Block);
 
             // Now we need to shift data in trailing blocks.
             for (int i = 0; i < stream.BlockCount; i++)
             {
-                var currentBlock = stream.GetBlock(i);
+                Memory<byte> currentBlock = stream.GetBlock(i);
 
                 int previous = i - 1;
                 if (previous >= 0)
                 {
-                    var previousBlock = stream.GetBlock(previous);
+                    Memory<byte> previousBlock = stream.GetBlock(previous);
 
-                    var bytesToMoveBack = currentBlock.Slice(0, helper.Offset);
-                    var backDst = previousBlock[^helper.Offset..];
+                    Memory<byte> bytesToMoveBack = currentBlock.Slice(0, helper.Offset);
+                    Memory<byte> backDst = previousBlock[^helper.Offset..];
                     bytesToMoveBack.CopyTo(backDst);
                 }
 

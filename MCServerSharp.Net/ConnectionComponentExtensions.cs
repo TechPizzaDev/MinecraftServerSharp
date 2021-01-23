@@ -14,7 +14,7 @@ namespace MCServerSharp.Net
             return components.Get<Component<NetConnection>>().Entity;
         }
 
-        public static NetConnection GetConnection(this ComponentEntity entity)
+        public static NetConnection GetConnection(this IComponentEntity entity)
         {
             if (entity == null)
                 throw new ArgumentNullException(nameof(entity));
@@ -38,7 +38,7 @@ namespace MCServerSharp.Net
         }
 
         public static bool GetConnection(
-            this ComponentEntity entity, [NotNullWhen(true)] out NetConnection? connection)
+            this IComponentEntity entity, [NotNullWhen(true)] out NetConnection? connection)
         {
             if (entity == null)
                 throw new ArgumentNullException(nameof(entity));

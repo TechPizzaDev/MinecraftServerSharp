@@ -5,22 +5,21 @@ namespace MCServerSharp.Maths
     public struct ChunkPosition : IEquatable<ChunkPosition>, ILongHashable
     {
         public int X;
+        public int Y;
         public int Z;
 
-        public ChunkPosition(int x, int z)
+        public readonly ChunkColumnPosition ColumnPosition => new ChunkColumnPosition(X, Z);
+
+        public ChunkPosition(int x, int y, int z)
         {
             X = x;
+            Y = y;
             Z = z;
-        }
-
-        public readonly long ToLong()
-        {
-            return (long)X << 32 | (long)Z;
         }
 
         public static double Dot(ChunkPosition a, ChunkPosition b)
         {
-            return (a.X * b.X) + (a.Z * b.Z);
+            return (a.X * b.X) + (a.Y * b.Y) + (a.Z * b.Z);
         }
 
         public static double DistanceSquared(ChunkPosition a, ChunkPosition b)
@@ -33,6 +32,7 @@ namespace MCServerSharp.Maths
         {
             return new ChunkPosition(
                 a.X + b.X,
+                a.Y + b.Y,
                 a.Z + b.Z);
         }
 
@@ -40,6 +40,7 @@ namespace MCServerSharp.Maths
         {
             return new ChunkPosition(
                 left.X - right.X,
+                left.Y - right.Y,
                 left.Z - right.Z);
         }
 
@@ -50,12 +51,12 @@ namespace MCServerSharp.Maths
 
         public readonly long GetLongHashCode()
         {
-            return ToLong();
+            return LongHashCode.Combine(X, Y, Z);
         }
 
         public override readonly int GetHashCode()
         {
-            return HashCode.Combine(X, Z);
+            return HashCode.Combine(X, Y, Z);
         }
 
         public override readonly bool Equals(object? obj)
@@ -65,12 +66,13 @@ namespace MCServerSharp.Maths
 
         public override readonly string ToString()
         {
-            return "{X:" + X + ", Z:" + Z + "}";
+            return "{X:" + X + ", Y:" + Y + ", Z:" + Z + "}";
         }
 
         public static bool operator ==(ChunkPosition a, ChunkPosition b)
         {
             return a.X == b.X
+                && a.Y == b.Y
                 && a.Z == b.Z;
         }
 

@@ -7,19 +7,19 @@ namespace MCServerSharp.Components
     /// </summary>
     public abstract class Component
     {
-        public ComponentEntity Entity { get; }
+        public IComponentEntity Entity { get; }
 
-        protected Component(ComponentEntity entity)
+        protected Component(IComponentEntity entity)
         {
             Entity = entity ?? throw new ArgumentNullException(nameof(entity));
         }
     }
 
     /// <summary>
-    /// Represents a behavior that acts upon a component entity.
+    /// Represents a behavior that acts upon an entity.
     /// </summary>
     public abstract class Component<TEntity> : Component
-        where TEntity : ComponentEntity
+        where TEntity : IComponentEntity
     {
         public new TEntity Entity => (TEntity)base.Entity;
 

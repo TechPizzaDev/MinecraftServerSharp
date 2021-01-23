@@ -167,7 +167,11 @@ namespace MCServerSharp.Server
 
             LoadGameData();
 
-            _mainDimension = new Dimension(_directBlockPalette);
+            MemoryChunkColumnProvider chunkColumnProvider = new();
+            _mainChunkColumnManager = new ChunkColumnManager(chunkColumnProvider, _directBlockPalette);
+            
+            _mainDimension = new Dimension(_mainChunkColumnManager);
+            _mainChunkColumnManager.Components.Add(new DimensionComponent(_mainDimension));
 
             using var pong = configProvider.OpenResourceReader(PongResource);
             if (pong == null)

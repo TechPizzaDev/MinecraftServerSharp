@@ -12,31 +12,31 @@ namespace MCServerSharp.Entities.Mobs
         public string? UserName { get; set; }
         public UUID UserUUID { get; set; }
 
-        public ChunkPosition CameraPosition { get; set; }
+        public ChunkColumnPosition CameraPosition { get; set; }
         public int ViewDistance { get; set; } = 8;
 
         public Vector3d Position { get; set; }
 
         public int ChunkX => (int)Math.Floor(Position.X) / 16;
         public int ChunkZ => (int)Math.Floor(Position.Z) / 16;
-        public ChunkPosition ChunkPosition => new ChunkPosition(ChunkX, ChunkZ);
+        public ChunkColumnPosition ChunkPosition => new ChunkColumnPosition(ChunkX, ChunkZ);
 
         public bool ScheduleFullChunkView;
-        public LongHashSet<ChunkPosition> LoadedChunks;
-        public LongHashSet<ChunkPosition> ChunksToUnload;
-        public List<List<ChunkPosition>> ChunkLoadLists;
+        public LongHashSet<ChunkColumnPosition> LoadedChunks;
+        public LongHashSet<ChunkColumnPosition> ChunksToUnload;
+        public List<List<ChunkColumnPosition>> ChunkLoadLists;
 
-        public LongHashSet<ChunkPosition> ChunkLoadSet; // TODO: get rid of this
+        public LongHashSet<ChunkColumnPosition> ChunkLoadSet; // TODO: get rid of this
 
         public long SentChunkCount;
 
         public Player(Dimension dimension) : base(dimension)
         {
-            LoadedChunks = new LongHashSet<ChunkPosition>();
-            ChunksToUnload = new LongHashSet<ChunkPosition>();
-            ChunkLoadLists = new List<List<ChunkPosition>>();
+            LoadedChunks = new LongHashSet<ChunkColumnPosition>();
+            ChunksToUnload = new LongHashSet<ChunkColumnPosition>();
+            ChunkLoadLists = new List<List<ChunkColumnPosition>>();
 
-            ChunkLoadSet = new LongHashSet<ChunkPosition>();
+            ChunkLoadSet = new LongHashSet<ChunkColumnPosition>();
         }
     }
 }

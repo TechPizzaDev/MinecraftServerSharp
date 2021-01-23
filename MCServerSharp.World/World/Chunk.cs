@@ -1,63 +1,128 @@
 ﻿using System;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using MCServerSharp.Blocks;
+using MCServerSharp.Components;
 using MCServerSharp.Maths;
 
 namespace MCServerSharp.World
 {
-    public class Chunk
+    public class Chunk : ComponentEntity
     {
-        public const int SectionCount = 16;
-        public const int Height = SectionCount * ChunkSection.Height;
-        public const int BlockCount = SectionCount * ChunkSection.BlockCount;
+        public const int Width = 16;
+        public const int Height = 16;
+        public const int LevelBlockCount = Width * Width;
+        public const int BlockCount = LevelBlockCount * Height;
 
-        public ChunkSection?[] _sections;
+        // TODO: compress based on palette
+        private BlockState[] _blocks;
 
-        public ChunkSection? this[int y] => _sections[y];
+        public IChunkColumn Parent { get; }
+        public int Y { get; }
 
-        public ChunkPosition Position { get; }
-        public Dimension Dimension { get; }
+        // TODO: add dynamic palette (that gets trimmed on serialize) and compressed block storage 
+        public IBlockPalette BlockPalette { get; }
+        public BlockState AirBlock { get; }
 
-        // TODO: allow infinite™ amount of chunk sections
+        // TODO: make this dynamic based on a dynamic block palette 
+        public bool IsEmpty { get; private set; }
 
-        public int X => Position.X;
-        public int Z => Position.Z;
-        public ReadOnlyMemory<ChunkSection?> Sections => _sections;
+        public int X => Parent.Position.X;
+        public int Z => Parent.Position.Z;
+        public ChunkPosition Position => new ChunkPosition(X, Y, Z);
 
-        // TODO: fix this funky constructor mess (needs redesign)
+        public Dimension Dimension => this.GetComponent<DimensionComponent>().Dimension;
 
-        public Chunk(Dimension dimension, ChunkPosition position)
+        /// <summary>
+        /// </summary>
+        /// <remarks>
+        /// Blocks are stored in YZX order.
+        /// </remarks>
+        public ReadOnlyMemory<BlockState> Blocks => _blocks;
+
+        // TODO: dont allow public constructor, use a chunk manager/provider instead
+
+        public Chunk(IChunkColumn parent, int y, BlockState airBlock, IBlockPalette blockPalette)
         {
-            Dimension = dimension ?? throw new ArgumentNullException(nameof(dimension));
-            Position = position;
+            // TODO: validate Y through a chunk manager or something
+            Y = y;
+
+            Parent = parent ?? throw new ArgumentNullException(nameof(parent));
+            AirBlock = airBlock ?? throw new ArgumentNullException(nameof(airBlock));
+            BlockPalette = blockPalette ?? throw new ArgumentNullException(nameof(blockPalette));
+
+            _blocks = new BlockState[BlockCount];
+            FillBlock(airBlock);
         }
 
-        public Chunk(Dimension dimension, ChunkPosition position, BlockState airBlock, IBlockPalette blockPalette)
+        /// <summary>
+        /// Returns an index to a block or block state array.
+        /// </summary>
+        /// <remarks>
+        /// Blocks and block states are stored in YZX order.
+        /// </remarks>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int GetBlockIndex(int x, int y, int z)
         {
-            Dimension = dimension ?? throw new ArgumentNullException(nameof(dimension));
-            Position = position;
-
-            _sections = new ChunkSection?[SectionCount];
-            for (int y = 0; y < _sections.Length; y++)
-            {
-                _sections[y] = new ChunkSection(this, y, airBlock, blockPalette);
-            }
+            Debug.Assert((uint)x < 16);
+            Debug.Assert((uint)y < 16);
+            Debug.Assert((uint)z < 16);
+            return x + Width * (y + Width * z);
         }
 
-        public int GetBiome(int x, int y, int z)
+        public BlockState GetBlock(int index)
         {
-            return 127; // VOID
+            return _blocks[index];
         }
 
-        public int GetSectionMask()
+        public BlockState GetBlock(int x, int y, int z)
         {
-            int sectionMask = 0;
-            for (int sectionY = 0; sectionY < _sections.Length; sectionY++)
-            {
-                var section = _sections[sectionY];
-                if (section != null)
-                    sectionMask |= 1 << sectionY; // Set that bit to true in the mask
-            }
-            return sectionMask;
+            int blockIndex = GetBlockIndex(x, y, z);
+            return GetBlock(blockIndex);
+        }
+
+        public void SetBlock(BlockState block, int index)
+        {
+            _blocks[index] = block ?? throw new ArgumentNullException(nameof(block));
+            IsEmpty = false;
+        }
+
+        public void SetBlock(BlockState block, int x, int y, int z)
+        {
+            int blockIndex = GetBlockIndex(x, y, z);
+            SetBlock(block, blockIndex);
+        }
+
+        public void FillBlock(BlockState block)
+        {
+            if (block == null)
+                throw new ArgumentNullException(nameof(block));
+
+            _blocks.AsSpan().Fill(block);
+
+            if (block == AirBlock)
+                IsEmpty = true;
+            else
+                IsEmpty = false;
+        }
+
+        public void FillBlockLevel(BlockState block, int y)
+        {
+            if (block == null)
+                throw new ArgumentNullException(nameof(block));
+
+            _blocks.AsSpan(y * LevelBlockCount, LevelBlockCount).Fill(block);
+            IsEmpty = false;
+        }
+
+        public int GetSkyLight(int x, int y, int z)
+        {
+            return 15;
+        }
+
+        public int GetBlockLight(int x, int y, int z)
+        {
+            return 15;
         }
     }
 }

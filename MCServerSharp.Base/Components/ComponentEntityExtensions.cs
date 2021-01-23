@@ -5,7 +5,7 @@ namespace MCServerSharp.Components
 {
     public static class ComponentComponentExtensions
     {
-        public static TComponent GetComponent<TComponent>(this ComponentEntity entity)
+        public static TComponent GetComponent<TComponent>(this IComponentEntity entity)
             where TComponent : Component
         {
             if (entity == null)
@@ -15,7 +15,7 @@ namespace MCServerSharp.Components
         }
 
         public static bool GetComponent<TComponent>(
-            this ComponentEntity entity, [NotNullWhen(true)] out TComponent? component)
+            this IComponentEntity entity, [NotNullWhen(true)] out TComponent? component)
             where TComponent : Component
         {
             if (entity == null)

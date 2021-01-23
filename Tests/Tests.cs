@@ -34,7 +34,7 @@ namespace Tests
 
         private static void TestUtf8String()
         {
-            Utf8String utf8 = "this  is cool  ".ToUtf8String();
+            Utf8String utf8 = " x  this  is cool  ".ToUtf8String();
             
             Console.WriteLine("split:");
             var split = utf8.EnumerateRangeSplit(" ".ToUtf8String());
@@ -49,7 +49,7 @@ namespace Tests
             foreach (Range range in removesplit)
             {
                 Utf8String sub = utf8.Substring(range);
-                //Console.WriteLine($"\"{sub}\"");
+                Console.WriteLine($"\"{sub}\"");
             }
 
             Console.WriteLine();
