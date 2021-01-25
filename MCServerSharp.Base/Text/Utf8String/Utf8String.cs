@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.Unicode;
 using MCServerSharp.Collections;
 using MCServerSharp.Text;
@@ -12,6 +13,7 @@ using MCServerSharp.Text;
 namespace MCServerSharp
 {
     [DebuggerDisplay("{ToString()}")]
+    [SkipLocalsInit]
     public partial class Utf8String : IComparable<Utf8String>, IEquatable<Utf8String>, ILongHashable
     {
         public static Utf8String Empty { get; } = new Utf8String(Array.Empty<byte>());
@@ -19,7 +21,7 @@ namespace MCServerSharp
         private byte[]? _byteArray;
         private ReadOnlyMemory<byte> _bytes;
 
-        public ReadOnlyMemory<byte> Bytes => _bytes;
+        public ReadOnlySpan<byte> Bytes => _bytes.Span;
         public int Length => _bytes.Length;
 
         #region Constructors
@@ -77,7 +79,7 @@ namespace MCServerSharp
 
         public Utf8RuneEnumerator EnumerateRunes()
         {
-            return new Utf8RuneEnumerator(Bytes.Span);
+            return new Utf8RuneEnumerator(Bytes);
         }
 
         public Utf8String Substring(int start, int count)
@@ -88,7 +90,10 @@ namespace MCServerSharp
             if (start == 0 && count == Length)
                 return this;
 
-            ReadOnlyMemory<byte> slice = Bytes.Slice(start, count);
+            if (!IsValidUtf8Slice(_bytes.Span, start, count))
+                throw new ArgumentException("The given range would tear UTF8 sequences.");
+
+            ReadOnlyMemory<byte> slice = _bytes.Slice(start, count);
             return new Utf8String(slice);
         }
 
@@ -96,6 +101,38 @@ namespace MCServerSharp
         {
             (int offset, int length) = range.GetOffsetAndLength(Length);
             return Substring(offset, length);
+        }
+
+        public static bool IsValidUtf8Slice(ReadOnlySpan<byte> span, int start, int count)
+        {
+            ReadOnlySpan<byte> slice = span.Slice(start, count);
+
+            int sliceStart = start;
+            int startOffset = 0;
+            for (; startOffset < 3 && sliceStart > 0; startOffset++)
+                sliceStart--;
+
+            if (sliceStart == 0 && count == span.Length)
+                return true;
+
+            OperationStatus statusOfLast = Rune.DecodeLastFromUtf8(slice, out _, out _);
+            if (statusOfLast != OperationStatus.Done)
+                return false;
+
+            for (int i = startOffset; i > 0;)
+            {
+                ReadOnlySpan<byte> preSlice = span[(start - i)..];
+                OperationStatus status = Rune.DecodeFromUtf8(preSlice, out _, out int consumed);
+                if (status == OperationStatus.Done)
+                {
+                    ReadOnlySpan<byte> consumedSlice = preSlice.Slice(0, consumed);
+                    if (consumedSlice.Overlaps(slice))
+                        return false;
+                }
+                i -= consumed;
+            }
+
+            return true;
         }
 
         public int CompareTo(Utf8String? other)
@@ -106,7 +143,7 @@ namespace MCServerSharp
             if (other == null)
                 return 1;
 
-            return Bytes.Span.SequenceCompareTo(other.Bytes.Span);
+            return Bytes.SequenceCompareTo(other.Bytes);
         }
 
         public bool Equals(Utf8String? other, StringComparison comparison)
@@ -118,9 +155,9 @@ namespace MCServerSharp
                 return false;
 
             if (comparison == StringComparison.Ordinal)
-                return Bytes.Span.SequenceEqual(other.Bytes.Span);
+                return Bytes.SequenceEqual(other.Bytes);
 
-            return Equals(Bytes.Span, other.Bytes.Span, comparison);
+            return Equals(Bytes, other.Bytes, comparison);
         }
 
         public bool Equals(Utf8String? other)
@@ -138,7 +175,7 @@ namespace MCServerSharp
         /// </summary>
         public override string ToString()
         {
-            return StringHelper.Utf8.GetString(Bytes.Span);
+            return StringHelper.Utf8.GetString(Bytes);
         }
 
         public static Utf8String Concat(RuneEnumerator value1, RuneEnumerator value2, RuneEnumerator value3)
@@ -191,8 +228,8 @@ namespace MCServerSharp
                     throw new Exception("Failed to convert UTF-8 to UTF-16.");
 
                 var secondStatus = Utf8.ToUtf16(secondUtf8, secondUtf16Buf, out int secondRead, out int secondWritten);
-                if (firstStatus != OperationStatus.Done &&
-                    firstStatus != OperationStatus.DestinationTooSmall)
+                if (secondStatus != OperationStatus.Done &&
+                    secondStatus != OperationStatus.DestinationTooSmall)
                     throw new Exception("Failed to convert UTF-8 to UTF-16.");
 
                 if (firstWritten > secondWritten)
@@ -211,7 +248,6 @@ namespace MCServerSharp
             return firstUtf8.IsEmpty && secondUtf8.IsEmpty;
         }
 
-        [SkipLocalsInit]
         public static bool Equals(ReadOnlySpan<char> utf16, ReadOnlySpan<byte> utf8, StringComparison comparison)
         {
             Span<char> utf16Buf = stackalloc char[32];

@@ -9,21 +9,21 @@ namespace MCServerSharp
         {
             if (value == null)
                 return default;
-            return value.Bytes.Span;
+            return value.Bytes;
         }
 
         public static ReadOnlySpan<byte> AsSpan(this Utf8String? value, int start)
         {
             if (value == null)
                 return default;
-            return value.Bytes.Span[start..];
+            return value.Bytes[start..];
         }
 
         public static ReadOnlySpan<byte> AsSpan(this Utf8String? value, int start, int count)
         {
             if (value == null)
                 return default;
-            return value.Bytes.Span.Slice(start, count);
+            return value.Bytes.Slice(start, count);
         }
 
         [return: NotNullIfNotNull("value")]

@@ -4,29 +4,18 @@ namespace MCServerSharp
 {
     public partial class Utf8String
     {
-        public static SpanRangeSplitter<byte> EnumerateRangeSplit(
-            ReadOnlySpan<byte> value,
+        public Utf8Splitter EnumerateSplit(
             ReadOnlySpan<byte> separator,
-            StringSplitOptions splitOptions = StringSplitOptions.None,
-            int? maxCount = null)
+            StringSplitOptions splitOptions = StringSplitOptions.None)
         {
-            return new SpanRangeSplitter<byte>(value, separator, splitOptions, maxCount);
+            return new Utf8Splitter(Bytes, separator, splitOptions);
         }
 
-        public SpanRangeSplitter<byte> EnumerateRangeSplit(
-            ReadOnlySpan<byte> separator,
-            StringSplitOptions splitOptions = StringSplitOptions.None,
-            int? maxCount = null)
-        {
-            return EnumerateRangeSplit(Bytes.Span, separator, splitOptions, maxCount);
-        }
-
-        public SpanRangeSplitter<byte> EnumerateRangeSplit(
+        public Utf8Splitter EnumerateSplit(
             Utf8String? separator,
-            StringSplitOptions splitOptions = StringSplitOptions.None,
-            int? maxCount = null)
+            StringSplitOptions splitOptions = StringSplitOptions.None)
         {
-            return EnumerateRangeSplit(separator.AsSpan(), splitOptions, maxCount);
+            return EnumerateSplit(separator.AsSpan(), splitOptions);
         }
     }
 }

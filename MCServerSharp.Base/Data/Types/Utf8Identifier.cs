@@ -20,7 +20,7 @@ namespace MCServerSharp
         {
             Value = value ?? throw new ArgumentNullException(nameof(value));
 
-            var parts = Value.EnumerateRangeSplit(Separator, StringSplitOptions.None);
+            var parts = Value.EnumerateSplit(Separator, StringSplitOptions.None);
 
             bool move1 = parts.MoveNext();
             Range part1 = parts.Current;
@@ -63,7 +63,7 @@ namespace MCServerSharp
             if (value == null)
                 throw new ArgumentNullException(nameof(value));
 
-            var parts = value.EnumerateRangeSplit(Separator, StringSplitOptions.None);
+            var parts = value.EnumerateSplit(Separator, StringSplitOptions.None);
 
             bool move1 = parts.MoveNext();
             if (!move1)
