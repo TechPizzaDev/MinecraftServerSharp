@@ -61,7 +61,7 @@ namespace MCServerSharp.NBT
         {
             AssertValidInstance();
 
-            var type = Type;
+            NbtType type = Type;
             return type switch
             {
                 NbtType.List => _parent.GetListType(_index),
@@ -222,9 +222,8 @@ namespace MCServerSharp.NBT
         /// </returns>
         /// <remarks>
         ///   <para>
-        ///     If this NbtElement is itself the output of a previous call to Clone, or
-        ///     a value contained within another NbtElement which was the output of a previous
-        ///     call to Clone, this method results in no additional memory allocation.
+        ///     If this <see cref="NbtElement"/> is itself the output of a previous clone,
+        ///     this method results in no additional memory allocation.
         ///   </para>
         /// </remarks>
         public NbtElement Clone()

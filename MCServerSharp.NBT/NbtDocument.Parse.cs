@@ -7,6 +7,7 @@ namespace MCServerSharp.NBT
 {
     public sealed partial class NbtDocument
     {
+        [SkipLocalsInit]
         private static NbtDocument Parse(
             ReadOnlyMemory<byte> data,
             NbtOptions options,
@@ -14,15 +15,29 @@ namespace MCServerSharp.NBT
             out int bytesConsumed)
         {
             ReadOnlySpan<byte> dataSpan = data.Span;
-            var database = new MetadataDb(data.Length);
-            var stack = new ByteStack<ContainerFrame>(NbtOptions.DefaultMaxDepth, clearOnReturn: false);
+            MetadataDb database = new(data.Length);
 
-            var readerState = new NbtReaderState(options);
-            var reader = new NbtReader(dataSpan, isFinalBlock: true, readerState);
+            ByteStack<NbtReader.ContainerFrame> readerStack;
+            unsafe
+            {
+                NbtReader.ContainerFrame* stackBuffer = stackalloc NbtReader.ContainerFrame[NbtOptions.DefaultMaxDepth];
+                Span<NbtReader.ContainerFrame> stackSpan = new(stackBuffer, NbtOptions.DefaultMaxDepth);
+                readerStack = new(stackSpan, clearOnReturn: false);
+            }
+            NbtReaderState readerState = new(readerStack, options);
+            NbtReader reader = new(dataSpan, isFinalBlock: true, readerState);
+
+            ByteStack<ContainerFrame> docStack;
+            unsafe
+            {
+                ContainerFrame* stackBuffer = stackalloc ContainerFrame[NbtOptions.DefaultMaxDepth];
+                Span<ContainerFrame> stackSpan = new(stackBuffer, NbtOptions.DefaultMaxDepth);
+                docStack = new(stackSpan, clearOnReturn: false);
+            }
 
             try
             {
-                Parse(ref reader, ref database, ref stack);
+                Parse(ref reader, ref database, ref docStack);
                 bytesConsumed = (int)reader.BytesConsumed;
             }
             catch
@@ -33,7 +48,8 @@ namespace MCServerSharp.NBT
             finally
             {
                 readerState.Dispose();
-                stack.Dispose();
+                readerStack.Dispose();
+                docStack.Dispose();
             }
 
             return new NbtDocument(data, options, database, extraRentedBytes, isDisposable: true);
@@ -73,7 +89,7 @@ namespace MCServerSharp.NBT
             int rowCount = 0;
 
             while (reader.Read())
-            {  
+            {
                 int location = reader.TagLocation;
                 NbtType type = reader.TagType;
                 NbtFlags flags = reader.TagFlags;
@@ -105,7 +121,7 @@ namespace MCServerSharp.NBT
                     case NbtType.End:
                     {
                         // Documents with a single End tag (no Compound root) are valid.
-                        if (stack.TryPop(out var compoundFrame))
+                        if (stack.TryPop(out ContainerFrame compoundFrame))
                         {
                             int totalRowCount = rowCount - compoundFrame.InitialRowCount;
                             int compoundLength = compoundFrame.CompoundEntryCounter - 1; // -1 to exclude End

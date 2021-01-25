@@ -3,7 +3,6 @@ using System.Buffers.Binary;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using MCServerSharp.Utility;
 
 namespace MCServerSharp.NBT
 {
@@ -123,25 +122,6 @@ namespace MCServerSharp.NBT
             IsFinalBlock = isFinalBlock;
             _state = state;
             TagType = NbtType.Undefined;
-        }
-
-        // Summary:
-        //     Initializes a new instance of the System.Text.Json.Utf8JsonReader structure that
-        //     processes a read-only span of UTF-8 encoded text using the specified options.
-        //
-        // Parameters:
-        //   jsonData:
-        //     The UTF-8 encoded JSON text to process.
-        //
-        //   options:
-        //     Defines customized behavior of the System.Text.Json.Utf8JsonReader that differs
-        //     from the JSON RFC (for example how to handle comments or maximum depth allowed
-        //     when reading). By default, the System.Text.Json.Utf8JsonReader follows the JSON
-        //     RFC strictly; comments within the JSON are invalid, and the maximum depth is
-        //     64.
-        public NbtReader(ReadOnlySpan<byte> data, NbtOptions? options = default) :
-            this(data, true, new NbtReaderState(options))
-        {
         }
 
         #endregion
@@ -578,7 +558,7 @@ namespace MCServerSharp.NBT
         #endregion
 
         [StructLayout(LayoutKind.Sequential)]
-        internal struct ContainerFrame
+        public struct ContainerFrame
         {
             public int ListEntriesRemaining;
             public NbtType ElementType;

@@ -1,20 +1,19 @@
-﻿using System;
-using MCServerSharp.Collections;
+﻿using MCServerSharp.Collections;
 using static MCServerSharp.NBT.NbtReader;
 
 namespace MCServerSharp.NBT
 {
-    public struct NbtReaderState : IDisposable
+    public ref struct NbtReaderState
     {
         internal ByteStack<ContainerFrame> _containerInfoStack;
 
         public NbtOptions Options { get; }
 
-        public NbtReaderState(NbtOptions? options = null) : this()
+        public NbtReaderState(ByteStack<ContainerFrame> stack, NbtOptions? options = null) : this()
         {
             Options = options ?? NbtOptions.JavaDefault;
 
-            _containerInfoStack = new ByteStack<ContainerFrame>(NbtOptions.DefaultMaxDepth, clearOnReturn: false);
+            _containerInfoStack = stack;
         }
 
         public void Dispose()

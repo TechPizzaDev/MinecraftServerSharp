@@ -3,19 +3,19 @@ using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using MCServerSharp.Utility;
 
 namespace MCServerSharp.Collections
 {
-    public struct ByteStack<T> : IDisposable
+    public ref struct ByteStack<T>
         where T : unmanaged
     {
-        private byte[] _rentedBuffer;
+        private Span<byte> _buffer;
+        private byte[]? _rentedBuffer;
         private bool _clearOnReturn;
 
         public int TopOfStack { get; private set; }
 
-        public int ByteCapacity => _rentedBuffer.Length;
+        public int ByteCapacity => _buffer.Length;
         public int Capacity => ByteCapacity / Unsafe.SizeOf<T>();
 
         public int ByteCount => ByteCapacity - TopOfStack;
@@ -23,17 +23,18 @@ namespace MCServerSharp.Collections
 
         public bool IsEmpty => TopOfStack == ByteCapacity;
 
-        public ByteStack(int initialSize, bool clearOnReturn = true)
+        public ByteStack(Span<T> initialBuffer, bool clearOnReturn = true)
         {
-            _rentedBuffer = ArrayPool<byte>.Shared.Rent(initialSize * Unsafe.SizeOf<T>());
+            _buffer = MemoryMarshal.AsBytes(initialBuffer);
+            _rentedBuffer = null;
             _clearOnReturn = clearOnReturn;
 
-            TopOfStack = _rentedBuffer.Length;
+            TopOfStack = _buffer.Length;
         }
 
         public void Dispose()
         {
-            byte[] toReturn = _rentedBuffer;
+            byte[]? toReturn = _rentedBuffer;
             _rentedBuffer = null!;
             TopOfStack = 0;
 
@@ -47,12 +48,12 @@ namespace MCServerSharp.Collections
                 Enlarge();
 
             TopOfStack -= Unsafe.SizeOf<T>();
-            MemoryMarshal.Write(_rentedBuffer.AsSpan(TopOfStack), ref Unsafe.AsRef(item));
+            MemoryMarshal.Write(_buffer[TopOfStack..], ref Unsafe.AsRef(item));
         }
 
         public T Pop()
         {
-            if (TopOfStack > _rentedBuffer.Length - Unsafe.SizeOf<T>())
+            if (TopOfStack > _buffer.Length - Unsafe.SizeOf<T>())
                 throw new InvalidOperationException();
 
             var item = MemoryMarshal.Read<T>(_rentedBuffer.AsSpan(TopOfStack));
@@ -62,20 +63,20 @@ namespace MCServerSharp.Collections
 
         public bool TryPop([MaybeNullWhen(false)] out T item)
         {
-            if (TopOfStack > _rentedBuffer.Length - Unsafe.SizeOf<T>())
+            if (TopOfStack > _buffer.Length - Unsafe.SizeOf<T>())
             {
                 item = default;
                 return false;
             }
 
-            item = MemoryMarshal.Read<T>(_rentedBuffer.AsSpan(TopOfStack));
+            item = MemoryMarshal.Read<T>(_buffer[TopOfStack..]);
             TopOfStack += Unsafe.SizeOf<T>();
             return true;
         }
 
         public bool TryPop()
         {
-            if (TopOfStack > _rentedBuffer.Length - Unsafe.SizeOf<T>())
+            if (TopOfStack > _buffer.Length - Unsafe.SizeOf<T>())
                 return false;
 
             TopOfStack += Unsafe.SizeOf<T>();
@@ -84,39 +85,38 @@ namespace MCServerSharp.Collections
 
         public bool TryPeek([MaybeNullWhen(false)] out T item)
         {
-            if (TopOfStack > _rentedBuffer.Length - Unsafe.SizeOf<T>())
+            if (TopOfStack > _buffer.Length - Unsafe.SizeOf<T>())
             {
                 item = default;
                 return false;
             }
 
-            item = MemoryMarshal.Read<T>(_rentedBuffer.AsSpan(TopOfStack));
+            item = MemoryMarshal.Read<T>(_buffer[TopOfStack..]);
             return true;
         }
 
         public ref T TryPeek()
         {
-            if (TopOfStack > _rentedBuffer.Length - Unsafe.SizeOf<T>())
+            if (TopOfStack > _buffer.Length - Unsafe.SizeOf<T>())
                 return ref Unsafe.NullRef<T>();
 
-            return ref MemoryMarshal.AsRef<T>(_rentedBuffer.AsSpan(TopOfStack));
+            return ref MemoryMarshal.AsRef<T>(_buffer[TopOfStack..]);
         }
 
         private void Enlarge()
         {
-            byte[] toReturn = _rentedBuffer;
-            _rentedBuffer = ArrayPool<byte>.Shared.Rent(toReturn.Length * 2);
+            byte[]? toReturn = _rentedBuffer;
+            _rentedBuffer = ArrayPool<byte>.Shared.Rent(_buffer.Length * 2);
 
-            Buffer.BlockCopy(
-                toReturn,
-                TopOfStack,
-                _rentedBuffer,
-                _rentedBuffer.Length - toReturn.Length + TopOfStack,
-                toReturn.Length - TopOfStack);
+            Span<byte> src = _buffer[TopOfStack..];
+            Span<byte> dst = _rentedBuffer.AsSpan(_rentedBuffer.Length - _buffer.Length + TopOfStack);
+            src.CopyTo(dst);
 
-            TopOfStack += _rentedBuffer.Length - toReturn.Length;
+            TopOfStack += _rentedBuffer.Length - _buffer.Length;
+            _buffer = _rentedBuffer;
 
-            ArrayPool<byte>.Shared.Return(toReturn, _clearOnReturn);
+            if (toReturn != null)
+                ArrayPool<byte>.Shared.Return(toReturn, _clearOnReturn);
         }
     }
 }
