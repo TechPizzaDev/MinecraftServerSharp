@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Buffers;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Reflection.Metadata;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using MCServerSharp;
 using MCServerSharp.Data.IO;
@@ -23,8 +25,7 @@ namespace Tests
 
             TestUtf8String();
             Console.WriteLine(nameof(TestUtf8String) + " passed");
-            return;
-
+            
             TestStreamTrimStart();
             Console.WriteLine(nameof(TestStreamTrimStart) + " passed");
 
@@ -34,23 +35,71 @@ namespace Tests
 
         private static void TestUtf8String()
         {
-            Utf8String utf8 = " x  this  is cool  ".ToUtf8String();
-            
-            Console.WriteLine("split:");
-            var split = utf8.EnumerateRangeSplit(" ".ToUtf8String());
-            foreach (Range range in split)
+            Rune rune = Rune.GetRuneAt("😃", 0);
+
+            byte[] t = new byte[12];
+            t[0] = (byte)'a';
+            t[1] = (byte)'b';
+            t[2] = (byte)'c';
+            t[3] = (byte)'d';
+            rune.EncodeToUtf8(t.AsSpan(4));
+            t[8 + 0] = (byte)'e';
+            t[8 + 1] = (byte)'f';
+            t[8 + 2] = (byte)'g';
+            t[8 + 3] = (byte)'h';
+
+            var s = new Utf8Splitter(t, default, StringSplitOptions.None);
+            foreach (Range range in s)
             {
-                Utf8String sub = utf8.Substring(range);
-                //Console.WriteLine($"\"{sub}\"");
+                var ssss = new Utf8String(s.Span[range]);
+                Console.WriteLine(range + ": " + ssss);
             }
 
-            Console.WriteLine("remove empty split:");
-            var removesplit = utf8.EnumerateRangeSplit(" ".ToUtf8String(), StringSplitOptions.RemoveEmptyEntries);
-            foreach (Range range in removesplit)
+            for (int i = 0; i < t.Length; i++)
             {
-                Utf8String sub = utf8.Substring(range);
-                Console.WriteLine($"\"{sub}\"");
+                Console.Write("[" + i + "] + " + (t.Length - i) + ": ");
+                Console.Write(Utf8String.IsValidUtf8Slice(t, i, t.Length - i));
+                Console.Write(", ");
+                Console.WriteLine(Utf8String.IsValidUtf8Slice(t, i, 1));
             }
+
+            Utf8String utf8 = " x  this  is cool    ".ToUtf8String();
+
+            Thread.Sleep(1000);
+
+            var rng = new Random();
+
+            utf8 = Utf8String.Create(1024 * 1024 * 4, 0, (span, u) =>
+            {
+                rng.NextBytes(span);
+            });
+
+            Console.WriteLine("split: ");
+            //var split = utf8.EnumerateRangeSplit(" ".ToUtf8String());
+            //foreach (Range range in split)
+            //{
+            //    Utf8String sub = utf8.Substring(range);
+            //    //Console.WriteLine($"\"{sub}\"");
+            //}
+
+            Console.WriteLine("remove empty split: ");
+            var removesplit = utf8.EnumerateSplit(" ".ToUtf8String(), StringSplitOptions.None);
+            int count = 0;
+            int invalidCount = 0;
+            while (removesplit.MoveNext())
+            {
+                (int offset, int length) = removesplit.Current.GetOffsetAndLength(removesplit.Span.Length);
+                if (!Utf8String.IsValidUtf8Slice(removesplit.Span, offset, length))
+                    invalidCount++;
+
+                //Utf8String sub = utf8.Substring(range);
+                //Console.WriteLine($"\"{sub}\"");
+                count++;
+            }
+            Console.WriteLine("Utf8String: " + count);
+            Console.WriteLine("Utf8String Invalids: " + invalidCount);
+
+            //Console.WriteLine("String: " + utf8.ToString().Split(" ", StringSplitOptions.None).Length);
 
             Console.WriteLine();
         }

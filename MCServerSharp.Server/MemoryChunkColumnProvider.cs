@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+﻿using System;
+using System.Threading.Tasks;
 using MCServerSharp.Maths;
 using MCServerSharp.World;
 
@@ -12,7 +13,7 @@ namespace MCServerSharp.Server
 
         public ValueTask<IChunkColumn> ProvideChunkColumn(ChunkColumnPosition columnPosition)
         {
-
+            throw new NotImplementedException();
         }
     }
 }
