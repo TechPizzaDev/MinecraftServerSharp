@@ -26,10 +26,10 @@ Utilizing a modern and unified .NET allows the server to run on most mainstream 
 #### ⚡🧵 Performant and Threaded 
 This implementation aims to provide great performance by utilizing modern practices, new technologies, and few allocations. 
 Threading many aspects of the server is of great importance as modern/server processors usually have plenty of cores. 
-One thread per dimension is planned. 
+At least one game thread per dimension is planned. 
 
 #### 💡⚒️ Innovative and Expansive
-The purpose of this project is to innovate where the vanilla server is lacking, creating heavily optimized components for various workloads. A robust world save format with backups and distributed hosting is planned. 
+The purpose of this project is to innovate where the vanilla server is lacking, creating heavily optimized components for various workloads. A robust world save format with backups and distributed hosting, possibly with multiple game threads per dimension, is planned. 
 
 <br>
 
@@ -41,6 +41,7 @@ The purpose of this project is to innovate where the vanilla server is lacking, 
     - .NET 5 SDK is required to build the project
 
 Latest Visual Studio 2019 with '.NET desktop development' should work out of the box.
+
 <br>
 
 ## Scrapped

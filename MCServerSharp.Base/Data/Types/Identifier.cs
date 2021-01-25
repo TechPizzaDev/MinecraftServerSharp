@@ -11,13 +11,13 @@ namespace MCServerSharp
         public static ReadOnlyMemory<Rune> ValidNamespaceCharacters { get; }
 
         // TODO: move this somewhere else?
-        public const string DefaultNamespace = "minecraft";
-        public const string Separator = ":";
+        public static string DefaultNamespace { get; } = string.Intern("minecraft");
+        public static string Separator { get; } = ":";
 
         public string Value { get; }
         public string Namespace { get; }
         public string Location { get; }
-        private int HashCode { get; }
+        public int Hash { get; }
 
         public bool IsValid => Value != null;
 
@@ -50,9 +50,9 @@ namespace MCServerSharp
             ValidateNamespace(parts[0]);
             ValidateLocation(parts[1]);
 
-            Namespace = parts[0];
+            Namespace = string.IsInterned(parts[0]) ?? parts[0];
             Location = parts[1];
-            HashCode = Value.GetHashCode();
+            Hash = Value.GetHashCode();
         }
 
         public Identifier(string @namespace, string location)
@@ -63,7 +63,7 @@ namespace MCServerSharp
             Namespace = @namespace ?? DefaultNamespace;
             Location = location;
             Value = Namespace + Separator + Location;
-            HashCode = Value.GetHashCode();
+            Hash = Value.GetHashCode();
         }
 
         #endregion
@@ -136,7 +136,7 @@ namespace MCServerSharp
 
         public bool Equals(Identifier other, StringComparison comparison) => Value.Equals(other.Value, comparison);
 
-        public bool Equals(Identifier other) => Equals(other.Value, StringComparison.Ordinal);
+        public bool Equals(Identifier other) => Equals(other, StringComparison.Ordinal);
 
         public override bool Equals(object? obj)
         {
@@ -145,7 +145,7 @@ namespace MCServerSharp
 
         public override int GetHashCode()
         {
-            return HashCode;
+            return Hash;
         }
 
         public override string ToString()

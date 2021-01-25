@@ -37,7 +37,6 @@ namespace MCServerSharp.Server
         private static DirectBlockPalette _directBlockPalette;
 
         private static Ticker _ticker;
-        private static ChunkColumnManager _mainChunkColumnManager;
         private static Dimension _mainDimension;
 
         private static List<NetConnection> _connectionsList = new();
@@ -168,10 +167,10 @@ namespace MCServerSharp.Server
             LoadGameData();
 
             MemoryChunkColumnProvider chunkColumnProvider = new();
-            _mainChunkColumnManager = new ChunkColumnManager(chunkColumnProvider, _directBlockPalette);
+            var mainChunkColumnManager = new ChunkColumnManager(chunkColumnProvider, _directBlockPalette);
             
-            _mainDimension = new Dimension(_mainChunkColumnManager);
-            _mainChunkColumnManager.Components.Add(new DimensionComponent(_mainDimension));
+            _mainDimension = new Dimension(mainChunkColumnManager);
+            mainChunkColumnManager.Components.Add(new DimensionComponent(_mainDimension));
 
             using var pong = configProvider.OpenResourceReader(PongResource);
             if (pong == null)

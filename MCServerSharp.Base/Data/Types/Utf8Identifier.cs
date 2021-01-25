@@ -12,7 +12,7 @@ namespace MCServerSharp
         public Utf8String Value { get; }
         public Utf8String Namespace { get; }
         public Utf8String Location { get; }
-        private int HashCode { get; }
+        public int Hash { get; }
 
         public bool IsValid => Value != null;
 
@@ -40,7 +40,7 @@ namespace MCServerSharp
             Location = value.Substring(part2);
             Identifier.ValidateLocation(Location);
 
-            HashCode = Value.GetHashCode();
+            Hash = Value.GetHashCode();
         }
 
         public Utf8Identifier(string value) : this(value.ToUtf8String())
@@ -55,7 +55,7 @@ namespace MCServerSharp
             Namespace = @namespace ?? DefaultNamespace;
             Location = location;
             Value = Utf8String.Concat(Namespace, Separator, Location);
-            HashCode = Value.GetHashCode();
+            Hash = Value.GetHashCode();
         }
 
         public static bool TryParse(Utf8String value, out Utf8Identifier identifier)
@@ -100,7 +100,7 @@ namespace MCServerSharp
 
         public bool Equals(Utf8Identifier other, StringComparison comparison) => Value.Equals(other.Value, comparison);
 
-        public bool Equals(Utf8Identifier other) => Equals(other.Value, StringComparison.Ordinal);
+        public bool Equals(Utf8Identifier other) => Equals(other, StringComparison.Ordinal);
 
         public override bool Equals(object? obj)
         {
@@ -109,7 +109,7 @@ namespace MCServerSharp
 
         public override int GetHashCode()
         {
-            return HashCode;
+            return Hash;
         }
 
         public override string ToString()

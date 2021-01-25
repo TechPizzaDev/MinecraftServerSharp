@@ -12,6 +12,8 @@ using MCServerSharp.Text;
 
 namespace MCServerSharp
 {
+    // TODO: string interning
+
     [DebuggerDisplay("{ToString()}")]
     [SkipLocalsInit]
     public partial class Utf8String : IComparable<Utf8String>, IEquatable<Utf8String>, ILongHashable
