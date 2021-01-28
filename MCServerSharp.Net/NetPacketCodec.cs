@@ -127,7 +127,7 @@ namespace MCServerSharp.Net
             {
                 int read;
                 while ((read = await socket.ReceiveAsync(
-                    readMemory, SocketFlags.None, state.CancellationToken).ConfigureAwait(false)) != 0)
+                    readMemory, SocketFlags.None, state.CancellationToken).Unchain()) != 0)
                 {
                     // Insert received data into beginning of receive buffer.
                     var readSlice = readMemory.Slice(0, read);

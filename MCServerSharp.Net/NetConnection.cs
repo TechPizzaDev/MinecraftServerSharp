@@ -54,7 +54,8 @@ namespace MCServerSharp.Net
             _closeAction = closeAction ?? throw new ArgumentNullException(nameof(closeAction));
 
             // get it here as we can't get it later if the socket gets disposed
-            RemoteEndPoint = (IPEndPoint)socket.RemoteEndPoint;
+            RemoteEndPoint = (socket.RemoteEndPoint as IPEndPoint) ?? 
+                throw new ArgumentException("The remote end point is null.", nameof(socket));
 
             ReceiveBuffer = Orchestrator.MemoryManager.GetStream();
             DecompressionBuffer = Orchestrator.MemoryManager.GetStream();
@@ -87,7 +88,7 @@ namespace MCServerSharp.Net
             if (!Socket.Connected)
                 return NetSendState.Closed;
 
-            var sendBuffer = SendBuffer;
+            ChunkedMemoryStream sendBuffer = SendBuffer;
             int length = (int)sendBuffer.Length;
             if (length > 0)
             {
@@ -95,11 +96,11 @@ namespace MCServerSharp.Net
                 int block = 0;
                 while (left > 0)
                 {
-                    var buffer = sendBuffer.GetBlock(block);
+                    Memory<byte> buffer = sendBuffer.GetBlock(block);
                     int blockLength = Math.Min(sendBuffer.BlockSize, left);
 
-                    var data = buffer.Slice(0, blockLength);
-                    int write = await Socket.SendAsync(data, SocketFlags.None).ConfigureAwait(false);
+                    Memory<byte> data = buffer.Slice(0, blockLength);
+                    int write = await Socket.SendAsync(data, SocketFlags.None).Unchain();
                     if (write == 0)
                     {
                         Close(immediate: false);

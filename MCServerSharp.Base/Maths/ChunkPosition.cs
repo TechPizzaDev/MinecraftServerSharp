@@ -2,13 +2,13 @@
 
 namespace MCServerSharp.Maths
 {
-    public struct ChunkPosition : IEquatable<ChunkPosition>, ILongHashable
+    public readonly struct ChunkPosition : IEquatable<ChunkPosition>, ILongHashable
     {
-        public int X;
-        public int Y;
-        public int Z;
+        public int X { get; }
+        public int Y { get; }
+        public int Z { get; }
 
-        public readonly ChunkColumnPosition ColumnPosition => new ChunkColumnPosition(X, Z);
+        public ChunkColumnPosition ColumnPosition => new ChunkColumnPosition(X, Z);
 
         public ChunkPosition(int x, int y, int z)
         {
@@ -44,27 +44,27 @@ namespace MCServerSharp.Maths
                 left.Z - right.Z);
         }
 
-        public readonly bool Equals(ChunkPosition other)
+        public bool Equals(ChunkPosition other)
         {
             return this == other;
         }
 
-        public readonly long GetLongHashCode()
+        public long GetLongHashCode()
         {
             return LongHashCode.Combine(X, Y, Z);
         }
 
-        public override readonly int GetHashCode()
+        public override int GetHashCode()
         {
             return HashCode.Combine(X, Y, Z);
         }
 
-        public override readonly bool Equals(object? obj)
+        public override bool Equals(object? obj)
         {
             return obj is ChunkPosition value && Equals(value);
         }
 
-        public override readonly string ToString()
+        public override string ToString()
         {
             return "{X:" + X + ", Y:" + Y + ", Z:" + Z + "}";
         }

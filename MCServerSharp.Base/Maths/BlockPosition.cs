@@ -2,7 +2,7 @@
 
 namespace MCServerSharp.Maths
 {
-    public readonly struct BlockPosition : IEquatable<BlockPosition>
+    public readonly struct BlockPosition : IEquatable<BlockPosition>, ILongHashable
     {
         public int X { get; }
         public int Y { get; }
@@ -30,6 +30,11 @@ namespace MCServerSharp.Maths
         public override int GetHashCode()
         {
             return HashCode.Combine(X, Y, Z);
+        }
+
+        public long GetLongHashCode()
+        {
+            return LongHashCode.Combine(X, Y, Z);
         }
 
         public static bool operator ==(BlockPosition left, BlockPosition right)
