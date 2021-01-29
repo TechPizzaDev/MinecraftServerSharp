@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using MCServerSharp.Blocks;
@@ -13,9 +14,17 @@ namespace MCServerSharp.World
 
     // TODO?: DimensionTaskScheduler: allows async tasks to run while the dimension thread continues to tick
 
-    public class Dimension : ComponentEntity, ITickable 
+    class ChunkInfo
     {
+        public int Age;
+    }
+
+    public class Dimension : ComponentEntity, ITickable
+    {
+        private ConcurrentDictionary<IChunkColumn, ChunkInfo> _chunkInfos = new();
+
         public ChunkColumnManager ChunkColumnManager { get; }
+
         public DirectBlockPalette GlobalBlockPalette => ChunkColumnManager.GlobalBlockPalette;
 
         // TODO: turn players into proper API
@@ -26,15 +35,23 @@ namespace MCServerSharp.World
         public Dimension(ChunkColumnManager chunkColumnManager)
         {
             ChunkColumnManager = chunkColumnManager ?? throw new ArgumentNullException(nameof(chunkColumnManager));
+
+            ChunkColumnManager.ChunkColumnProvider.ChunkAdded += ChunkColumnProvider_ChunkAdded;
         }
 
-        List<BasicChunkColumn> chunksToRemove = new List<BasicChunkColumn>();
+        private void ChunkColumnProvider_ChunkAdded(IChunkColumnProvider arg1, IChunkColumn arg2)
+        {
+            _chunkInfos.TryAdd(arg2, new ChunkInfo());
+        }
+
+        List<IChunkColumn> chunksToRemove = new List<IChunkColumn>();
 
         public void Tick()
         {
             chunksToRemove.Clear();
 
-            foreach (var (chunk, info) in _chunkInfos)
+            // TODO: chunk reference counter 
+            foreach ((IChunkColumn chunk, ChunkInfo info) in _chunkInfos)
             {
                 info.Age++;
 
@@ -44,10 +61,19 @@ namespace MCServerSharp.World
                 }
             }
 
-            foreach (var chunk in chunksToRemove)
+            void TryRemove(IChunkColumn? chunk)
             {
-                _chunkColumns.Remove(chunk.Position);
-                _chunkInfos.Remove(chunk);
+                if (chunk != null)
+                    _chunkInfos.TryRemove(chunk, out _);
+            }
+
+            foreach (IChunkColumn? chunk in chunksToRemove)
+            {
+                ValueTask<IChunkColumn?> removeTask = ChunkColumnManager.ChunkColumnProvider.RemoveChunkColumn(chunk.Position);
+                if (removeTask.IsCompleted)
+                    TryRemove(removeTask.Result);
+                else
+                    removeTask.AsTask().ContinueWith((c) => TryRemove(c.Result));
             }
 
             foreach (var player in players)

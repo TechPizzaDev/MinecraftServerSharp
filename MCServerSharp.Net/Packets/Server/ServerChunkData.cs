@@ -14,20 +14,20 @@ namespace MCServerSharp.Net.Packets
 
         public const int UnderlyingDataSize = 4096;
 
-        public IChunkColumn ChunkColumn { get; }
+        public LocalChunkColumn ChunkColumn { get; }
         public int IncludedSectionsMask { get; }
         public bool FullChunk => IncludedSectionsMask == 65535;
 
         // TODO?: create flash-copying (fast deep-clone) of chunks for serialization purposes,
         // possibly with some kind of locking on end of dimension tick
 
-        public ServerChunkData(IChunkColumn chunkColumn, int includedSectionsMask)
+        public ServerChunkData(LocalChunkColumn chunkColumn, int includedSectionsMask)
         {
             ChunkColumn = chunkColumn;
             IncludedSectionsMask = includedSectionsMask;
         }
 
-        public static int GetSectionMask(IChunkColumn chunkColumn)
+        public static int GetSectionMask(LocalChunkColumn chunkColumn)
         {
             if (chunkColumn == null)
                 throw new ArgumentNullException(nameof(chunkColumn));
@@ -35,8 +35,7 @@ namespace MCServerSharp.Net.Packets
             int sectionMask = 0;
             for (int sectionY = 0; sectionY < ColumnHeight; sectionY++)
             {
-                var section = chunkColumn[sectionY];
-                if (section != null)
+                if (chunkColumn.ContainsChunk(sectionY))
                     sectionMask |= 1 << sectionY;
             }
             return sectionMask;
@@ -79,7 +78,7 @@ namespace MCServerSharp.Net.Packets
             //}
         }
 
-        public static int GetChunkSectionDataLength(IChunkColumn chunkColumn)
+        public static int GetChunkSectionDataLength(LocalChunkColumn chunkColumn)
         {
             if (chunkColumn == null)
                 throw new ArgumentNullException(nameof(chunkColumn));
@@ -88,23 +87,21 @@ namespace MCServerSharp.Net.Packets
 
             for (int chunkY = 0; chunkY < ColumnHeight; chunkY++)
             {
-                Chunk? chunk = chunkColumn[chunkY];
-                if (chunk != null)
+                if (chunkColumn.TryGetChunk(chunkY, out LocalChunk? chunk))
                     length += GetChunkSectionDataLength(chunk);
             }
 
             return length;
         }
 
-        public static void WriteChunk(NetBinaryWriter writer, IChunkColumn chunkColumn)
+        public static void WriteChunk(NetBinaryWriter writer, LocalChunkColumn chunkColumn)
         {
             if (chunkColumn == null)
                 throw new ArgumentNullException(nameof(chunkColumn));
 
             for (int chunkY = 0; chunkY < ColumnHeight; chunkY++)
             {
-                Chunk? chunk = chunkColumn[chunkY];
-                if (chunk != null)
+                if (chunkColumn.TryGetChunk(chunkY, out LocalChunk? chunk))
                 {
                     ReadOnlySpan<BlockState> blocks = chunk.Blocks.Span;
                     WriteBlocks(writer, blocks, chunk.BlockPalette);
@@ -119,12 +116,12 @@ namespace MCServerSharp.Net.Packets
             return longCount;
         }
 
-        public static int GetChunkSectionDataLength(Chunk section)
+        public static int GetChunkSectionDataLength(IChunk chunk)
         {
-            if (section == null)
-                throw new ArgumentNullException(nameof(section));
+            if (chunk == null)
+                throw new ArgumentNullException(nameof(chunk));
 
-            IBlockPalette palette = section.BlockPalette;
+            IBlockPalette palette = chunk.BlockPalette;
 
             int length = 0;
             length += sizeof(short);
@@ -167,7 +164,7 @@ namespace MCServerSharp.Net.Packets
             int bitsPerBlock = palette.BitsPerBlock;
             int dataLength = GetUnderlyingDataLength(UnderlyingDataSize, bitsPerBlock);
 
-            writer.Write((short)Chunk.BlockCount);
+            writer.Write((short)LocalChunk.BlockCount);
             writer.Write((byte)bitsPerBlock);
             palette.Write(writer);
             writer.WriteVar(dataLength);

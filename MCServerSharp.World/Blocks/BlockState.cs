@@ -3,9 +3,9 @@ using MCServerSharp.Utility;
 
 namespace MCServerSharp.Blocks
 {
-    public class BlockState
+    public class BlockState : ILongHashable
     {
-        private StatePropertyValue[] _properties;
+        private readonly StatePropertyValue[]? _properties;
 
         public BlockDescription Block { get; }
         public uint StateId { get; }
@@ -16,16 +16,19 @@ namespace MCServerSharp.Blocks
 
         public ReadOnlyMemory<StatePropertyValue> Properties => _properties;
 
-        public BlockState(BlockDescription block, StatePropertyValue[] properties, uint id)
+        public BlockState(BlockDescription block, StatePropertyValue[]? properties, uint id)
         {
-            Block = block ?? throw new ArgumentNullException(nameof(block));
-            _properties = properties ?? throw new ArgumentNullException(nameof(properties));
+            if (properties?.Length == 0)
+                properties = null;
+
+            Block = block;
+            _properties = properties;
             StateId = id;
         }
 
         public override string ToString()
         {
-            if (_properties.Length > 0)
+            if (_properties != null)
             {
                 var builder = _properties.ToListString();
                 builder.Insert(0, '[').Insert(0, Block.Identifier.ToString());
@@ -33,6 +36,16 @@ namespace MCServerSharp.Blocks
                 return builder.ToString();
             }
             return Block.Identifier.ToString();
+        }
+
+        public long GetLongHashCode()
+        {
+            return LongHashCode.Combine(StateId, BlockId, BlockIdentifier);
+        }
+
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(StateId, BlockId, BlockIdentifier);
         }
     }
 }

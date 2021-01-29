@@ -53,7 +53,7 @@ namespace MCServerSharp.Net
                 if (_sendTask.IsCompleted)
                 {
                     GatherChunksToSend(player);
-                    _sendTask = SendChunks(player);
+                    _sendTask = Task.Run(() => SendChunks(player));
                 }
             }
         }
@@ -73,7 +73,7 @@ namespace MCServerSharp.Net
             double avgElapsed = GameTime.Ticker.AverageElapsedTime.TotalMilliseconds;
 
             var chat = Chat.Text(
-                $"{avgElapsed,2:0}ms | S:{ToReadable(Connection.BytesSent)} | R:{ToReadable(Connection.BytesReceived)}");
+                $"{avgElapsed,2:0.0}ms | S:{ToReadable(Connection.BytesSent)} | R:{ToReadable(Connection.BytesReceived)}");
             EnqueuePacket(new ServerChat(chat, 2, UUID.Zero));
         }
 
@@ -126,11 +126,11 @@ namespace MCServerSharp.Net
 
                 int maxToSend = 5;
 
-                foreach (var loadList in player.ChunkLoadLists)
+                foreach (List<ChunkColumnPosition> loadList in player.ChunkLoadLists)
                 {
                     for (int i = 0; i < loadList.Count; i++)
                     {
-                        var chunkPos = loadList[i];
+                        ChunkColumnPosition chunkPos = loadList[i];
                         loadList.RemoveAt(i);
 
                         if (!player.ChunkLoadSet.Remove(chunkPos))
@@ -138,9 +138,12 @@ namespace MCServerSharp.Net
 
                         if (player.LoadedChunks.Add(chunkPos))
                         {
-                            IChunkColumn chunk = await player.Dimension.GetOrAddChunkColumn(chunkPos).Unchain();
-                            SendChunkColumn(chunk);
-                            player.SentChunkCount++;
+                            IChunkColumn column = await player.Dimension.GetOrAddChunkColumn(chunkPos).Unchain();
+                            
+                            var localColumn = (LocalChunkColumn)column;
+                            await SendChunkColumn(localColumn);
+
+                            player.SentColumnCount++;
 
                             if (--maxToSend == 0)
                                 goto End;
@@ -321,8 +324,13 @@ namespace MCServerSharp.Net
             loadList.Add(position);
         }
 
-        private void SendChunkColumn(IChunkColumn chunkColumn)
+        private async ValueTask SendChunkColumn(LocalChunkColumn chunkColumn)
         {
+            for (int i = 0; i < 16; i++)
+            {
+                await chunkColumn.GetOrAddChunk(i);
+            }
+
             var skyLights = new List<LightArray>();
             var blockLights = new List<LightArray>();
 
@@ -332,8 +340,7 @@ namespace MCServerSharp.Net
             var filledBlockLightMask = 0;
             for (int y = 0; y < 18; y++)
             {
-                Chunk? chunk = chunkColumn.TryGetChunk(y - 1);
-                if (chunk != null && !chunk.IsEmpty)
+                if (chunkColumn.TryGetChunk(y - 1, out LocalChunk? chunk) && !chunk.IsEmpty)
                 {
                     skyLightMask |= 1 << y;
                     skyLights.Add(new LightArray());

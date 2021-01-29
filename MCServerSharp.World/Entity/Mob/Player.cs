@@ -28,7 +28,7 @@ namespace MCServerSharp.Entities.Mobs
 
         public LongHashSet<ChunkColumnPosition> ChunkLoadSet; // TODO: get rid of this
 
-        public long SentChunkCount;
+        public long SentColumnCount;
 
         public Player(Dimension dimension) : base(dimension)
         {

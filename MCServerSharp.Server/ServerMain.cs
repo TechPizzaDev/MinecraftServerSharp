@@ -33,7 +33,6 @@ namespace MCServerSharp.Server
         private static NetManager _manager;
         private static string? _requestPongBase;
 
-        private static List<BlockDescription> _blocks;
         private static DirectBlockPalette _directBlockPalette;
 
         private static Ticker _ticker;
@@ -166,9 +165,9 @@ namespace MCServerSharp.Server
 
             LoadGameData();
 
-            MemoryChunkColumnProvider chunkColumnProvider = new();
+            LocalChunkColumnProvider chunkColumnProvider = new();
             var mainChunkColumnManager = new ChunkColumnManager(chunkColumnProvider, _directBlockPalette);
-            
+
             _mainDimension = new Dimension(mainChunkColumnManager);
             mainChunkColumnManager.Components.Add(new DimensionComponent(_mainDimension));
 
@@ -189,6 +188,8 @@ namespace MCServerSharp.Server
 
             Console.WriteLine("Setting up network manager...");
             _manager.Setup();
+
+            Console.WriteLine("Minecraft version: " + _manager.GameVersion);
 
             int backlog = 200;
             Console.WriteLine("Listener backlog queue size: " + backlog);
@@ -213,10 +214,17 @@ namespace MCServerSharp.Server
             {
                 Console.WriteLine("Loading blocks...");
 
-                _blocks = LoadBlocks();
-                _directBlockPalette = new DirectBlockPalette(_blocks);
+                JsonDocument blocksDocument;
+                using (var blocksFile = File.OpenRead("GameData/reports/blocks.json"))
+                    blocksDocument = JsonDocument.Parse(blocksFile);
 
-                Console.WriteLine($"Loaded {_blocks.Count} blocks, {_directBlockPalette.Count} states");
+                List<BlockDescription> blocks;
+                using (blocksDocument)
+                    blocks = ParseBlocks(blocksDocument);
+
+                _directBlockPalette = new DirectBlockPalette(blocks);
+
+                Console.WriteLine($"Loaded {blocks.Count} blocks, {_directBlockPalette.Count} states");
             }
         }
 
@@ -255,7 +263,7 @@ namespace MCServerSharp.Server
             if (isIntProperty)
                 return new IntegerStateProperty(name, min, max);
 
-            foreach (var (propertyType, enumValues) in _stateEnumSets)
+            foreach ((Type propertyType, HashSet<string> enumValues) in _stateEnumSets)
             {
                 if (enumValues.SetEquals(values))
                 {
@@ -269,97 +277,93 @@ namespace MCServerSharp.Server
             throw new Exception($"Missing enum for values \"{name}\": {{{values.ToListString()}}}");
         }
 
-        private static List<BlockDescription> LoadBlocks()
+        private static List<BlockDescription> ParseBlocks(JsonDocument blocksDocument)
         {
             // TODO: cleanup/make more readable
 
-            JsonDocument blocksDocument;
-            using (var blocksFile = File.OpenRead("GameData/reports/blocks.json"))
-                blocksDocument = JsonDocument.Parse(blocksFile);
+            List<BlockDescription> blocks = new List<BlockDescription>();
+            List<IStateProperty> blockStatePropBuilder = new();
 
-            using (blocksDocument)
+            uint blockId = 0;
+            foreach (JsonProperty blockProperty in blocksDocument.RootElement.EnumerateObject())
             {
-                List<BlockDescription> blocksList = new();
-                List<IStateProperty> blockStatePropBuilder = new();
+                Identifier blockName = new(blockProperty.Name);
+                JsonElement blockObject = blockProperty.Value;
 
-                uint blockId = 0;
-                foreach (var blockProperty in blocksDocument.RootElement.EnumerateObject())
+                JsonElement stateArray = blockObject.GetProperty("states");
+                int stateCount = stateArray.GetArrayLength();
+                int? defaultStateIndex = null;
+                for (int i = 0; i < stateCount; i++)
                 {
-                    Identifier blockName = new(blockProperty.Name);
-                    JsonElement blockObject = blockProperty.Value;
-
-                    JsonElement stateArray = blockObject.GetProperty("states");
-                    int stateCount = stateArray.GetArrayLength();
-                    int? defaultStateIndex = null;
-                    for (int i = 0; i < stateCount; i++)
+                    if (stateArray[i].TryGetProperty("default", out JsonElement defaultElement) &&
+                        defaultElement.GetBoolean())
                     {
-                        if (stateArray[i].TryGetProperty("default", out JsonElement defaultElement) &&
-                            defaultElement.GetBoolean())
-                        {
-                            defaultStateIndex = i;
-                            break;
-                        }
+                        defaultStateIndex = i;
+                        break;
                     }
-                    if (defaultStateIndex == null)
-                        Console.WriteLine(blockName + " is missing default state"); // TODO: print warning
-
-                    static string GetEnumString(JsonElement element)
-                    {
-                        string? str = element.GetString();
-                        if (str == null)
-                            throw new ArgumentException("The element value as string is null.");
-
-                        // TODO: improve by converting to snake_case to PascalCase somewhere..
-                        return str.Replace("_", "", StringComparison.Ordinal);
-                    }
-
-                    IStateProperty[] blockProps = Array.Empty<IStateProperty>();
-                    if (blockObject.TryGetProperty("properties", out JsonElement blockPropsObject))
-                    {
-                        blockStatePropBuilder.Clear();
-                        foreach (JsonProperty blockPropProp in blockPropsObject.EnumerateObject())
-                        {
-                            List<string> propNames = blockPropProp.Value.EnumerateArray()
-                                .Select(x => GetEnumString(x))
-                                .ToList();
-
-                            IStateProperty parsedProp = ParseStateProperty(blockPropProp.Name, propNames);
-                            blockStatePropBuilder.Add(parsedProp);
-                        }
-                        blockProps = blockStatePropBuilder.ToArray();
-                    }
-
-                    BlockState[] blockStates = new BlockState[stateCount];
-                    BlockDescription block = new(
-                        blockStates, blockProps,
-                        blockName, blockId, defaultStateIndex.GetValueOrDefault());
-
-                    for (int i = 0; i < blockStates.Length; i++)
-                    {
-                        JsonElement stateObject = stateArray[i];
-                        JsonElement idProp = stateObject.GetProperty("id");
-                        StatePropertyValue[] propValues = Array.Empty<StatePropertyValue>();
-
-                        if (blockProps.Length != 0)
-                        {
-                            propValues = new StatePropertyValue[blockProps.Length];
-                            JsonElement statePropsObject = stateObject.GetProperty("properties");
-                            int propertyIndex = 0;
-                            foreach (JsonProperty statePropProp in statePropsObject.EnumerateObject())
-                            {
-                                IStateProperty blockStateProp = blockProps.First(x => statePropProp.NameEquals(x.Name));
-                                int valueIndex = blockStateProp.ParseIndex(GetEnumString(statePropProp.Value));
-                                propValues[propertyIndex++] = StatePropertyValue.Create(blockStateProp, valueIndex);
-                            }
-                        }
-                        blockStates[i] = new BlockState(block, propValues, idProp.GetUInt32());
-                    }
-
-                    blocksList.Add(block);
-                    blockId++;
                 }
-                return blocksList;
+                if (defaultStateIndex == null)
+                    Console.WriteLine(blockName + " is missing default state"); // TODO: print warning
+
+                static string GetEnumString(JsonElement element)
+                {
+                    string? str = element.GetString();
+                    if (str == null)
+                        throw new ArgumentException("The element value as string is null.");
+
+                    // TODO: improve by converting to snake_case to PascalCase somewhere..
+                    return str.Replace("_", "", StringComparison.Ordinal);
+                }
+
+                IStateProperty[]? blockProps = null;
+                if (blockObject.TryGetProperty("properties", out JsonElement blockPropsObject))
+                {
+                    blockStatePropBuilder.Clear();
+
+                    foreach (JsonProperty blockPropProp in blockPropsObject.EnumerateObject())
+                    {
+                        List<string> propNames = blockPropProp.Value.EnumerateArray()
+                            .Select(x => GetEnumString(x))
+                            .ToList();
+
+                        IStateProperty parsedProp = ParseStateProperty(blockPropProp.Name, propNames);
+                        blockStatePropBuilder.Add(parsedProp);
+                    }
+                    blockProps = blockStatePropBuilder.ToArray();
+                }
+
+                BlockState[] blockStates = new BlockState[stateCount];
+
+                BlockDescription block = new(
+                    blockStates, blockProps,
+                    blockName, blockId, defaultStateIndex.GetValueOrDefault());
+
+                for (int i = 0; i < blockStates.Length; i++)
+                {
+                    JsonElement stateObject = stateArray[i];
+                    JsonElement idProp = stateObject.GetProperty("id");
+                    StatePropertyValue[]? propValues = null;
+
+                    if (blockProps != null)
+                    {
+                        propValues = new StatePropertyValue[blockProps.Length];
+                        JsonElement statePropsObject = stateObject.GetProperty("properties");
+                        int propertyIndex = 0;
+                        foreach (JsonProperty statePropProp in statePropsObject.EnumerateObject())
+                        {
+                            IStateProperty blockStateProp = blockProps.First(x => statePropProp.NameEquals(x.Name));
+                            int valueIndex = blockStateProp.ParseIndex(GetEnumString(statePropProp.Value));
+                            propValues[propertyIndex++] = StatePropertyValue.Create(blockStateProp, valueIndex);
+                        }
+                    }
+                    blockStates[i] = new BlockState(block, propValues, idProp.GetUInt32());
+                }
+
+                blockId++;
+                blocks.Add(block);
             }
+
+            return blocks;
         }
 
         private static void Game_Tick(Ticker ticker)
@@ -416,16 +420,16 @@ namespace MCServerSharp.Server
                 if (_requestPongBase == null)
                     return;
 
-                // TODO: make these dynamic
-                var strComparison = StringComparison.OrdinalIgnoreCase;
+            // TODO: make these dynamic
+            var strComparison = StringComparison.OrdinalIgnoreCase;
                 var numFormat = NumberFormatInfo.InvariantInfo;
 
-                // TODO: better config
-                string jsonResponse = _requestPongBase
-                    .Replace("%version%", manager.GameVersion.ToString(), strComparison)
-                    .Replace("\"%versionID%\"", manager.ProtocolVersion.ToString(numFormat), strComparison)
-                    .Replace("\"%max%\"", 20.ToString(numFormat), strComparison)
-                    .Replace("\"%online%\"", 0.ToString(numFormat), strComparison);
+            // TODO: better config
+            string jsonResponse = _requestPongBase
+                .Replace("%version%", manager.GameVersion.ToString(), strComparison)
+                .Replace("\"%versionID%\"", manager.ProtocolVersion.ToString(numFormat), strComparison)
+                .Replace("\"%max%\"", 20.ToString(numFormat), strComparison)
+                .Replace("\"%online%\"", 0.ToString(numFormat), strComparison);
 
                 var answer = new ServerResponse((Utf8String)jsonResponse);
                 connection.EnqueuePacket(answer);
@@ -579,10 +583,10 @@ namespace MCServerSharp.Server
                     (Utf8String)"MCServerSharp"));
 
                 connection.EnqueuePacket(new ServerSpawnPosition(
-                    new Position(0, 7, 0)));
+                    new Position(0, 17, 0)));
 
                 connection.EnqueuePacket(new ServerPlayerPositionLook(
-                    0, 7, 0, 0, 0, ServerPlayerPositionLook.PositionRelatives.None, 1337));
+                    0, 17, 0, 0, 0, ServerPlayerPositionLook.PositionRelatives.None, 1337));
 
                 connection.EnqueuePacket(new ServerPlayerAbilities(
                     PlayerAbilityFlags.AllowFlying | PlayerAbilityFlags.Flying,
@@ -658,8 +662,8 @@ namespace MCServerSharp.Server
             {
                 byte windowID = 1;
 
-                //Console.WriteLine(playerBlockPlacement.);
-                connection.EnqueuePacket(new ServerOpenWindow(windowID, 13, Chat.Text("Inv on place")));
+            //Console.WriteLine(playerBlockPlacement.);
+            connection.EnqueuePacket(new ServerOpenWindow(windowID, 13, Chat.Text("Inv on place")));
 
                 System.Threading.Tasks.Task.Run(() =>
                 {
@@ -680,20 +684,20 @@ namespace MCServerSharp.Server
             manager.SetPacketHandler(delegate
                 (NetConnection connection, ClientTeleportConfirm teleportConfirm)
             {
-                //Console.WriteLine("Teleport Confirm: Id " + teleportConfirm.TeleportId);
-            });
+            //Console.WriteLine("Teleport Confirm: Id " + teleportConfirm.TeleportId);
+        });
 
 
             manager.SetPacketHandler(delegate
                 (NetConnection connection, ClientPlayerPosition playerPosition)
             {
-                //Console.WriteLine(
-                //    "Player Position:" +
-                //    " X" + playerPosition.X +
-                //    " Y" + playerPosition.FeetY +
-                //    " Z" + playerPosition.Z);
+            //Console.WriteLine(
+            //    "Player Position:" +
+            //    " X" + playerPosition.X +
+            //    " Y" + playerPosition.FeetY +
+            //    " Z" + playerPosition.Z);
 
-                PlayerPositionChange(connection, playerPosition.X, playerPosition.FeetY, playerPosition.Z);
+            PlayerPositionChange(connection, playerPosition.X, playerPosition.FeetY, playerPosition.Z);
             });
 
 
@@ -706,34 +710,34 @@ namespace MCServerSharp.Server
             manager.SetPacketHandler(delegate
                 (NetConnection connection, ClientPlayerPositionRotation playerPositionRotation)
             {
-                //Console.WriteLine(
-                //    "Player Position Rotation:" // +
-                //                                //" X" + playerPosition.X +
-                //                                //" Y" + playerPosition.FeetY +
-                //                                //" Z" + playerPosition.Z
-                //    );
+            //Console.WriteLine(
+            //    "Player Position Rotation:" // +
+            //                                //" X" + playerPosition.X +
+            //                                //" Y" + playerPosition.FeetY +
+            //                                //" Z" + playerPosition.Z
+            //    );
 
-                PlayerPositionChange(
-            connection, playerPositionRotation.X, playerPositionRotation.FeetY, playerPositionRotation.Z);
+            PlayerPositionChange(
+        connection, playerPositionRotation.X, playerPositionRotation.FeetY, playerPositionRotation.Z);
             });
 
 
             manager.SetPacketHandler(delegate
                 (NetConnection connection, ClientPlayerRotation playerRotation)
             {
-                //Console.WriteLine(
-                //    "Player Rotation:" +
-                //    " Yaw" + playerRotation.Yaw +
-                //    " Pitch" + playerRotation.Pitch);
-            });
+            //Console.WriteLine(
+            //    "Player Rotation:" +
+            //    " Yaw" + playerRotation.Yaw +
+            //    " Pitch" + playerRotation.Pitch);
+        });
 
 
             manager.SetPacketHandler(delegate
                 (NetConnection connection, ClientSettings clientSettings)
             {
-                // The player object should be created early in the pipeline.
-                var component = connection.Components.GetOrAdd(
-                    connection, (c) => new ClientSettingsComponent(c.GetPlayer()));
+            // The player object should be created early in the pipeline.
+            var component = connection.Components.GetOrAdd(
+                connection, (c) => new ClientSettingsComponent(c.GetPlayer()));
 
                 component.Settings = clientSettings;
                 component.SettingsChanged = true;
@@ -778,9 +782,9 @@ namespace MCServerSharp.Server
             manager.SetPacketHandler(delegate
                 (NetConnection connection, ClientChat chat)
             {
-                // TODO: better broadcasting
+            // TODO: better broadcasting
 
-                string? name = connection.GetPlayer().UserName;
+            string? name = connection.GetPlayer().UserName;
                 if (name == null)
                     name = "null";
 

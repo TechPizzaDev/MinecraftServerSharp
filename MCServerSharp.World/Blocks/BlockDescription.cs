@@ -1,12 +1,14 @@
 ﻿using System;
+using System.Diagnostics;
 
 namespace MCServerSharp.Blocks
 {
-    public class BlockDescription
+    [DebuggerDisplay("{" + nameof(GetDebuggerDisplay) + "(),nq}")]
+    public class BlockDescription : ILongHashable
     {
-        private BlockState[] _states;
-        private IStateProperty[] _properties;
-        private int _defaultStateIndex;
+        private readonly BlockState[] _states;
+        private readonly IStateProperty[]? _properties;
+        private readonly int _defaultStateIndex;
 
         public Identifier Identifier { get; }
         public uint BlockId { get; }
@@ -18,22 +20,35 @@ namespace MCServerSharp.Blocks
         public ReadOnlyMemory<IStateProperty> Properties => _properties;
 
         public BlockDescription(
-            BlockState[] states, IStateProperty[] properties, 
+            BlockState[] states, IStateProperty[]? properties, 
             Identifier identifier, uint id, int defaultStateIndex)
         {
             if (!identifier.IsValid)
                 throw new ArgumentException("The identifier is not valid.", nameof(identifier));
 
+            if (properties?.Length == 0)
+                properties = null;
+
             _states = states ?? throw new ArgumentNullException(nameof(states));
-            _properties = properties ?? throw new ArgumentNullException(nameof(properties));
+            _properties = properties;
             _defaultStateIndex = defaultStateIndex;
             Identifier = identifier;
             BlockId = id;
         }
 
-        public ReadOnlySpan<BlockState> GetStateSpan()
+        public long GetLongHashCode()
         {
-            return _states.AsSpan();
+            return LongHashCode.Combine(BlockId, Identifier);
+        }
+
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(BlockId, Identifier);
+        }
+
+        private string GetDebuggerDisplay()
+        {
+            return Identifier.ToString();
         }
     }
 }

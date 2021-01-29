@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using MCServerSharp.Data.IO;
 
@@ -41,7 +40,7 @@ namespace MCServerSharp.Blocks
                 _utf8BlockLookup.Add(block.Identifier.ToUtf8Identifier(), block);
 
                 stateCount += block.StateCount;
-                foreach (var state in block.GetStateSpan())
+                foreach (BlockState state in block.States.Span)
                 {
                     stateLookup.Add(state.StateId, state);
                     maxStateId = Math.Max(maxStateId, state.StateId);
@@ -61,7 +60,6 @@ namespace MCServerSharp.Blocks
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public uint IdForBlock(BlockState state)
         {
-            Debug.Assert(state != null);
             return state.StateId;
         }
 
