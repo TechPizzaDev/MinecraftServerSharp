@@ -42,6 +42,8 @@ The purpose of this project is to innovate where the vanilla server is lacking, 
 
 Latest Visual Studio 2019 with '.NET desktop development' should work out of the box.
 
+The server will require game data at runtime which needs to be [downloaded manually](https://github.com/Arcensoth/mcdata/tree/0ac1b096857a10adc38842cd6e76f97c7bd8e566/generated/reports) for now.
+
 <br>
 
 ## Scrapped
