@@ -14,10 +14,11 @@ namespace MCServerSharp
         public static string DefaultNamespace { get; } = string.Intern("minecraft");
         public static string Separator { get; } = ":";
 
+        private readonly int _hashCode;
+
         public string Value { get; }
         public string Namespace { get; }
         public string Location { get; }
-        public int Hash { get; }
 
         public bool IsValid => Value != null;
 
@@ -52,7 +53,7 @@ namespace MCServerSharp
 
             Namespace = string.IsInterned(parts[0]) ?? parts[0];
             Location = parts[1];
-            Hash = Value.GetHashCode();
+            _hashCode = Value.GetHashCode();
         }
 
         public Identifier(string @namespace, string location)
@@ -63,7 +64,7 @@ namespace MCServerSharp
             Namespace = @namespace ?? DefaultNamespace;
             Location = location;
             Value = Namespace + Separator + Location;
-            Hash = Value.GetHashCode();
+            _hashCode = Value.GetHashCode();
         }
 
         #endregion
@@ -145,7 +146,7 @@ namespace MCServerSharp
 
         public override int GetHashCode()
         {
-            return Hash;
+            return _hashCode;
         }
 
         public override string ToString()

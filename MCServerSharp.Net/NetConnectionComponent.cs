@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using MCServerSharp.Components;
@@ -16,6 +18,7 @@ namespace MCServerSharp.Net
     {
         private bool _firstSend = true;
         private Task _sendTask = Task.CompletedTask;
+        private List<ValueTask<LocalChunk>> _taskBuffer = new();
 
         public GameTimeComponent GameTime { get; }
 
@@ -53,7 +56,7 @@ namespace MCServerSharp.Net
                 if (_sendTask.IsCompleted)
                 {
                     GatherChunksToSend(player);
-                    _sendTask = Task.Run(() => SendChunks(player));
+                    _sendTask = Task.Run(() => SendChunks(player, _taskBuffer));
                 }
             }
         }
@@ -101,7 +104,7 @@ namespace MCServerSharp.Net
             Connection.EnqueuePacket(packet);
         }
 
-        private async Task SendChunks(Player player)
+        private async Task SendChunks(Player player, List<ValueTask<LocalChunk>> taskBuffer)
         {
             try
             {
@@ -139,9 +142,9 @@ namespace MCServerSharp.Net
                         if (player.LoadedChunks.Add(chunkPos))
                         {
                             IChunkColumn column = await player.Dimension.GetOrAddChunkColumn(chunkPos).Unchain();
-                            
+
                             var localColumn = (LocalChunkColumn)column;
-                            await SendChunkColumn(localColumn);
+                            await SendChunkColumn(localColumn, taskBuffer).Unchain();
 
                             player.SentColumnCount++;
 
@@ -324,12 +327,16 @@ namespace MCServerSharp.Net
             loadList.Add(position);
         }
 
-        private async ValueTask SendChunkColumn(LocalChunkColumn chunkColumn)
+        [SuppressMessage("Reliability", "CA2012", Justification = "<Pending>")]
+        private async ValueTask SendChunkColumn(LocalChunkColumn chunkColumn, List<ValueTask<LocalChunk>> taskBuffer)
         {
             for (int i = 0; i < 16; i++)
-            {
-                await chunkColumn.GetOrAddChunk(i);
-            }
+                taskBuffer.Add(chunkColumn.GetOrAddChunk(i));
+
+            foreach (ValueTask<LocalChunk> task in taskBuffer)
+                await task.Unchain();
+
+            taskBuffer.Clear();
 
             var skyLights = new List<LightArray>();
             var blockLights = new List<LightArray>();

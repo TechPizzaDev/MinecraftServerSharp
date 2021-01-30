@@ -45,21 +45,21 @@ namespace MCServerSharp.Blocks
             if (property is IStateProperty<int> intProp)
                 return new StatePropertyValue<int>(intProp, valueIndex);
 
-            var propertyType = property.GetType();
+            Type propertyType = property.GetType();
             if (propertyType.IsConstructedGenericType)
             {
-                var genericTypeArgs = propertyType.GenericTypeArguments;
+                Type[] genericTypeArgs = propertyType.GenericTypeArguments;
                 if (genericTypeArgs.Length == 1)
                 {
-                    var genericType = genericTypeArgs[0];
+                    Type genericType = genericTypeArgs[0];
                     if (genericType.IsEnum && genericType.IsValueType)
                     {
-                        var constructType = typeof(StatePropertyValue<>).MakeGenericType(genericType);
-                        var propertyValue = Activator.CreateInstance(constructType, property, valueIndex);
-                        if (propertyValue == null)
+                        Type constructType = typeof(StatePropertyValue<>).MakeGenericType(genericType);
+
+                        if (Activator.CreateInstance(constructType, property, valueIndex) is not StatePropertyValue propertyValue)
                             throw new Exception("Failed to create property value.");
 
-                        return (StatePropertyValue)propertyValue;
+                        return propertyValue;
                     }
                 }
             }

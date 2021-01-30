@@ -3,7 +3,6 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
-using System.Linq;
 using System.Net;
 using System.Reflection;
 using System.Text.Json;
@@ -21,8 +20,6 @@ using MCServerSharp.World;
 
 namespace MCServerSharp.Server
 {
-    // TODO: don't print anything for status connections
-    //       (maybe print abnormal amount of pings from one address)
 
     public static partial class ServerMain
     {
@@ -43,6 +40,7 @@ namespace MCServerSharp.Server
         private static ConcurrentQueue<Player> _joiningPlayers = new();
         private static ConcurrentQueue<Player> _leavingPlayers = new();
 
+        // TODO: use source generators for these enums
         private static (Type, HashSet<string>)[] _stateEnumSets = new[]
         {
             GetEnumSet<Axis>(),
@@ -232,11 +230,17 @@ namespace MCServerSharp.Server
             where TEnum : struct, Enum
         {
             Type type = typeof(EnumStateProperty<TEnum>);
-            HashSet<string> set = new(typeof(TEnum).GetEnumNames(), StringComparer.OrdinalIgnoreCase);
+            string[] names = typeof(TEnum).GetEnumNames();
+            HashSet<string> set = new(names.Length, StringComparer.Ordinal);
+            foreach (string name in names)
+            {
+                string dataName = name.ToSnake().ToLowerInvariant();
+                set.Add(dataName);
+            }
             return (type, set);
         }
 
-        private static IStateProperty ParseStateProperty(string name, List<string> values)
+        private static IStateProperty ParseStateProperty(string name, HashSet<string> values)
         {
             if (values.Count == 0)
                 throw new ArgumentEmptyException(nameof(values));
@@ -303,16 +307,14 @@ namespace MCServerSharp.Server
                     }
                 }
                 if (defaultStateIndex == null)
-                    Console.WriteLine(blockName + " is missing default state"); // TODO: print warning
+                    Console.WriteLine(blockName + " is missing default state"); // TODO: print/log better warning
 
                 static string GetEnumString(JsonElement element)
                 {
                     string? str = element.GetString();
                     if (str == null)
-                        throw new ArgumentException("The element value as string is null.");
-
-                    // TODO: improve by converting to snake_case to PascalCase somewhere..
-                    return str.Replace("_", "", StringComparison.Ordinal);
+                        throw new ArgumentException("The element value as string of block state property is null.");
+                    return str;
                 }
 
                 IStateProperty[]? blockProps = null;
@@ -322,9 +324,13 @@ namespace MCServerSharp.Server
 
                     foreach (JsonProperty blockPropProp in blockPropsObject.EnumerateObject())
                     {
-                        List<string> propNames = blockPropProp.Value.EnumerateArray()
-                            .Select(x => GetEnumString(x))
-                            .ToList();
+                        JsonElement propArray = blockPropProp.Value;
+                        HashSet<string> propNames = new(propArray.GetArrayLength(), StringComparer.Ordinal);
+
+                        foreach (JsonElement prop in propArray.EnumerateArray())
+                            propNames.Add(GetEnumString(prop));
+
+                        // TODO: implement EnumDataNameAttribute
 
                         IStateProperty parsedProp = ParseStateProperty(blockPropProp.Name, propNames);
                         blockStatePropBuilder.Add(parsedProp);
@@ -351,7 +357,18 @@ namespace MCServerSharp.Server
                         int propertyIndex = 0;
                         foreach (JsonProperty statePropProp in statePropsObject.EnumerateObject())
                         {
-                            IStateProperty blockStateProp = blockProps.First(x => statePropProp.NameEquals(x.Name));
+                            IStateProperty? blockStateProp = null;
+                            foreach (IStateProperty blockProp in blockProps)
+                            {
+                                if (statePropProp.NameEquals(blockProp.Name))
+                                {
+                                    blockStateProp = blockProp;
+                                    break;
+                                }
+                            }
+                            if (blockStateProp == null)
+                                throw new InvalidDataException("Failed to find matching block state property.");
+
                             int valueIndex = blockStateProp.ParseIndex(GetEnumString(statePropProp.Value));
                             propValues[propertyIndex++] = StatePropertyValue.Create(blockStateProp, valueIndex);
                         }
@@ -420,16 +437,16 @@ namespace MCServerSharp.Server
                 if (_requestPongBase == null)
                     return;
 
-            // TODO: make these dynamic
-            var strComparison = StringComparison.OrdinalIgnoreCase;
+                // TODO: make these dynamic
+                var strComparison = StringComparison.OrdinalIgnoreCase;
                 var numFormat = NumberFormatInfo.InvariantInfo;
 
-            // TODO: better config
-            string jsonResponse = _requestPongBase
-                .Replace("%version%", manager.GameVersion.ToString(), strComparison)
-                .Replace("\"%versionID%\"", manager.ProtocolVersion.ToString(numFormat), strComparison)
-                .Replace("\"%max%\"", 20.ToString(numFormat), strComparison)
-                .Replace("\"%online%\"", 0.ToString(numFormat), strComparison);
+                // TODO: better config
+                string jsonResponse = _requestPongBase
+                    .Replace("%version%", manager.GameVersion.ToString(), strComparison)
+                    .Replace("\"%versionID%\"", manager.ProtocolVersion.ToString(numFormat), strComparison)
+                    .Replace("\"%max%\"", 20.ToString(numFormat), strComparison)
+                    .Replace("\"%online%\"", 0.ToString(numFormat), strComparison);
 
                 var answer = new ServerResponse((Utf8String)jsonResponse);
                 connection.EnqueuePacket(answer);
@@ -662,8 +679,8 @@ namespace MCServerSharp.Server
             {
                 byte windowID = 1;
 
-            //Console.WriteLine(playerBlockPlacement.);
-            connection.EnqueuePacket(new ServerOpenWindow(windowID, 13, Chat.Text("Inv on place")));
+                //Console.WriteLine(playerBlockPlacement.);
+                connection.EnqueuePacket(new ServerOpenWindow(windowID, 13, Chat.Text("Inv on place")));
 
                 System.Threading.Tasks.Task.Run(() =>
                 {
@@ -684,20 +701,20 @@ namespace MCServerSharp.Server
             manager.SetPacketHandler(delegate
                 (NetConnection connection, ClientTeleportConfirm teleportConfirm)
             {
-            //Console.WriteLine("Teleport Confirm: Id " + teleportConfirm.TeleportId);
-        });
+                //Console.WriteLine("Teleport Confirm: Id " + teleportConfirm.TeleportId);
+            });
 
 
             manager.SetPacketHandler(delegate
                 (NetConnection connection, ClientPlayerPosition playerPosition)
             {
-            //Console.WriteLine(
-            //    "Player Position:" +
-            //    " X" + playerPosition.X +
-            //    " Y" + playerPosition.FeetY +
-            //    " Z" + playerPosition.Z);
+                //Console.WriteLine(
+                //    "Player Position:" +
+                //    " X" + playerPosition.X +
+                //    " Y" + playerPosition.FeetY +
+                //    " Z" + playerPosition.Z);
 
-            PlayerPositionChange(connection, playerPosition.X, playerPosition.FeetY, playerPosition.Z);
+                PlayerPositionChange(connection, playerPosition.X, playerPosition.FeetY, playerPosition.Z);
             });
 
 
@@ -710,34 +727,34 @@ namespace MCServerSharp.Server
             manager.SetPacketHandler(delegate
                 (NetConnection connection, ClientPlayerPositionRotation playerPositionRotation)
             {
-            //Console.WriteLine(
-            //    "Player Position Rotation:" // +
-            //                                //" X" + playerPosition.X +
-            //                                //" Y" + playerPosition.FeetY +
-            //                                //" Z" + playerPosition.Z
-            //    );
+                //Console.WriteLine(
+                //    "Player Position Rotation:" // +
+                //                                //" X" + playerPosition.X +
+                //                                //" Y" + playerPosition.FeetY +
+                //                                //" Z" + playerPosition.Z
+                //    );
 
-            PlayerPositionChange(
-        connection, playerPositionRotation.X, playerPositionRotation.FeetY, playerPositionRotation.Z);
+                PlayerPositionChange(
+            connection, playerPositionRotation.X, playerPositionRotation.FeetY, playerPositionRotation.Z);
             });
 
 
             manager.SetPacketHandler(delegate
                 (NetConnection connection, ClientPlayerRotation playerRotation)
             {
-            //Console.WriteLine(
-            //    "Player Rotation:" +
-            //    " Yaw" + playerRotation.Yaw +
-            //    " Pitch" + playerRotation.Pitch);
-        });
+                //Console.WriteLine(
+                //    "Player Rotation:" +
+                //    " Yaw" + playerRotation.Yaw +
+                //    " Pitch" + playerRotation.Pitch);
+            });
 
 
             manager.SetPacketHandler(delegate
                 (NetConnection connection, ClientSettings clientSettings)
             {
-            // The player object should be created early in the pipeline.
-            var component = connection.Components.GetOrAdd(
-                connection, (c) => new ClientSettingsComponent(c.GetPlayer()));
+                // The player object should be created early in the pipeline.
+                var component = connection.Components.GetOrAdd(
+                    connection, (c) => new ClientSettingsComponent(c.GetPlayer()));
 
                 component.Settings = clientSettings;
                 component.SettingsChanged = true;
@@ -782,9 +799,9 @@ namespace MCServerSharp.Server
             manager.SetPacketHandler(delegate
                 (NetConnection connection, ClientChat chat)
             {
-            // TODO: better broadcasting
+                // TODO: better broadcasting
 
-            string? name = connection.GetPlayer().UserName;
+                string? name = connection.GetPlayer().UserName;
                 if (name == null)
                     name = "null";
 

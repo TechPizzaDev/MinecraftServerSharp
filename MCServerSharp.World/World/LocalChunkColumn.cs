@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
@@ -72,39 +73,46 @@ namespace MCServerSharp.World
                 if (_chunks.TryGetValue(chunkY, out LocalChunk? chunk))
                     return new ValueTask<LocalChunk>(chunk);
 
-                Task<LocalChunk> loadTask = LoadOrGenerateChunk(chunkY)
-                    .ContinueWith((finishedTask) =>
+                Task<LocalChunk> loadTask = LoadOrGenerateChunk(chunkY);
+                if (loadTask.IsCompleted)
                 {
-                    _chunkLock.EnterWriteLock();
-                    try
-                    {
-                        _chunks.Add(chunkY, finishedTask.Result);
-                        _loadingChunks.Remove(chunkY);
-                        return finishedTask.Result;
-                    }
-                    finally
-                    {
-                        _chunkLock.ExitWriteLock();
-                    }
-                });
+                    LoadChunkContinuation(loadTask, this);
+                    return new ValueTask<LocalChunk>(loadTask);
+                } 
 
-                if (!loadTask.IsCompleted)
+                _chunkLock.EnterWriteLock();
+                try
                 {
-                    _chunkLock.EnterWriteLock();
-                    try
-                    {
-                        _loadingChunks.Add(chunkY, loadTask);
-                    }
-                    finally
-                    {
-                        _chunkLock.ExitWriteLock();
-                    }
+                    loadTask = loadTask.ContinueWith(LoadChunkContinuation, this, TaskContinuationOptions.ExecuteSynchronously);
+                    _loadingChunks.Add(chunkY, loadTask);
+                }
+                finally
+                {
+                    _chunkLock.ExitWriteLock();
                 }
                 return new ValueTask<LocalChunk>(loadTask);
             }
             finally
             {
                 _chunkLock.ExitUpgradeableReadLock();
+            }
+        }
+
+        private static LocalChunk LoadChunkContinuation(Task<LocalChunk> finishedTask, object? state)
+        {
+            LocalChunkColumn column = (LocalChunkColumn)state!;
+            LocalChunk chunk = finishedTask.Result;
+
+            column._chunkLock.EnterWriteLock();
+            try
+            {
+                column._chunks.Add(chunk.Y, chunk);
+                column._loadingChunks.Remove(chunk.Y);
+                return chunk;
+            }
+            finally
+            {
+                column._chunkLock.ExitWriteLock();
             }
         }
 
