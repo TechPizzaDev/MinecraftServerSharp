@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.Net;
 using System.Reflection;
+using System.Threading.Tasks;
 using MCServerSharp.Collections;
 using MCServerSharp.Data.IO;
 using MCServerSharp.Net.Packets;
@@ -22,8 +23,8 @@ namespace MCServerSharp.Net
         public const int MaxClientPacketDataSize = 65536;
 
         // TODO: move these somewhere
-        public int ProtocolVersion { get; } = 753;
-        public MCVersion GameVersion { get; } = new MCVersion(1, 16, 3);
+        public int ProtocolVersion { get; } = 754;
+        public MCVersion GameVersion { get; } = new MCVersion(1, 16, 5);
         public bool Config_AppendGameVersionToBetaStatus { get; } = true;
 
         private HashSet<NetConnection> _connections;
@@ -108,9 +109,9 @@ namespace MCServerSharp.Net
             SetPacketHandler((ClientPacketId)packetStruct.PacketId, handler);
         }
 
-        public void Listen(int backlog)
+        public void Listen(int backlog, int workerCount)
         {
-            Orchestrator.Start(workerCount: 4);
+            Orchestrator.Start(workerCount);
 
             Listener.Start(backlog);
         }
@@ -125,7 +126,7 @@ namespace MCServerSharp.Net
 
             // TODO: manage connection tasks
             // TODO: validate client
-            var connectionTask = Codec.EngageClientConnection(connection, cancellationToken: default);
+            Task connectionTask = Codec.EngageClientConnection(connection, cancellationToken: default);
 
             return true;
         }

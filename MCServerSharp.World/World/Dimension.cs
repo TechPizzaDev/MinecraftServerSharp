@@ -76,7 +76,7 @@ namespace MCServerSharp.World
                     removeTask.AsTask().ContinueWith((c) => TryRemove(c.Result));
             }
 
-            foreach (var player in players)
+            foreach (Player? player in players)
             {
                 player.Components.Tick();
             }

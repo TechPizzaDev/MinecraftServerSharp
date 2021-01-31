@@ -192,7 +192,10 @@ namespace MCServerSharp.Server
             int backlog = 200;
             Console.WriteLine("Listener backlog queue size: " + backlog);
 
-            _manager.Listen(backlog);
+            int workerCount = 1;
+            Console.WriteLine("Net worker count: " + workerCount);
+
+            _manager.Listen(backlog, workerCount);
             Console.WriteLine("Listening for connections...");
 
             // TODO: one thread per dimension

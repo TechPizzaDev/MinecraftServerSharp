@@ -50,7 +50,6 @@ namespace MCServerSharp.Net
 
         public bool IsDisposed { get; private set; }
         public bool IsRunning { get; private set; }
-        public bool IsBusy { get; private set; }
 
         public NetOrchestratorWorker(NetOrchestrator orchestrator)
         {
@@ -58,7 +57,7 @@ namespace MCServerSharp.Net
 
             _packetWriteBuffer = Orchestrator.Codec.MemoryManager.GetStream();
             _packetCompressionBuffer = Orchestrator.Codec.MemoryManager.GetStream();
-            _flushRequestEvent = new AutoResetEvent(false);
+            _flushRequestEvent = new(initialState: false);
 
             Thread = new Thread(ThreadRunner);
         }
@@ -76,8 +75,7 @@ namespace MCServerSharp.Net
 
         public void RequestFlush()
         {
-            if (!IsBusy)
-                _flushRequestEvent.Set();
+            _flushRequestEvent.Set();
         }
 
         public static PacketWriteAction GetPacketWriteAction(Type packetType)
@@ -190,31 +188,28 @@ namespace MCServerSharp.Net
             if (WritePacketMethod == null)
                 throw new Exception($"{nameof(WritePacketMethod)} is null.");
 
-            const int TimeoutMillis = 50;
-
             while (IsRunning)
             {
-                // Wait to not waste time on repeating loop.
-                IsBusy = false;
-                _flushRequestEvent.WaitOne(TimeoutMillis);
-
-                if (!Orchestrator.QueuesToFlush.TryDequeue(out var orchestratorQueue))
+                if (!Orchestrator.QueuesToFlush.TryDequeue(out NetPacketSendQueue? orchestratorQueue))
+                {
+                    // Wait to not waste time on repeating loop.
+                    _flushRequestEvent.WaitOne(millisecondsTimeout: 200);
                     continue;
+                }
 
-                IsBusy = true;
                 try
                 {
                     try
                     {
-                        while (orchestratorQueue.Queue.TryDequeue(out var packetHolder))
+                        while (orchestratorQueue.Queue.TryDequeue(out PacketHolder? packetHolder))
                         {
                             ProcessPacket(packetHolder, out _);
                         }
                     }
                     finally
                     {
-                        var flushTask = orchestratorQueue.Connection.FlushSendBuffer();
-                        if (flushTask.IsCompleted) // Many flushes complete synchronously
+                        ValueTask<NetSendState> flushTask = orchestratorQueue.Connection.FlushSendBuffer();
+                        if (flushTask.IsCompleted)
                         {
                             FinishSendQueue(flushTask.Result, orchestratorQueue);
                         }
@@ -285,9 +280,14 @@ namespace MCServerSharp.Net
             lock (queue.EngageMutex)
             {
                 if (queue.Queue.IsEmpty)
+                {
                     queue.IsEngaged = false;
+                }
                 else
+                {
                     queue.Connection.Orchestrator.QueuesToFlush.Enqueue(queue);
+                    queue.Connection.Orchestrator.RequestFlush();
+                }
             }
         }
 

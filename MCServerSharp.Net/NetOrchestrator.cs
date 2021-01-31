@@ -62,7 +62,6 @@ namespace MCServerSharp.Net
 
                 _workers.Add(worker);
             }
-            Console.WriteLine($"Started {_workers.Count} {nameof(NetOrchestrator)} workers");
         }
 
         public void Stop()
@@ -109,11 +108,11 @@ namespace MCServerSharp.Net
             if (packetHolder == null)
                 throw new ArgumentNullException(nameof(packetHolder));
 
-            var holderConnection = packetHolder.Connection;
+            NetConnection? holderConnection = packetHolder.Connection;
             if (holderConnection == null)
                 throw new ArgumentException("No assigned connection.");
 
-            if (!PacketSendQueues.TryGetValue(holderConnection, out var queue))
+            if (!PacketSendQueues.TryGetValue(holderConnection, out NetPacketSendQueue? queue))
             {
                 if (!holderConnection.IsAlive)
                     throw new ArgumentException("The assigned connection is not alive.");
