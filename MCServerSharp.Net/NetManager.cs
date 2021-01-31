@@ -177,12 +177,12 @@ namespace MCServerSharp.Net
                 }
 
                 // There won't be a queue if there was no packet send attempt during connection.
-                if (Orchestrator.PacketSendQueues.TryRemove(connection, out var removedQueue))
+                if (Orchestrator.PacketSendQueues.TryRemove(connection, out NetPacketSendQueue? removedQueue))
                 {
                     // There may be packet holders queued if the socket gets 
                     // closed before everything is sent. 
                     // The orchestrator should empty the queue.
-                    Orchestrator.QueuesToFlush.Enqueue(removedQueue);
+                    Orchestrator.EnqueueQueue(removedQueue);
                 }
 
                 connection.Close(immediate: true);

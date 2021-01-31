@@ -43,13 +43,16 @@ namespace MCServerSharp.Net
 
         private ChunkedMemoryStream _packetWriteBuffer;
         private ChunkedMemoryStream _packetCompressionBuffer;
+        private ConcurrentQueue<NetPacketSendQueue> _queuesToFlush;
         private AutoResetEvent _flushRequestEvent;
+        private int _busyFactor;
 
         public NetOrchestrator Orchestrator { get; }
         public Thread Thread { get; }
 
         public bool IsDisposed { get; private set; }
         public bool IsRunning { get; private set; }
+        public int BusyFactor => _busyFactor;
 
         public NetOrchestratorWorker(NetOrchestrator orchestrator)
         {
@@ -57,6 +60,7 @@ namespace MCServerSharp.Net
 
             _packetWriteBuffer = Orchestrator.Codec.MemoryManager.GetStream();
             _packetCompressionBuffer = Orchestrator.Codec.MemoryManager.GetStream();
+            _queuesToFlush = new();
             _flushRequestEvent = new(initialState: false);
 
             Thread = new Thread(ThreadRunner);
@@ -190,33 +194,35 @@ namespace MCServerSharp.Net
 
             while (IsRunning)
             {
-                if (!Orchestrator.QueuesToFlush.TryDequeue(out NetPacketSendQueue? orchestratorQueue))
+                if (!_queuesToFlush.TryDequeue(out NetPacketSendQueue? sendQueue))
                 {
                     // Wait to not waste time on repeating loop.
-                    _flushRequestEvent.WaitOne(millisecondsTimeout: 200);
+                    _flushRequestEvent.WaitOne();
                     continue;
                 }
+
+                Interlocked.Decrement(ref _busyFactor);
 
                 try
                 {
                     try
                     {
-                        while (orchestratorQueue.Queue.TryDequeue(out PacketHolder? packetHolder))
+                        while (sendQueue.Packets.TryDequeue(out PacketHolder? packetHolder))
                         {
                             ProcessPacket(packetHolder, out _);
                         }
                     }
                     finally
                     {
-                        ValueTask<NetSendState> flushTask = orchestratorQueue.Connection.FlushSendBuffer();
+                        ValueTask<NetSendState> flushTask = sendQueue.Connection.FlushSendBuffer();
                         if (flushTask.IsCompleted)
                         {
-                            FinishSendQueue(flushTask.Result, orchestratorQueue);
+                            FinishSendQueue(flushTask.Result, sendQueue);
                         }
                         else
                         {
                             flushTask.AsTask().ContinueWith(
-                                FinishSendQueueAction, orchestratorQueue, TaskContinuationOptions.ExecuteSynchronously);
+                                FinishSendQueueAction, sendQueue, TaskContinuationOptions.ExecuteSynchronously);
                         }
                     }
                 }
@@ -226,10 +232,10 @@ namespace MCServerSharp.Net
                 }
                 catch (SocketException sockEx) when (sockEx.SocketErrorCode == SocketError.ConnectionAborted)
                 {
-                    Console.WriteLine("Connection aborted for " + orchestratorQueue.Connection.RemoteEndPoint);
+                    Console.WriteLine("Connection aborted for " + sendQueue.Connection.RemoteEndPoint);
                     // TODO: increment statistic?
                 }
-                catch (ObjectDisposedException) when (!orchestratorQueue.Connection.Socket.Connected)
+                catch (ObjectDisposedException) when (!sendQueue.Connection.Socket.Connected)
                 {
                     // This should happen very rarely.
 
@@ -238,7 +244,7 @@ namespace MCServerSharp.Net
                 catch (Exception ex)
                 {
                     Console.WriteLine($"Exception on thread \"{Thread.CurrentThread.Name}\": {ex}");
-                    orchestratorQueue.Connection.Kick(ex);
+                    sendQueue.Connection.Kick(ex);
                 }
             }
         }
@@ -257,7 +263,7 @@ namespace MCServerSharp.Net
                     return false;
                 }
 
-                var packetWriteAction = GetLocalPacketWriteAction(packetHolder.PacketType);
+                PacketWriteAction? packetWriteAction = GetLocalPacketWriteAction(packetHolder.PacketType);
 
                 writeResult = packetWriteAction.Invoke(
                     packetHolder, _packetWriteBuffer, _packetCompressionBuffer);
@@ -279,16 +285,19 @@ namespace MCServerSharp.Net
         {
             lock (queue.EngageMutex)
             {
-                if (queue.Queue.IsEmpty)
+                queue.IsEngaged = false;
+
+                if (!queue.Packets.IsEmpty)
                 {
-                    queue.IsEngaged = false;
-                }
-                else
-                {
-                    queue.Connection.Orchestrator.QueuesToFlush.Enqueue(queue);
-                    queue.Connection.Orchestrator.RequestFlush();
+                    queue.Connection.Orchestrator.EnqueueQueue(queue);
                 }
             }
+        }
+
+        public void Enqueue(NetPacketSendQueue queue)
+        {
+            _queuesToFlush.Enqueue(queue);
+            Interlocked.Increment(ref _busyFactor);
         }
 
         protected virtual void Dispose(bool disposing)

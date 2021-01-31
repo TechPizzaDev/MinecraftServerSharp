@@ -114,9 +114,9 @@ namespace MCServerSharp.Net
 
                 // TODO: get rid of player.ChunkLoadSet
 
-                var chunksToUnload = player.ChunksToUnload;
+                Collections.LongHashSet<ChunkColumnPosition>? chunksToUnload = player.ChunksToUnload;
 
-                foreach (var chunkPos in chunksToUnload)
+                foreach (ChunkColumnPosition chunkPos in chunksToUnload)
                 {
                     player.ChunkLoadSet.Remove(chunkPos);
 
@@ -127,6 +127,9 @@ namespace MCServerSharp.Net
                 }
                 chunksToUnload.Clear();
 
+                // TODO: add a completion event to packets
+                //  and add a completion to the last chunk packet
+                //  to predict the connection speed and variate sending rate
                 int maxToSend = 5;
 
                 foreach (List<ChunkColumnPosition> loadList in player.ChunkLoadLists)

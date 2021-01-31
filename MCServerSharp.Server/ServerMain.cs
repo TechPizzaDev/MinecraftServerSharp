@@ -192,7 +192,7 @@ namespace MCServerSharp.Server
             int backlog = 200;
             Console.WriteLine("Listener backlog queue size: " + backlog);
 
-            int workerCount = 1;
+            int workerCount = 64;
             Console.WriteLine("Net worker count: " + workerCount);
 
             _manager.Listen(backlog, workerCount);

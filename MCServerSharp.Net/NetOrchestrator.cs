@@ -32,12 +32,6 @@ namespace MCServerSharp.Net
         public ConcurrentDictionary<NetConnection, NetPacketSendQueue> PacketSendQueues { get; } =
             new ConcurrentDictionary<NetConnection, NetPacketSendQueue>();
 
-        /// <summary>
-        /// Holds queues that have packets to send.
-        /// </summary>
-        public ConcurrentQueue<NetPacketSendQueue> QueuesToFlush { get; } =
-            new ConcurrentQueue<NetPacketSendQueue>();
-
         public NetOrchestrator(RecyclableMemoryManager memoryManager, NetPacketCodec codec)
         {
             MemoryManager = memoryManager ??
@@ -112,34 +106,38 @@ namespace MCServerSharp.Net
             if (holderConnection == null)
                 throw new ArgumentException("No assigned connection.");
 
-            if (!PacketSendQueues.TryGetValue(holderConnection, out NetPacketSendQueue? queue))
+            if (!PacketSendQueues.TryGetValue(holderConnection, out NetPacketSendQueue? sendQueue))
             {
                 if (!holderConnection.IsAlive)
                     throw new ArgumentException("The assigned connection is not alive.");
 
-                queue = new NetPacketSendQueue(holderConnection);
-                PacketSendQueues.TryAdd(queue.Connection, queue);
+                sendQueue = new NetPacketSendQueue(holderConnection);
+                PacketSendQueues.TryAdd(sendQueue.Connection, sendQueue);
             }
 
-            queue.Queue.Enqueue(packetHolder);
+            sendQueue.Packets.Enqueue(packetHolder);
 
-            // We can safely return here without locking the queue.
-            // Workers will requeue the queue for flushing if 
-            // it contains packets after engagement.
-            if (queue.IsEngaged)
-                return;
+            EnqueueQueue(sendQueue);
+        }
 
-            lock (queue.EngageMutex)
+        public void EnqueueQueue(NetPacketSendQueue sendQueue)
+        {
+            lock (sendQueue.EngageMutex)
             {
-                if (queue.IsEngaged)
+                if (sendQueue.IsEngaged)
                     return;
-                queue.IsEngaged = true;
-
-                // We enqueue while locked, 
-                // as workers may dequeue and check at any time.
-                QueuesToFlush.Enqueue(queue);
+                sendQueue.IsEngaged = true;
             }
-            RequestFlush();
+
+            NetOrchestratorWorker worker = GetWorker();
+            worker.Enqueue(sendQueue);
+            worker.RequestFlush();
+        }
+
+        private NetOrchestratorWorker GetWorker()
+        {
+            // TODO: 
+            return _workers[0];
         }
 
         public void EnqueuePacket<TPacket>(

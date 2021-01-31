@@ -12,7 +12,7 @@ namespace MCServerSharp.Net
 
         public object EngageMutex { get; } = new object();
 
-        public ConcurrentQueue<PacketHolder> Queue { get; } = new ConcurrentQueue<PacketHolder>();
+        public ConcurrentQueue<PacketHolder> Packets { get; } = new ConcurrentQueue<PacketHolder>();
 
         /// <summary>
         /// Gets whether a <see cref="NetOrchestratorWorker"/> is processing this queue.
