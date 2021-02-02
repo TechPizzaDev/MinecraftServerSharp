@@ -17,6 +17,10 @@ namespace MCServerSharp.Maths
             Z = z;
         }
 
+        public ChunkPosition(ChunkColumnPosition columnPosition, int y) : this(columnPosition.X, y, columnPosition.Z)
+        {
+        }
+
         public static double Dot(ChunkPosition a, ChunkPosition b)
         {
             return (a.X * b.X) + (a.Y * b.Y) + (a.Z * b.Z);

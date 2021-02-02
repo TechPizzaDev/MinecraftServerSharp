@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using MCServerSharp.Components;
 using MCServerSharp.Entities.Mobs;
@@ -18,7 +16,7 @@ namespace MCServerSharp.Net
     {
         private bool _firstSend = true;
         private Task _sendTask = Task.CompletedTask;
-        private List<ValueTask<LocalChunk>> _taskBuffer = new();
+        private List<ValueTask<IChunk>> _taskBuffer = new();
 
         public GameTimeComponent GameTime { get; }
 
@@ -55,8 +53,11 @@ namespace MCServerSharp.Net
             {
                 if (_sendTask.IsCompleted)
                 {
-                    GatherChunksToSend(player);
-                    _sendTask = Task.Run(() => SendChunks(player, _taskBuffer));
+                    _sendTask = Task.Run(async () =>
+                    {
+                        GatherChunksToSend(player);
+                        await SendChunks(player, _taskBuffer).Unchain();
+                    });
                 }
             }
         }
@@ -76,27 +77,8 @@ namespace MCServerSharp.Net
             double avgElapsed = GameTime.Ticker.AverageElapsedTime.TotalMilliseconds;
 
             var chat = Chat.Text(
-                $"{avgElapsed,2:0.0}ms | S:{ToReadable(Connection.BytesSent)} | R:{ToReadable(Connection.BytesReceived)}");
+                $"{avgElapsed,2:0.0}ms | S:{UnitConvert.ToReadable(Connection.BytesSent)} | R:{UnitConvert.ToReadable(Connection.BytesReceived)}");
             EnqueuePacket(new ServerChat(chat, 2, UUID.Zero));
-        }
-
-        static string[] sizeSuffixes = { "", "K", "M", "G", "T", "P" };
-
-        private static string ToReadable(long byteCount)
-        {
-            int order = 0;
-            double length = byteCount;
-            while (length >= 1000 && order < sizeSuffixes.Length - 1)
-            {
-                order++;
-                length /= 1000;
-            }
-
-            // "{0:0.#}{1}" would show a single decimal place, and no space.
-            int decimalCount = Math.Max(0, (int)Math.Ceiling(2 - Math.Log10(length))); // length < 10 ? 2 : 1;
-            string decimals = new string('0', decimalCount);
-            string result = string.Format($"{{0:0.{decimals}}}{{1}}", length, sizeSuffixes[order]);
-            return result;
         }
 
         public void EnqueuePacket<TPacket>(TPacket packet)
@@ -104,7 +86,7 @@ namespace MCServerSharp.Net
             Connection.EnqueuePacket(packet);
         }
 
-        private async Task SendChunks(Player player, List<ValueTask<LocalChunk>> taskBuffer)
+        private async Task SendChunks(Player player, List<ValueTask<IChunk>> taskBuffer)
         {
             try
             {
@@ -282,7 +264,7 @@ namespace MCServerSharp.Net
 
 
 
-            var loadLists = player.ChunkLoadLists;
+            List<List<ChunkColumnPosition>> loadLists = player.ChunkLoadLists;
             Span<int> posCounts = stackalloc int[loadLists.Count];
 
             // Gather all position counts for later.
@@ -331,12 +313,12 @@ namespace MCServerSharp.Net
         }
 
         [SuppressMessage("Reliability", "CA2012", Justification = "<Pending>")]
-        private async ValueTask SendChunkColumn(LocalChunkColumn chunkColumn, List<ValueTask<LocalChunk>> taskBuffer)
+        private async ValueTask SendChunkColumn(LocalChunkColumn chunkColumn, List<ValueTask<IChunk>> taskBuffer)
         {
             for (int i = 0; i < 16; i++)
                 taskBuffer.Add(chunkColumn.GetOrAddChunk(i));
 
-            foreach (ValueTask<LocalChunk> task in taskBuffer)
+            foreach (ValueTask<IChunk> task in taskBuffer)
                 await task.Unchain();
 
             taskBuffer.Clear();
@@ -344,10 +326,10 @@ namespace MCServerSharp.Net
             var skyLights = new List<LightArray>();
             var blockLights = new List<LightArray>();
 
-            var skyLightMask = 0;
-            var filledSkyLightMask = 0;
-            var blockLightMask = 0;
-            var filledBlockLightMask = 0;
+            int skyLightMask = 0;
+            int filledSkyLightMask = 0;
+            int blockLightMask = 0;
+            int filledBlockLightMask = 0;
             for (int y = 0; y < 18; y++)
             {
                 if (chunkColumn.TryGetChunk(y - 1, out LocalChunk? chunk) && !chunk.IsEmpty)

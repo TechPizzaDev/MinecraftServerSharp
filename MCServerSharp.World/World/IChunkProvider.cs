@@ -8,8 +8,6 @@ namespace MCServerSharp.World
     {
         IChunkColumnProvider ColumnProvider { get; }
 
-        ValueTask<ChunkStatus> GetChunkStatus(ChunkPosition chunkPosition);
-
         ValueTask<IChunk> GetOrAddChunk(ChunkColumnManager columnManager, ChunkPosition chunkPosition);
         
         bool TryGetChunk(ChunkPosition chunkPosition, [MaybeNullWhen(false)] out IChunk chunk);

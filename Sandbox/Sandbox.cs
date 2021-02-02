@@ -9,6 +9,7 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Unicode;
+using System.Threading.Tasks;
 using MCServerSharp;
 
 namespace Sandbox

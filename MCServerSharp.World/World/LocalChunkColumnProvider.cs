@@ -113,7 +113,7 @@ namespace MCServerSharp.World
                     return new ValueTask<ChunkStatus>(ChunkStatus.Loaded);
 
                 if (_loadingColumns.ContainsKey(columnPosition))
-                    return new ValueTask<ChunkStatus>(ChunkStatus.Queued);
+                    return new ValueTask<ChunkStatus>(ChunkStatus.InQueue);
             }
             finally
             {
@@ -260,6 +260,11 @@ namespace MCServerSharp.World
             }
 
             return column;
+        }
+
+        public IChunkProvider CreateChunkProvider()
+        {
+            return new LocalChunkProvider(this);
         }
     }
 }

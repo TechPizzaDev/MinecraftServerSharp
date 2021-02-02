@@ -10,6 +10,7 @@ namespace MCServerSharp.World
     public class ChunkColumnManager : ComponentEntity
     {
         public IChunkColumnProvider ChunkColumnProvider { get; }
+        public IChunkProvider ChunkProvider { get; }
         
         // TODO: replace with some kind of registry
         public DirectBlockPalette GlobalBlockPalette { get; }
@@ -25,6 +26,8 @@ namespace MCServerSharp.World
             GlobalBlockPalette = globalBlockPalette ?? throw new ArgumentNullException(nameof(globalBlockPalette));
 
             Air = GlobalBlockPalette["minecraft:air"].DefaultState;
+
+            ChunkProvider = ChunkColumnProvider.CreateChunkProvider();
 
             //for (int y = 0; y < 16; y++)
             //{

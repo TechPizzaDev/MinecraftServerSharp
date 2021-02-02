@@ -183,6 +183,8 @@ namespace MCServerSharp.Net.Packets
             Span<ulong> buffer = stackalloc ulong[512];
             int bufferOffset = 0;
 
+            // TODO: optimize writing
+
             while (blocks.Length >= blocksPerLong)
             {
                 if (bufferOffset >= buffer.Length)
@@ -192,7 +194,7 @@ namespace MCServerSharp.Net.Packets
                 }
 
                 ulong bitBuffer = 0;
-                for (int j = 0; j < blocksPerLong; j++)
+                for (int j = blocksPerLong; j-- > 0;)
                 {
                     uint value = palette.IdForBlock(blocks[j]);
                     bitBuffer <<= bitsPerBlock;
@@ -213,7 +215,7 @@ namespace MCServerSharp.Net.Packets
 
                 ulong bitBuffer = 0;
                 int count = Math.Min(blocks.Length, blocksPerLong);
-                for (int j = 0; j < count; j++)
+                for (int j = count; j-- > 0;)
                 {
                     uint value = palette.IdForBlock(blocks[i++]);
                     bitBuffer <<= bitsPerBlock;

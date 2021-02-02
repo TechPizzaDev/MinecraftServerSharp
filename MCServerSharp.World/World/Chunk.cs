@@ -68,7 +68,7 @@ namespace MCServerSharp.World
             Debug.Assert((uint)x < 16u);
             Debug.Assert((uint)y < 16u);
             Debug.Assert((uint)z < 16u);
-            return x + Width * (y + Width * z);
+            return (y * Width + z) * Width + x; 
         }
 
         public BlockState GetBlock(int index)

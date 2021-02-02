@@ -602,11 +602,13 @@ namespace MCServerSharp.Server
                     (Utf8String)"minecraft:brand",
                     (Utf8String)"MCServerSharp"));
 
+                int startY = 33;
+
                 connection.EnqueuePacket(new ServerSpawnPosition(
-                    new Position(0, 17, 0)));
+                    new Position(0, startY, 0)));
 
                 connection.EnqueuePacket(new ServerPlayerPositionLook(
-                    0, 17, 0, 0, 0, ServerPlayerPositionLook.PositionRelatives.None, 1337));
+                    0, startY, 0, 0, 0, ServerPlayerPositionLook.PositionRelatives.None, 1337));
 
                 connection.EnqueuePacket(new ServerPlayerAbilities(
                     PlayerAbilityFlags.AllowFlying | PlayerAbilityFlags.Flying,

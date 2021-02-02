@@ -16,12 +16,12 @@ namespace MCServerSharp.World
         /// <summary>
         /// The chunk is being enqueued to a system.
         /// </summary>
-        Pending,
+        WaitingForSystem,
 
         /// <summary>
         /// The chunk is queued for load on a designated system.
         /// </summary>
-        Queued,
+        InQueue,
 
         /// <summary>
         /// The chunk is generating terrain.
