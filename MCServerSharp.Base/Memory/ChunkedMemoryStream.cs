@@ -338,6 +338,7 @@ namespace MCServerSharp.Utility
             get
             {
                 AssertNotDisposed();
+
                 if (_largeBuffer != null)
                     return _largeBuffer.Length;
 
@@ -347,8 +348,8 @@ namespace MCServerSharp.Utility
             set
             {
                 // TODO: implement truncation (supplying a lower capacity than the current one)
-
                 AssertNotDisposed();
+
                 EnsureCapacity(value);
             }
         }
@@ -380,6 +381,7 @@ namespace MCServerSharp.Utility
             set
             {
                 AssertNotDisposed();
+
                 if (value < 0)
                     throw new ArgumentOutOfRangeException(nameof(value), "value must be non-negative");
 
@@ -460,6 +462,7 @@ namespace MCServerSharp.Utility
         public override bool TryGetBuffer(out ArraySegment<byte> buffer)
         {
             AssertNotDisposed();
+         
             buffer = new ArraySegment<byte>(GetBuffer(), 0, (int)Length);
             // GetBuffer has no failure modes, so this should always succeed
             return true;
@@ -477,10 +480,11 @@ namespace MCServerSharp.Utility
 #pragma warning restore CS0809
         {
             AssertNotDisposed();
-            var newBuffer = new byte[Length];
+
+            byte[] newBuffer = new byte[Length];
 
             InternalRead(newBuffer.AsSpan(0, _length), 0);
-            var stack = _memoryManager.GenerateCallStacks ? Environment.StackTrace : null;
+            string? stack = _memoryManager.GenerateCallStacks ? Environment.StackTrace : null;
             RecyclableMemoryManager.Events.Writer.MemoryStreamToArray(_id, _tag, stack, 0);
             _memoryManager.ReportStreamToArray();
 
@@ -517,10 +521,10 @@ namespace MCServerSharp.Utility
         /// <exception cref="ObjectDisposedException">Object has been disposed</exception>
         public int SafeRead(byte[] buffer, int offset, int count, ref int streamPosition)
         {
+            AssertNotDisposed();
+
             if (buffer == null)
                 throw new ArgumentNullException(nameof(buffer));
-
-            AssertNotDisposed();
 
             int amountRead = InternalRead(buffer.AsSpan(offset, count), streamPosition);
             streamPosition += amountRead;
@@ -566,59 +570,7 @@ namespace MCServerSharp.Utility
         /// <exception cref="ObjectDisposedException">Object has been disposed</exception>
         public override void Write(byte[] buffer, int offset, int count)
         {
-            if (buffer == null)
-                throw new ArgumentNullException(nameof(buffer));
-
-            if (offset < 0)
-                throw new ArgumentOutOfRangeException(
-                    nameof(offset), offset, "Offset must be in the range of 0 - buffer.Length-1");
-
-            if (count < 0)
-                throw new ArgumentOutOfRangeException(nameof(count), count, "count must be non-negative");
-
-            if (count + offset > buffer.Length)
-                throw new ArgumentException("count must be greater than buffer.Length - offset");
-
-            if (count == 0)
-                return;
-
-            AssertNotDisposed();
-            int blockSize = _memoryManager.BlockSize;
-            long end = (long)_position + count;
-            // Check for overflow
-            if (end > MaxStreamLength)
-                throw new IOException("Maximum capacity exceeded");
-
-            EnsureCapacity((int)end);
-
-            if (_largeBuffer == null)
-            {
-                int bytesRemaining = count;
-                int bytesWritten = 0;
-                var blockOffset = GetBlockOffset(_position);
-
-                while (bytesRemaining > 0)
-                {
-                    byte[] currentBlock = _blocks[blockOffset.Block];
-                    int remainingInBlock = blockSize - blockOffset.Offset;
-                    int amountToWriteInBlock = Math.Min(remainingInBlock, bytesRemaining);
-
-                    Buffer.BlockCopy(buffer, offset + bytesWritten, currentBlock, blockOffset.Offset,
-                                     amountToWriteInBlock);
-
-                    bytesRemaining -= amountToWriteInBlock;
-                    bytesWritten += amountToWriteInBlock;
-
-                    blockOffset.Block++;
-                    blockOffset.Offset = 0;
-                }
-            }
-            else
-            {
-                Buffer.BlockCopy(buffer, offset, _largeBuffer, _position, count);
-            }
-            _position = (int)end;
-            _length = Math.Max(_position, _length);
+            Write(buffer.AsSpan(offset, count));
         }
 
         /// <summary>
@@ -629,10 +581,10 @@ namespace MCServerSharp.Utility
         /// <exception cref="ObjectDisposedException">Object has been disposed</exception>
         public override void Write(ReadOnlySpan<byte> source)
         {
+            AssertNotDisposed();
+
             if (source.IsEmpty)
                 return;
-
-            AssertNotDisposed();
 
             long end = (long)_position + source.Length;
             // Check for overflow
@@ -644,21 +596,20 @@ namespace MCServerSharp.Utility
             if (_largeBuffer == null)
             {
                 int blockSize = _memoryManager.BlockSize;
-                var blockOffset = GetBlockOffset(_position);
+                (int block, int offset) = GetBlockOffset(_position);
 
                 while (source.Length > 0)
                 {
-                    byte[] currentBlock = _blocks[blockOffset.Block];
-                    int remainingInBlock = blockSize - blockOffset.Offset;
+                    byte[] currentBlock = _blocks[block];
+                    int remainingInBlock = blockSize - offset;
                     int amountToWriteInBlock = Math.Min(remainingInBlock, source.Length);
 
-                    source.Slice(0, amountToWriteInBlock)
-                        .CopyTo(currentBlock.AsSpan(blockOffset.Offset));
+                    source.Slice(0, amountToWriteInBlock).CopyTo(currentBlock.AsSpan(offset));
 
                     source = source[amountToWriteInBlock..];
 
-                    blockOffset.Block++;
-                    blockOffset.Offset = 0;
+                    block++;
+                    offset = 0;
                 }
             }
             else
@@ -707,14 +658,15 @@ namespace MCServerSharp.Utility
         public int SafeReadByte(ref int streamPosition)
         {
             AssertNotDisposed();
+
             if (streamPosition == _length)
                 return -1;
 
             byte value;
             if (_largeBuffer == null)
             {
-                var blockOffset = GetBlockOffset(streamPosition);
-                value = _blocks[blockOffset.Block][blockOffset.Offset];
+                (int block, int offset) = GetBlockOffset(streamPosition);
+                value = _blocks[block][offset];
             }
             else
             {
@@ -732,6 +684,7 @@ namespace MCServerSharp.Utility
         public override void SetLength(long value)
         {
             AssertNotDisposed();
+
             if (value < 0 || value > MaxStreamLength)
                 throw new ArgumentOutOfRangeException(
                     nameof(value), "value must be non-negative and at most " + MaxStreamLength);
@@ -756,6 +709,7 @@ namespace MCServerSharp.Utility
         public override long Seek(long offset, SeekOrigin origin)
         {
             AssertNotDisposed();
+
             if (offset > MaxStreamLength)
                 throw new ArgumentOutOfRangeException(nameof(offset), "offset cannot be larger than " + MaxStreamLength);
 
@@ -781,6 +735,7 @@ namespace MCServerSharp.Utility
         public override void WriteTo(Stream stream)
         {
             AssertNotDisposed();
+
             if (stream == null)
                 throw new ArgumentNullException(nameof(stream));
 
@@ -836,8 +791,10 @@ namespace MCServerSharp.Utility
         private void AssertNotDisposed()
         {
             if (IsDisposed)
+            {
                 throw new ObjectDisposedException(
                     $"The stream with Id {_id} and Tag {_tag} is disposed.");
+            }
         }
 
         private int InternalRead(Span<byte> buffer, int fromPosition)
@@ -849,24 +806,24 @@ namespace MCServerSharp.Utility
 
             if (_largeBuffer == null)
             {
-                var blockOffset = GetBlockOffset(fromPosition);
+                (int block, int offset) = GetBlockOffset(fromPosition);
                 int bytesWritten = 0;
                 int bytesRemaining = Math.Min(buffer.Length, _length - fromPosition);
 
                 while (bytesRemaining > 0)
                 {
                     amountToCopy = Math.Min(
-                        _blocks[blockOffset.Block].Length - blockOffset.Offset,
+                        _blocks[block].Length - offset,
                         bytesRemaining);
 
-                    _blocks[blockOffset.Block].AsSpan(blockOffset.Offset, amountToCopy)
+                    _blocks[block].AsSpan(offset, amountToCopy)
                         .CopyTo(buffer[bytesWritten..]);
 
                     bytesWritten += amountToCopy;
                     bytesRemaining -= amountToCopy;
 
-                    blockOffset.Block++;
-                    blockOffset.Offset = 0;
+                    block++;
+                    offset = 0;
                 }
                 return bytesWritten;
             }
@@ -875,21 +832,9 @@ namespace MCServerSharp.Utility
             return amountToCopy;
         }
 
-        public struct BlockOffset
+        public (int Block, int Offset) GetBlockOffset(int offset)
         {
-            public int Block;
-            public int Offset;
-
-            public BlockOffset(int block, int offset)
-            {
-                Block = block;
-                Offset = offset;
-            }
-        }
-
-        public BlockOffset GetBlockOffset(int offset)
-        {
-            return new BlockOffset(offset / BlockSize, offset % BlockSize);
+            return (offset / BlockSize, offset % BlockSize);
         }
 
         private void EnsureCapacity(int newCapacity)

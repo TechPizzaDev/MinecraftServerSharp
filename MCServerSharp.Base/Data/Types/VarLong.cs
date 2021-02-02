@@ -19,9 +19,9 @@ namespace MCServerSharp
             Value = value;
         }
 
-        public static int GetEncodedSize(long value)
+        public static int GetEncodedSize(ulong value)
         {
-            ulong v = (ulong)value;
+            ulong v = value;
             int index = 1;
             while (v >= 0x80)
             {
@@ -29,6 +29,11 @@ namespace MCServerSharp
                 index++;
             }
             return index;
+        }
+
+        public static int GetEncodedSize(long value)
+        {
+            return GetEncodedSize((ulong)value);
         }
 
         public int Encode(Span<byte> destination)
@@ -70,7 +75,7 @@ namespace MCServerSharp
                 count |= (b & 0x7F) << (bytes * 7);
                 bytes++;
 
-            } 
+            }
             while ((b & 0x80) != 0);
 
             result = (VarLong)count;

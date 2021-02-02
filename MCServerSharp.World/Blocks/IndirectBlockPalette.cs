@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using MCServerSharp.Data.IO;
 
@@ -13,6 +14,12 @@ namespace MCServerSharp.Blocks
 
         public int BitsPerBlock { get; private set; }
         public int Count => _idToBlock.Length;
+
+        private IndirectBlockPalette(int capacity)
+        {
+            _idToBlock = new BlockState[capacity];
+            _blockToId = new Dictionary<BlockState, uint>(capacity);
+        }
 
         private IndirectBlockPalette()
         {
@@ -32,37 +39,88 @@ namespace MCServerSharp.Blocks
             return _blockToId[state];
         }
 
+        [SkipLocalsInit]
         public void Write(NetBinaryWriter writer)
         {
+            Span<uint> tmp = stackalloc uint[2];
+            int offset = 0;
+
             // Palette Length
-            writer.WriteVar(Count);
+            tmp[offset++] = (uint)Count;
+
+            // Palette
+            ReadOnlySpan<BlockState> idToBlock = _idToBlock;
+            do
+            {
+                ReadOnlySpan<BlockState> blockSlice = idToBlock;
+
+                int available = tmp.Length - offset;
+                if (blockSlice.Length > available)
+                    blockSlice = blockSlice.Slice(0, available);
+
+                for (int i = 0; i < blockSlice.Length; i++)
+                {
+                    BlockState state = blockSlice[i];
+                    tmp[offset++] = state.StateId;
+                }
+
+                writer.WriteVar(tmp.Slice(0, offset));
+                offset = 0;
+
+                idToBlock = idToBlock[blockSlice.Length..];
+            }
+            while (idToBlock.Length > 0);
+        }
+
+        public int GetEncodedSize()
+        {
+            int size = 0;
+
+            // Palette Length
+            size += VarInt.GetEncodedSize(Count);
 
             // Palette
             for (uint id = 0; id < _idToBlock.Length; id++)
             {
                 BlockState state = _idToBlock[id];
-                writer.WriteVar(state.StateId);
+                size += VarInt.GetEncodedSize(state.StateId);
             }
+
+            return size;
         }
 
-        public int GetEncodedSize()
+        private void UpdateBitsPerBlock()
         {
-            throw new NotImplementedException();
+            BitsPerBlock = (int)Math.Ceiling(Math.Log2(Count));
+        }
+
+        public static IndirectBlockPalette Create(IEnumerable<BlockState> blocks)
+        {
+            BlockState[] blockArray = blocks.ToArray();
+            IndirectBlockPalette palette = new();
+            palette._idToBlock = blockArray;
+            for (uint id = 0; id < blockArray.Length; id++)
+            {
+                palette._blockToId.Add(blockArray[id], id);
+            }
+
+            palette.UpdateBitsPerBlock();
+            return palette;
         }
 
         public static OperationStatus Read(
-            NetBinaryReader reader, DirectBlockPalette globalPalette, out IndirectBlockPalette? blockPalette)
+            NetBinaryReader reader, DirectBlockPalette globalPalette, out IndirectBlockPalette? indirectPalette)
         {
             if (globalPalette == null)
                 throw new ArgumentNullException(nameof(globalPalette));
 
-            blockPalette = null;
+            indirectPalette = null;
 
             OperationStatus status;
             if ((status = reader.Read(out VarInt length)) != OperationStatus.Done)
                 return status;
 
-            blockPalette = new IndirectBlockPalette();
+            indirectPalette = new IndirectBlockPalette(length);
             for (uint id = 0; id < length; id++)
             {
                 if ((status = reader.Read(out VarInt stateId)) != OperationStatus.Done)
@@ -71,11 +129,11 @@ namespace MCServerSharp.Blocks
                 uint uStateId = (uint)stateId.Value;
                 BlockState state = globalPalette.BlockForId(uStateId);
 
-                blockPalette._idToBlock[id] = state;
-                blockPalette._blockToId.Add(state, id);
+                indirectPalette._idToBlock[id] = state;
+                indirectPalette._blockToId.Add(state, id);
             }
-            blockPalette.BitsPerBlock = (int)Math.Ceiling(Math.Log2(blockPalette.Count));
 
+            indirectPalette.UpdateBitsPerBlock();
             return OperationStatus.Done;
         }
     }

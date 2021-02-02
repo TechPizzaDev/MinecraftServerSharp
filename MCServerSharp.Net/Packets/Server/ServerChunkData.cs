@@ -1,9 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using System.Runtime.Intrinsics;
-using System.Runtime.Intrinsics.X86;
 using MCServerSharp.Blocks;
 using MCServerSharp.Data.IO;
 using MCServerSharp.NBT;
@@ -185,11 +181,10 @@ namespace MCServerSharp.Net.Packets
             ulong bitBuffer2 = 0;
             ulong bitBuffer3 = 0;
 
-            // TODO: optimize writing
-
             while (blocks.Remaining >= blockBuffer.Length)
             {
-                int bufferCount = blocks.Consume(blockBuffer) / blocksPerLong;
+                int consumed = blocks.Consume(blockBuffer);
+                int bufferCount = consumed / blocksPerLong;
 
                 if (dataOffset + bufferCount >= dataBuffer.Length)
                 {
@@ -255,7 +250,7 @@ namespace MCServerSharp.Net.Packets
                 }
             }
 
-            for (int i = 0; i < blocks.Remaining;)
+            while (blocks.Remaining > 0)
             {
                 if (dataOffset == dataBuffer.Length)
                 {
@@ -263,8 +258,9 @@ namespace MCServerSharp.Net.Packets
                     dataOffset = 0;
                 }
 
-                int count = Math.Min(blocks.Remaining, blocksPerLong);
-                Span<uint> blockSlice = blockBuffer.Slice(0, count);
+                Span<uint> blockSlice = blockBuffer.Slice(0, blocksPerLong);
+                int consumed = blocks.Consume(blockSlice);
+                blockSlice = blockSlice.Slice(0, consumed);
 
                 ulong bitBuffer = 0;
                 for (int j = blockSlice.Length; j-- > 0;)

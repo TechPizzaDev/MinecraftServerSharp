@@ -108,6 +108,11 @@ namespace MCServerSharp.Data.IO
             Write((VarInt)value);
         }
 
+        public void WriteVar(uint value)
+        {
+            Write((VarInt)(int)value);
+        }
+
         [SkipLocalsInit]
         public void Write(VarLong value)
         {
@@ -119,6 +124,11 @@ namespace MCServerSharp.Data.IO
         public void WriteVar(long value)
         {
             Write((VarLong)value);
+        }
+
+        public void WriteVar(ulong value)
+        {
+            Write((VarLong)(long)value);
         }
 
         public void Write(float value)

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MCServerSharp.Blocks;
@@ -58,7 +59,13 @@ namespace MCServerSharp.World
         private async Task<LocalChunk> LoadOrGenerateChunk(IChunkColumn column, int chunkY)
         {
             ChunkColumnManager manager = column.ColumnManager;
-            LocalChunk chunk = new LocalChunk(column, chunkY, manager.GlobalBlockPalette, manager.Air);
+
+            var palette = IndirectBlockPalette.Create(
+                Enumerable.Range(1384, 16)
+                .Select(x => manager.GlobalBlockPalette.BlockForId((uint)x))
+                .Append(manager.Air));
+
+            LocalChunk chunk = new LocalChunk(column, chunkY, palette, manager.Air);
             
             // TODO: move chunk gen somewhere
 

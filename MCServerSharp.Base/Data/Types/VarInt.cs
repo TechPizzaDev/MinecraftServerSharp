@@ -19,9 +19,9 @@ namespace MCServerSharp
             Value = value;
         }
 
-        public static int GetEncodedSize(int value)
+        public static int GetEncodedSize(uint value)
         {
-            uint v = (uint)value;
+            uint v = value;
             int index = 1;
             while (v >= 0x80)
             {
@@ -29,6 +29,11 @@ namespace MCServerSharp
                 index++;
             }
             return index;
+        }
+
+        public static int GetEncodedSize(int value)
+        {
+            return GetEncodedSize((uint)value);
         }
 
         public int Encode(Span<byte> destination)

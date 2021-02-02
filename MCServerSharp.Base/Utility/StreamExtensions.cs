@@ -11,8 +11,8 @@ namespace MCServerSharp.Utility
         /// </summary>
         public static void TrimStart(this ChunkedMemoryStream stream, int length)
         {
-            // TODO: change RecyclableMemoryStream to allow every block to have
-            // an offset, so we don't need to shift data
+            // TODO: change ChunkedMemoryStream to allow every block to have
+            //  an offset, so we don't need to shift data at least as much?
 
             if (stream == null)
                 throw new ArgumentNullException(nameof(stream));
@@ -22,8 +22,8 @@ namespace MCServerSharp.Utility
             if (length == 0)
                 return;
 
-            ChunkedMemoryStream.BlockOffset helper = stream.GetBlockOffset(length);
-            stream.RemoveBlockRange(0, helper.Block);
+            (int block, int offset) = stream.GetBlockOffset(length);
+            stream.RemoveBlockRange(0, block);
 
             // Now we need to shift data in trailing blocks.
             for (int i = 0; i < stream.BlockCount; i++)
@@ -33,18 +33,17 @@ namespace MCServerSharp.Utility
                 int previous = i - 1;
                 if (previous >= 0)
                 {
+                    Memory<byte> bytesToMoveBack = currentBlock.Slice(0, offset);
                     Memory<byte> previousBlock = stream.GetBlock(previous);
-
-                    Memory<byte> bytesToMoveBack = currentBlock.Slice(0, helper.Offset);
-                    Memory<byte> backDst = previousBlock[^helper.Offset..];
-                    bytesToMoveBack.CopyTo(backDst);
+                    Memory<byte> backDestination = previousBlock[^offset..];
+                    bytesToMoveBack.CopyTo(backDestination);
                 }
 
-                var bytesToShift = currentBlock[helper.Offset..];
+                var bytesToShift = currentBlock[offset..];
                 bytesToShift.Span.CopyTo(currentBlock.Span);
             }
 
-            stream.SetLength(stream.Length - helper.Offset);
+            stream.SetLength(stream.Length - offset);
         }
 
         /// <summary>

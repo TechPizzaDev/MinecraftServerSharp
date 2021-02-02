@@ -206,6 +206,11 @@ namespace MCServerSharp.Data.IO
             writer.Write(buffer.Slice(0, buffer.Length - span.Length));
         }
 
+        public static void WriteVar(this NetBinaryWriter writer, ReadOnlySpan<uint> values)
+        {
+            WriteVar(writer, MemoryMarshal.Cast<uint, int>(values));
+        }
+
         [SkipLocalsInit]
         public static void WriteVar(this NetBinaryWriter writer, ReadOnlySpan<long> values)
         {
@@ -225,6 +230,11 @@ namespace MCServerSharp.Data.IO
             }
 
             writer.Write(buffer.Slice(0, buffer.Length - span.Length));
+        }
+
+        public static void WriteVar(this NetBinaryWriter writer, ReadOnlySpan<ulong> values)
+        {
+            WriteVar(writer, MemoryMarshal.Cast<ulong, long>(values));
         }
     }
 }
