@@ -8,7 +8,7 @@ using MCServerSharp.Maths;
 
 namespace MCServerSharp.World
 {
-    public class LocalChunk : ComponentEntity, IChunk
+    public partial class LocalChunk : ComponentEntity, IChunk
     {
         public const int Width = 16;
         public const int Height = 16;
@@ -16,11 +16,11 @@ namespace MCServerSharp.World
         public const int BlockCount = LevelBlockCount * Height;
 
         // TODO: compress based on palette
-        private BlockState[] _blocks;
+        private uint[] _blocks;
 
         public IChunkColumn Column { get; }
         public int Y { get; }
-        
+
         // TODO: add dynamic palette (that gets trimmed on serialize) and compressed block storage 
         public IBlockPalette BlockPalette { get; }
         public BlockState AirBlock { get; }
@@ -34,13 +34,6 @@ namespace MCServerSharp.World
 
         public Dimension Dimension => this.GetComponent<DimensionComponent>().Dimension;
 
-        /// <summary>
-        /// </summary>
-        /// <remarks>
-        /// Blocks are stored in YZX order.
-        /// </remarks>
-        public ReadOnlyMemory<BlockState> Blocks => _blocks;
-
         // TODO: dont allow public constructor, use a chunk manager/provider instead
 
         public LocalChunk(IChunkColumn parent, int y, IBlockPalette blockPalette, BlockState airBlock)
@@ -52,8 +45,13 @@ namespace MCServerSharp.World
             BlockPalette = blockPalette ?? throw new ArgumentNullException(nameof(blockPalette));
             AirBlock = airBlock;
 
-            _blocks = new BlockState[BlockCount];
+            _blocks = GC.AllocateUninitializedArray<uint>(BlockCount, false);
             FillBlock(airBlock);
+        }
+
+        public BlockEnumerator EnumerateBlocks()
+        {
+            return new BlockEnumerator(this);
         }
 
         /// <summary>
@@ -68,12 +66,12 @@ namespace MCServerSharp.World
             Debug.Assert((uint)x < 16u);
             Debug.Assert((uint)y < 16u);
             Debug.Assert((uint)z < 16u);
-            return (y * Width + z) * Width + x; 
+            return (y * Width + z) * Width + x;
         }
 
         public BlockState GetBlock(int index)
         {
-            return _blocks[index];
+            return BlockPalette.BlockForId(_blocks[index]);
         }
 
         public BlockState GetBlock(int x, int y, int z)
@@ -84,7 +82,7 @@ namespace MCServerSharp.World
 
         public void SetBlock(BlockState block, int index)
         {
-            _blocks[index] = block;
+            _blocks[index] = BlockPalette.IdForBlock(block);
             IsEmpty = false;
         }
 
@@ -96,7 +94,7 @@ namespace MCServerSharp.World
 
         public void FillBlock(BlockState block)
         {
-            _blocks.AsSpan().Fill(block);
+            _blocks.AsSpan().Fill(BlockPalette.IdForBlock(block));
 
             if (block == AirBlock)
                 IsEmpty = true;
@@ -106,7 +104,7 @@ namespace MCServerSharp.World
 
         public void FillBlockLevel(BlockState block, int y)
         {
-            _blocks.AsSpan(y * LevelBlockCount, LevelBlockCount).Fill(block);
+            _blocks.AsSpan(y * LevelBlockCount, LevelBlockCount).Fill(BlockPalette.IdForBlock(block));
             IsEmpty = false;
         }
 

@@ -1,5 +1,9 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Runtime.Intrinsics;
+using System.Runtime.Intrinsics.X86;
 using MCServerSharp.Blocks;
 using MCServerSharp.Data.IO;
 using MCServerSharp.NBT;
@@ -103,8 +107,8 @@ namespace MCServerSharp.Net.Packets
             {
                 if (chunkColumn.TryGetChunk(chunkY, out LocalChunk? chunk))
                 {
-                    ReadOnlySpan<BlockState> blocks = chunk.Blocks.Span;
-                    WriteBlocks(writer, blocks, chunk.BlockPalette);
+                    LocalChunk.BlockEnumerator blocks = chunk.EnumerateBlocks();
+                    WriteBlocks(writer, ref blocks);
                 }
             }
         }
@@ -135,32 +139,13 @@ namespace MCServerSharp.Net.Packets
             return length;
         }
 
-        public static void WriteBlocks(NetBinaryWriter writer, ReadOnlySpan<BlockState> blocks, IBlockPalette palette)
-        {
-            if (palette == null)
-                throw new ArgumentNullException(nameof(palette));
-
-            // Creating these struct abstractions allow the JIT to inline+devirtualize
-            // which yields almost 2x performance. These savings measure up quickly as
-            // the function is called millions of times when loading chunks.
-
-            if (palette is DirectBlockPalette directPalette)
-                WriteBlocks(writer, blocks, new DirectBlockPaletteWrapper(directPalette));
-            else if (palette is IndirectBlockPalette indirectPalette)
-                WriteBlocks(writer, blocks, new IndirectBlockPaletteWrapper(indirectPalette));
-            else
-                WriteBlocks(writer, blocks, palette);
-        }
-
         [SkipLocalsInit]
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-        public static void WriteBlocks<TPalette>(
-            NetBinaryWriter writer, ReadOnlySpan<BlockState> blocks, TPalette palette)
-            where TPalette : IBlockPalette
+        public static unsafe void WriteBlocks<TBlocks>(
+            NetBinaryWriter writer, ref TBlocks blocks)
+            where TBlocks : IBlockEnumerator
         {
-            if (palette == null)
-                throw new ArgumentNullException(nameof(palette));
-
+            IBlockPalette palette = blocks.BlockPalette;
             int bitsPerBlock = palette.BitsPerBlock;
             int dataLength = GetUnderlyingDataLength(UnderlyingDataSize, bitsPerBlock);
 
@@ -169,10 +154,11 @@ namespace MCServerSharp.Net.Packets
             palette.Write(writer);
             writer.WriteVar(dataLength);
 
+            int blocksPerLong = 64 / bitsPerBlock;
+            int valueShift = bitsPerBlock * blocksPerLong - bitsPerBlock;
+
             // A bitmask that contains bitsPerBlock set bits
             uint valueMask = (uint)((1 << bitsPerBlock) - 1);
-            int blocksPerLong = 64 / bitsPerBlock;
-
             ulong bitBufferMask = 0;
             for (int i = 0; i < blocksPerLong; i++)
             {
@@ -180,97 +166,116 @@ namespace MCServerSharp.Net.Packets
                 bitBufferMask |= valueMask;
             }
 
-            Span<ulong> buffer = stackalloc ulong[512];
-            int bufferOffset = 0;
+            const int BlockBufferFactor = 4;
+            int blockBufferLength = blocksPerLong * BlockBufferFactor;
+            uint* blockBufferP = stackalloc uint[blockBufferLength];
+            uint* blockBufferP0 = blockBufferP + blocksPerLong * 0;
+            uint* blockBufferP1 = blockBufferP + blocksPerLong * 1;
+            uint* blockBufferP2 = blockBufferP + blocksPerLong * 2;
+            uint* blockBufferP3 = blockBufferP + blocksPerLong * 3;
+            Span<uint> blockBuffer = new Span<uint>(blockBufferP, blockBufferLength);
+
+            int dataBufferLength = 512;
+            ulong* dataBufferP = stackalloc ulong[dataBufferLength];
+            Span<ulong> dataBuffer = new Span<ulong>(dataBufferP, dataBufferLength);
+
+            int dataOffset = 0;
+            ulong bitBuffer0 = 0;
+            ulong bitBuffer1 = 0;
+            ulong bitBuffer2 = 0;
+            ulong bitBuffer3 = 0;
 
             // TODO: optimize writing
 
-            while (blocks.Length >= blocksPerLong)
+            while (blocks.Remaining >= blockBuffer.Length)
             {
-                if (bufferOffset >= buffer.Length)
+                int bufferCount = blocks.Consume(blockBuffer) / blocksPerLong;
+
+                if (dataOffset + bufferCount >= dataBuffer.Length)
                 {
-                    writer.Write(buffer.Slice(0, bufferOffset));
-                    bufferOffset = 0;
+                    writer.Write(dataBuffer.Slice(0, dataOffset));
+                    dataOffset = 0;
                 }
+
+                switch (bufferCount)
+                {
+                    case 1:
+                        for (int j = 0; j < blocksPerLong; j++)
+                        {
+                            bitBuffer0 >>= bitsPerBlock;
+                            bitBuffer0 |= (ulong)blockBufferP0[j] << valueShift;
+                        }
+                        dataBufferP[dataOffset++] = bitBuffer0;
+                        break;
+
+                    case 2:
+                        for (int j = 0; j < blocksPerLong; j++)
+                        {
+                            bitBuffer0 >>= bitsPerBlock;
+                            bitBuffer1 >>= bitsPerBlock;
+                            bitBuffer0 |= (ulong)blockBufferP0[j] << valueShift;
+                            bitBuffer1 |= (ulong)blockBufferP1[j] << valueShift;
+                        }
+                        dataBufferP[dataOffset++] = bitBuffer0;
+                        dataBufferP[dataOffset++] = bitBuffer1;
+                        break;
+
+                    case 3:
+                        for (int j = 0; j < blocksPerLong; j++)
+                        {
+                            bitBuffer0 >>= bitsPerBlock;
+                            bitBuffer1 >>= bitsPerBlock;
+                            bitBuffer2 >>= bitsPerBlock;
+                            bitBuffer0 |= (ulong)blockBufferP0[j] << valueShift;
+                            bitBuffer1 |= (ulong)blockBufferP1[j] << valueShift;
+                            bitBuffer2 |= (ulong)blockBufferP2[j] << valueShift;
+                        }
+                        dataBufferP[dataOffset++] = bitBuffer0;
+                        dataBufferP[dataOffset++] = bitBuffer1;
+                        dataBufferP[dataOffset++] = bitBuffer2;
+                        break;
+
+                    case 4:
+                        for (int j = 0; j < blocksPerLong; j++)
+                        {
+                            bitBuffer0 >>= bitsPerBlock;
+                            bitBuffer1 >>= bitsPerBlock;
+                            bitBuffer2 >>= bitsPerBlock;
+                            bitBuffer3 >>= bitsPerBlock;
+                            bitBuffer0 |= (ulong)blockBufferP0[j] << valueShift;
+                            bitBuffer1 |= (ulong)blockBufferP1[j] << valueShift;
+                            bitBuffer2 |= (ulong)blockBufferP2[j] << valueShift;
+                            bitBuffer3 |= (ulong)blockBufferP3[j] << valueShift;
+                        }
+                        dataBufferP[dataOffset++] = bitBuffer0;
+                        dataBufferP[dataOffset++] = bitBuffer1;
+                        dataBufferP[dataOffset++] = bitBuffer2;
+                        dataBufferP[dataOffset++] = bitBuffer3;
+                        break;
+                }
+            }
+
+            for (int i = 0; i < blocks.Remaining;)
+            {
+                if (dataOffset == dataBuffer.Length)
+                {
+                    writer.Write(dataBuffer);
+                    dataOffset = 0;
+                }
+
+                int count = Math.Min(blocks.Remaining, blocksPerLong);
+                Span<uint> blockSlice = blockBuffer.Slice(0, count);
 
                 ulong bitBuffer = 0;
-                for (int j = blocksPerLong; j-- > 0;)
+                for (int j = blockSlice.Length; j-- > 0;)
                 {
-                    uint value = palette.IdForBlock(blocks[j]);
                     bitBuffer <<= bitsPerBlock;
-                    bitBuffer |= value;
+                    bitBuffer |= blockSlice[j];
                 }
-
-                buffer[bufferOffset++] = bitBuffer & bitBufferMask;
-                blocks = blocks[blocksPerLong..];
+                dataBufferP[dataOffset++] = bitBuffer & bitBufferMask;
             }
 
-            for (int i = 0; i < blocks.Length;)
-            {
-                if (bufferOffset == buffer.Length)
-                {
-                    writer.Write(buffer);
-                    bufferOffset = 0;
-                }
-
-                ulong bitBuffer = 0;
-                int count = Math.Min(blocks.Length, blocksPerLong);
-                for (int j = count; j-- > 0;)
-                {
-                    uint value = palette.IdForBlock(blocks[i++]);
-                    bitBuffer <<= bitsPerBlock;
-                    bitBuffer |= value;
-                }
-                buffer[bufferOffset++] = bitBuffer & bitBufferMask;
-            }
-
-            writer.Write(buffer.Slice(0, bufferOffset));
-        }
-
-        public readonly struct DirectBlockPaletteWrapper : IBlockPalette
-        {
-            public DirectBlockPalette Palette { get; }
-
-            public int BitsPerBlock => Palette.BitsPerBlock;
-            public int Count => Palette.Count;
-
-            public DirectBlockPaletteWrapper(DirectBlockPalette palette)
-            {
-                Palette = palette ?? throw new ArgumentNullException(nameof(palette));
-            }
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public uint IdForBlock(BlockState state) => Palette.IdForBlock(state);
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public BlockState BlockForId(uint id) => Palette.BlockForId(id);
-
-            public int GetEncodedSize() => Palette.GetEncodedSize();
-
-            public void Write(NetBinaryWriter writer) => Palette.Write(writer);
-        }
-
-        public readonly struct IndirectBlockPaletteWrapper : IBlockPalette
-        {
-            public IndirectBlockPalette Palette { get; }
-
-            public int BitsPerBlock => Palette.BitsPerBlock;
-            public int Count => Palette.Count;
-
-            public IndirectBlockPaletteWrapper(IndirectBlockPalette palette)
-            {
-                Palette = palette ?? throw new ArgumentNullException(nameof(palette));
-            }
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public uint IdForBlock(BlockState state) => Palette.IdForBlock(state);
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public BlockState BlockForId(uint id) => Palette.BlockForId(id);
-
-            public int GetEncodedSize() => Palette.GetEncodedSize();
-
-            public void Write(NetBinaryWriter writer) => Palette.Write(writer);
+            writer.Write(dataBuffer.Slice(0, dataOffset));
         }
     }
 }

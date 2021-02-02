@@ -13,7 +13,7 @@ namespace MCServerSharp.World
         private ReaderWriterLockSlim _chunkLock;
         private Dictionary<ChunkPosition, Task<LocalChunk>> _loadingChunks;
 
-        private FastNoiseLite _noise;
+        //private FastNoiseLite _noise;
 
         public LocalChunkColumnProvider ColumnProvider { get; }
 
@@ -26,14 +26,14 @@ namespace MCServerSharp.World
             _chunkLock = new();
             _loadingChunks = new();
 
-            _noise = new FastNoiseLite();
-            _noise.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
-            _noise.SetRotationType3D(FastNoiseLite.RotationType3D.None);
-            _noise.SetFractalType(FastNoiseLite.FractalType.None);
-            _noise.SetFractalOctaves(1);
-            _noise.SetFractalLacunarity(2f);
-            _noise.SetFractalGain(0.5f);
-            _noise.SetFrequency(0.01f);
+            //_noise = new FastNoiseLite();
+            //_noise.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
+            //_noise.SetRotationType3D(FastNoiseLite.RotationType3D.None);
+            //_noise.SetFractalType(FastNoiseLite.FractalType.None);
+            //_noise.SetFractalOctaves(1);
+            //_noise.SetFractalLacunarity(2f);
+            //_noise.SetFractalGain(0.5f);
+            //_noise.SetFrequency(0.01f);
         }
 
         public async ValueTask<IChunk> GetOrAddChunk(ChunkColumnManager columnManager, ChunkPosition chunkPosition)
