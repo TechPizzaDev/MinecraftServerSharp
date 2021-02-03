@@ -26,11 +26,12 @@ namespace MCServerSharp.Net
         private PacketHolderPool _packetHolderPool;
         private List<NetOrchestratorWorker> _workers;
 
+        private Comparison<NetOrchestratorWorker> _workerComparison = (x, y) => x.BusyFactor.CompareTo(y.BusyFactor);
+
         public RecyclableMemoryManager MemoryManager { get; }
         public NetPacketCodec Codec { get; }
 
-        public ConcurrentDictionary<NetConnection, NetPacketSendQueue> PacketSendQueues { get; } =
-            new ConcurrentDictionary<NetConnection, NetPacketSendQueue>();
+        public ConcurrentDictionary<NetConnection, NetPacketSendQueue> PacketSendQueues { get; } = new();
 
         public NetOrchestrator(RecyclableMemoryManager memoryManager, NetPacketCodec codec)
         {
@@ -43,33 +44,54 @@ namespace MCServerSharp.Net
             _workers = new List<NetOrchestratorWorker>();
         }
 
+        protected void AssertStarted()
+        {
+            lock (_workers)
+            {
+                if (_workers.Count == 0)
+                    throw new InvalidOperationException("The orchestrator is not running.");
+            }
+        }
+
         public void Start(int workerCount)
         {
             if (workerCount <= 0)
                 throw new ArgumentOutOfRangeException(nameof(workerCount));
 
-            for (int i = 0; i < workerCount; i++)
-            {
-                var worker = new NetOrchestratorWorker(this);
-                worker.Thread.Name = $"{nameof(NetOrchestrator)} {i + 1}";
-                worker.Start();
+            if (_workers.Count > 0)
+                throw new InvalidOperationException("The orchestrator is already running.");
 
-                _workers.Add(worker);
+            lock (_workers)
+            {
+                for (int i = 0; i < workerCount; i++)
+                {
+                    var worker = new NetOrchestratorWorker(this);
+                    worker.Thread.Name = $"{nameof(NetOrchestrator)} {i + 1}";
+                    worker.Start();
+
+                    _workers.Add(worker);
+                }
             }
         }
 
         public void Stop()
         {
-            foreach (var worker in _workers)
-                worker.Stop();
+            lock (_workers)
+            {
+                foreach (NetOrchestratorWorker worker in _workers)
+                    worker.Stop();
 
-            _workers.Clear();
+                _workers.Clear();
+            }
         }
 
         public void RequestFlush()
         {
-            foreach (var worker in _workers)
-                worker.RequestFlush();
+            lock (_workers)
+            {
+                foreach (NetOrchestratorWorker worker in _workers)
+                    worker.RequestFlush();
+            }
         }
 
         public void ReturnPacketHolder(PacketHolder packetHolder)
@@ -136,8 +158,15 @@ namespace MCServerSharp.Net
 
         private NetOrchestratorWorker GetWorker()
         {
-            // TODO: 
-            return _workers[0];
+            // TODO: improve 
+            lock (_workers)
+            {
+                AssertStarted();
+
+                _workers.Sort(_workerComparison);
+
+                return _workers[0];
+            }
         }
 
         public void EnqueuePacket<TPacket>(
