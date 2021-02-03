@@ -209,16 +209,29 @@ namespace MCServerSharp.Net
                 {
                     try
                     {
-                        while (sendQueue.Packets.TryDequeue(out PacketHolder? packetHolder))
+                        while (sendQueue.TryPeek(out PacketHolder? peekedHolder))
                         {
                             try
                             {
-                                ProcessPacket(packetHolder, out _);
+                                bool sent = ProcessPacket(peekedHolder, out _);
+                                if (sent)
+                                {
+                                    bool dequeued = sendQueue.TryDequeue(out PacketHolder? dequeuedHolder);
+                                    Debug.Assert(dequeued);
+                                    Debug.Assert(dequeuedHolder == peekedHolder);
+                                }
+                                else
+                                {
+                                    // TODO: somehow wait for a reconnect in some future implementation?
+                                    break;
+                                }
                             }
                             catch (NetUnknownPacketException netEx) when (
                                 netEx.ProtocolState == ProtocolState.Closing ||
                                 netEx.ProtocolState == ProtocolState.Disconnected)
                             {
+                                sendQueue.Connection.Kick();
+                                break;
                             }
                         }
                     }
@@ -297,7 +310,7 @@ namespace MCServerSharp.Net
             {
                 queue.IsEngaged = false;
 
-                if (!queue.Packets.IsEmpty)
+                if (!queue.IsEmpty)
                 {
                     queue.Connection.Orchestrator.EnqueueQueue(queue);
                 }
@@ -307,6 +320,7 @@ namespace MCServerSharp.Net
         public void Enqueue(NetPacketSendQueue queue)
         {
             _queuesToFlush.Enqueue(queue);
+
             Interlocked.Increment(ref _busyFactor);
         }
 

@@ -54,7 +54,7 @@ namespace MCServerSharp.Net
             _closeAction = closeAction ?? throw new ArgumentNullException(nameof(closeAction));
 
             // get it here as we can't get it later if the socket gets disposed
-            RemoteEndPoint = (socket.RemoteEndPoint as IPEndPoint) ?? 
+            RemoteEndPoint = (socket.RemoteEndPoint as IPEndPoint) ??
                 throw new ArgumentException("The remote end point is null.", nameof(socket));
 
             ReceiveBuffer = Orchestrator.MemoryManager.GetStream();
@@ -125,7 +125,7 @@ namespace MCServerSharp.Net
             bool detailed = false;
 #endif
 
-            Chat? chat = null;
+            Chat chat = default;
             if (exception != null)
             {
                 string errorMessage =
@@ -141,9 +141,9 @@ namespace MCServerSharp.Net
             Kick(chat);
         }
 
-        public void Kick(string? reason = null)
+        public void Kick(string? reason)
         {
-            Chat? chat = null;
+            Chat chat = default;
             if (reason != null)
             {
                 var dyn = new[]
@@ -156,22 +156,19 @@ namespace MCServerSharp.Net
             Kick(chat);
         }
 
-        public void Kick(Chat? reason = null)
+        public void Kick(Chat reason = default)
         {
-            if (reason != null)
+            if (ProtocolState == ProtocolState.Play)
             {
-                if (ProtocolState == ProtocolState.Play)
-                {
-                    var packet = new ServerPlayDisconnect(reason.Value);
-                    EnqueuePacket(packet);
-                }
-                else if (
-                    ProtocolState == ProtocolState.Login ||
-                    ProtocolState == ProtocolState.Status)
-                {
-                    var packet = new ServerLoginDisconnect(reason.Value);
-                    EnqueuePacket(packet);
-                }
+                var packet = new ServerPlayDisconnect(reason);
+                EnqueuePacket(packet);
+            }
+            else if (
+                ProtocolState == ProtocolState.Login ||
+                ProtocolState == ProtocolState.Status)
+            {
+                var packet = new ServerLoginDisconnect(reason);
+                EnqueuePacket(packet);
             }
 
             Close(immediate: false);

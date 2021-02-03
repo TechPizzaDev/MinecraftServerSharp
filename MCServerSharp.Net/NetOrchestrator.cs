@@ -137,7 +137,7 @@ namespace MCServerSharp.Net
                 PacketSendQueues.TryAdd(sendQueue.Connection, sendQueue);
             }
 
-            sendQueue.Packets.Enqueue(packetHolder);
+            sendQueue.Enqueue(packetHolder);
 
             EnqueueQueue(sendQueue);
         }

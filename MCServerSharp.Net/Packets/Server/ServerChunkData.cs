@@ -182,6 +182,8 @@ namespace MCServerSharp.Net.Packets
             ulong bitBuffer1 = 0;
             ulong bitBuffer2 = 0;
             ulong bitBuffer3 = 0;
+
+            // TODO: optimize with ARM intrinsics
             
             while (blocks.Remaining >= blockBuffer.Length)
             {
