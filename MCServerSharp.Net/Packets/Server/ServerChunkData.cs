@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
+using System.Runtime.Intrinsics;
+using System.Runtime.Intrinsics.X86;
 using MCServerSharp.Blocks;
 using MCServerSharp.Data.IO;
 using MCServerSharp.NBT;
@@ -180,7 +182,7 @@ namespace MCServerSharp.Net.Packets
             ulong bitBuffer1 = 0;
             ulong bitBuffer2 = 0;
             ulong bitBuffer3 = 0;
-
+            
             while (blocks.Remaining >= blockBuffer.Length)
             {
                 int consumed = blocks.Consume(blockBuffer);
@@ -192,10 +194,11 @@ namespace MCServerSharp.Net.Packets
                     dataOffset = 0;
                 }
 
+                int j = 0;
                 switch (bufferCount)
                 {
                     case 1:
-                        for (int j = 0; j < blocksPerLong; j++)
+                        for (; j < blocksPerLong; j++)
                         {
                             bitBuffer0 >>= bitsPerBlock;
                             bitBuffer0 |= (ulong)blockBufferP0[j] << valueShift;
@@ -204,7 +207,7 @@ namespace MCServerSharp.Net.Packets
                         break;
 
                     case 2:
-                        for (int j = 0; j < blocksPerLong; j++)
+                        for (; j < blocksPerLong; j++)
                         {
                             bitBuffer0 >>= bitsPerBlock;
                             bitBuffer1 >>= bitsPerBlock;
@@ -216,7 +219,7 @@ namespace MCServerSharp.Net.Packets
                         break;
 
                     case 3:
-                        for (int j = 0; j < blocksPerLong; j++)
+                        for (; j < blocksPerLong; j++)
                         {
                             bitBuffer0 >>= bitsPerBlock;
                             bitBuffer1 >>= bitsPerBlock;
@@ -231,7 +234,54 @@ namespace MCServerSharp.Net.Packets
                         break;
 
                     case 4:
-                        for (int j = 0; j < blocksPerLong; j++)
+                        if (Avx2.IsSupported)
+                        {
+                            byte bValueShift = (byte)valueShift;
+                            byte bBitsPerBlock = (byte)bitsPerBlock;
+
+                            Vector256<ulong> vBitBuffer = Vector256<ulong>.Zero;
+                            for (; j + 4 <= blocksPerLong; j += 4)
+                            {
+                                Vector128<uint> vBlocks0 = Sse2.LoadVector128(blockBufferP0 + j);
+                                Vector256<ulong> vLongs0 = Vector256.Create(
+                                    Sse2.UnpackLow(vBlocks0, Vector128<uint>.Zero).AsUInt64(),
+                                    Sse2.UnpackHigh(vBlocks0, Vector128<uint>.Zero).AsUInt64());
+                                vLongs0 = Avx2.ShiftLeftLogical(vLongs0, bValueShift);
+                                vBitBuffer = Avx2.ShiftRightLogical(vBitBuffer, bBitsPerBlock);
+                                vBitBuffer = Avx2.Or(vLongs0, vBitBuffer);
+
+                                Vector128<uint> vBlocks1 = Sse2.LoadVector128(blockBufferP1 + j);
+                                Vector256<ulong> vLongs1 = Vector256.Create(
+                                    Sse2.UnpackLow(vBlocks1, Vector128<uint>.Zero).AsUInt64(),
+                                    Sse2.UnpackHigh(vBlocks1, Vector128<uint>.Zero).AsUInt64());
+                                vLongs1 = Avx2.ShiftLeftLogical(vLongs1, bValueShift);
+                                vBitBuffer = Avx2.ShiftRightLogical(vBitBuffer, bBitsPerBlock);
+                                vBitBuffer = Avx2.Or(vLongs1, vBitBuffer);
+
+                                Vector128<uint> vBlocks2 = Sse2.LoadVector128(blockBufferP2 + j);
+                                Vector256<ulong> vLongs2 = Vector256.Create(
+                                    Sse2.UnpackLow(vBlocks2, Vector128<uint>.Zero).AsUInt64(),
+                                    Sse2.UnpackHigh(vBlocks2, Vector128<uint>.Zero).AsUInt64());
+                                vLongs2 = Avx2.ShiftLeftLogical(vLongs2, bValueShift);
+                                vBitBuffer = Avx2.ShiftRightLogical(vBitBuffer, bBitsPerBlock);
+                                vBitBuffer = Avx2.Or(vLongs2, vBitBuffer);
+
+                                Vector128<uint> vBlocks3 = Sse2.LoadVector128(blockBufferP3 + j);
+                                Vector256<ulong> vLongs3 = Vector256.Create(
+                                    Sse2.UnpackLow(vBlocks3, Vector128<uint>.Zero).AsUInt64(),
+                                    Sse2.UnpackHigh(vBlocks3, Vector128<uint>.Zero).AsUInt64());
+                                vLongs3 = Avx2.ShiftLeftLogical(vLongs3, bValueShift);
+                                vBitBuffer = Avx2.ShiftRightLogical(vBitBuffer, bBitsPerBlock);
+                                vBitBuffer = Avx2.Or(vLongs3, vBitBuffer);
+                            }
+                            
+                            bitBuffer0 = vBitBuffer.GetElement(0);
+                            bitBuffer1 = vBitBuffer.GetElement(1);
+                            bitBuffer2 = vBitBuffer.GetElement(2);
+                            bitBuffer3 = vBitBuffer.GetElement(3);
+                        }
+
+                        for (; j < blocksPerLong; j++)
                         {
                             bitBuffer0 >>= bitsPerBlock;
                             bitBuffer1 >>= bitsPerBlock;
