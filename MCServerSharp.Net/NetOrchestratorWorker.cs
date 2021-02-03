@@ -118,13 +118,15 @@ namespace MCServerSharp.Net
 
             var holder = (PacketHolder<TPacket>)packetHolder;
 
+            // TODO: hold packets and data while closing, 
+            //  in case of the client being able to somehow reconnect in the future
+
             if (!connection.Orchestrator.Codec.Encoder.TryGetPacketIdDefinition(
                 holder.State, holder.PacketType, out var idDefinition))
             {
                 // We don't really want to continue if we don't even know what we're sending.
-                throw new Exception(
-                    $"Failed to get server packet ID defintion " +
-                    $"(State: {holder.State}, Type: {holder.PacketType}).");
+                throw new NetUnknownPacketException(
+                    "Failed to get server packet ID defintion.", holder.State, holder.PacketType);
             }
 
             var packetWriter = new NetBinaryWriter(packetBuffer)
@@ -209,7 +211,15 @@ namespace MCServerSharp.Net
                     {
                         while (sendQueue.Packets.TryDequeue(out PacketHolder? packetHolder))
                         {
-                            ProcessPacket(packetHolder, out _);
+                            try
+                            {
+                                ProcessPacket(packetHolder, out _);
+                            }
+                            catch (NetUnknownPacketException netEx) when (
+                                netEx.ProtocolState == ProtocolState.Closing ||
+                                netEx.ProtocolState == ProtocolState.Disconnected)
+                            {
+                            }
                         }
                     }
                     finally

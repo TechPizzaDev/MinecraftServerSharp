@@ -11,6 +11,7 @@ namespace MCServerSharp.Net.Packets
         Handshaking,
         Play,
         
+        // TODO: remove these and implement something else
         Closing,
         Disconnected
     }
