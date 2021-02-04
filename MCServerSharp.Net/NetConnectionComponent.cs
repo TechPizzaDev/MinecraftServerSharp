@@ -232,7 +232,7 @@ namespace MCServerSharp.Net
                 {
                     for (int z = minZ; z <= maxZ; z++)
                     {
-                        var chunkPos = new ChunkColumnPosition(x, z);
+                        ChunkColumnPosition chunkPos = new(x, z);
                         bool withinView = GetChebyshevDistance(chunkPos, currentPos) <= viewDistance;
                         bool withinMaxView = GetChebyshevDistance(chunkPos, previousPos) <= viewDistance;
 
@@ -281,10 +281,10 @@ namespace MCServerSharp.Net
                 // We use a "fixed" count in the loop as a position may be readded to the current list.
                 // If distance didn't change, the position is appended after the current positions.
 
-                var loadList = loadLists[i];
+                List<ChunkColumnPosition> loadList = loadLists[i];
                 for (int j = 0; j < posCount; j++)
                 {
-                    var chunkPos = loadList[j];
+                    ChunkColumnPosition chunkPos = loadList[j];
                     if (player.ChunksToUnload.Remove(chunkPos))
                     {
                         // We can skip sending the chunk as it was queued for unload.
@@ -308,7 +308,7 @@ namespace MCServerSharp.Net
             while (player.ChunkLoadLists.Count <= distance)
                 player.ChunkLoadLists.Add(new List<ChunkColumnPosition>());
 
-            var loadList = player.ChunkLoadLists[distance];
+            List<ChunkColumnPosition> loadList = player.ChunkLoadLists[distance];
             loadList.Add(position);
         }
 

@@ -80,6 +80,27 @@ namespace MCServerSharp.World
             return GetBlock(blockIndex);
         }
 
+        /// <summary>
+        /// </summary>
+        /// <param name="index">The block index.</param>
+        /// <returns>The block ID from this <see cref="BlockPalette"/> at the given block index.</returns>
+        public uint GetBlockId(int index)
+        {
+            return _blocks[index];
+        }
+
+        /// <summary>
+        /// </summary>
+        /// <param name="x">The direct X coordinate.</param>
+        /// <param name="y">The direct Y coordinate.</param>
+        /// <param name="z">The direct Z coordinate.</param>
+        /// <returns>The block ID from this <see cref="BlockPalette"/> at the given block coordinates.</returns>
+        public uint GetBlockId(int x, int y, int z)
+        {
+            int index = GetBlockIndex(x, y, z);
+            return GetBlockId(index);
+        }
+
         public void SetBlock(BlockState block, int index)
         {
             _blocks[index] = BlockPalette.IdForBlock(block);
@@ -90,6 +111,28 @@ namespace MCServerSharp.World
         {
             int blockIndex = GetBlockIndex(x, y, z);
             SetBlock(block, blockIndex);
+        }
+
+        /// <summary>
+        /// </summary>
+        /// <param name="paletteId">The block ID from this <see cref="BlockPalette"/>.</param>
+        /// <param name="index">The block index.</param>
+        public void SetBlock(uint paletteId, int index)
+        {
+            _blocks[index] = paletteId;
+            IsEmpty = false;
+        }
+
+        /// <summary>
+        /// </summary>
+        /// <param name="paletteId">The block ID from this <see cref="BlockPalette"/>.</param>
+        /// <param name="x">The direct X coordinate.</param>
+        /// <param name="y">The direct Y coordinate.</param>
+        /// <param name="z">The direct Z coordinate.</param>
+        public void SetBlock(uint paletteId, int x, int y, int z)
+        {
+            int index = GetBlockIndex(x, y, z);
+            SetBlock(paletteId, index);
         }
 
         public void FillBlock(BlockState block)
