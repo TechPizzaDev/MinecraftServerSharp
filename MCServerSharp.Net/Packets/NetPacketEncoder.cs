@@ -90,11 +90,11 @@ namespace MCServerSharp.Net.Packets
 
             if (typeof(IDataWritable).IsAssignableFrom(structInfo.Type))
             {
-                string methodName = nameof(IDataWritable.Write);
+                string methodName = nameof(IDataWritable.WriteTo);
                 var writeMethod = structInfo.Type.GetMethod(methodName, new[] { writerParam.Type });
                 if (writeMethod == null)
                     throw new Exception(
-                        $"Failed to get public {nameof(IDataWritable.Write)} method required for reflection.");
+                        $"Failed to get public {nameof(IDataWritable.WriteTo)} method required for reflection.");
 
                 var writeCall = Expression.Call(packetParam, writeMethod, writerParam);
                 expressions.Add(writeCall);

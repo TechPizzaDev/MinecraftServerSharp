@@ -10,7 +10,7 @@ using MCServerSharp.World;
 namespace MCServerSharp.Net.Packets
 {
     [PacketStruct(ServerPacketId.ChunkData)]
-    public struct ServerChunkData : IDataWritable
+    public readonly struct ServerChunkData : IDataWritable
     {
         public const int ColumnHeight = 16;
 
@@ -44,7 +44,7 @@ namespace MCServerSharp.Net.Packets
         }
 
         [SkipLocalsInit]
-        public void Write(NetBinaryWriter writer)
+        public void WriteTo(NetBinaryWriter writer)
         {
             writer.Write(ChunkColumn.Position.X);
             writer.Write(ChunkColumn.Position.Z);

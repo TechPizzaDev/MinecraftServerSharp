@@ -4,6 +4,6 @@ namespace MCServerSharp.Net.Packets
 {
     public interface IDataWritable
     {
-        void Write(NetBinaryWriter writer);
+        void WriteTo(NetBinaryWriter writer);
     }
 }

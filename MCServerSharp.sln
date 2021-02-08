@@ -22,6 +22,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MCServerSharp.Server", "MCS
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MCServerSharp.Net", "MCServerSharp.Net\MCServerSharp.Net.csproj", "{9A147149-BD48-43EB-9AEB-CB80FEA24D30}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MCServerSharp.Net.SourceGen", "MCServerSharp.Net.SourceGen\MCServerSharp.Net.SourceGen.csproj", "{38DBA2E5-9266-4196-B2B7-38F7D4CB9901}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -56,6 +58,10 @@ Global
 		{9A147149-BD48-43EB-9AEB-CB80FEA24D30}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9A147149-BD48-43EB-9AEB-CB80FEA24D30}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9A147149-BD48-43EB-9AEB-CB80FEA24D30}.Release|Any CPU.Build.0 = Release|Any CPU
+		{38DBA2E5-9266-4196-B2B7-38F7D4CB9901}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{38DBA2E5-9266-4196-B2B7-38F7D4CB9901}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{38DBA2E5-9266-4196-B2B7-38F7D4CB9901}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{38DBA2E5-9266-4196-B2B7-38F7D4CB9901}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

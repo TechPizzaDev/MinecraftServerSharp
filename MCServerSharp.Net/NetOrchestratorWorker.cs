@@ -233,6 +233,10 @@ namespace MCServerSharp.Net
                                 sendQueue.Connection.Kick();
                                 break;
                             }
+                            finally
+                            {
+                                Orchestrator.ReturnPacketHolder(peekedHolder);
+                            }
                         }
                     }
                     finally
@@ -278,23 +282,17 @@ namespace MCServerSharp.Net
                 packetHolder.Connection != null,
                 "Packet holder has no attached connection.");
 
-            try
+            if (!packetHolder.Connection.Socket.Connected)
             {
-                if (!packetHolder.Connection.Socket.Connected)
-                {
-                    writeResult = default;
-                    return false;
-                }
-
-                PacketWriteAction? packetWriteAction = GetLocalPacketWriteAction(packetHolder.PacketType);
-
-                writeResult = packetWriteAction.Invoke(
-                    packetHolder, _packetWriteBuffer, _packetCompressionBuffer);
+                writeResult = default;
+                return false;
             }
-            finally
-            {
-                Orchestrator.ReturnPacketHolder(packetHolder);
-            }
+
+            PacketWriteAction? packetWriteAction = GetLocalPacketWriteAction(packetHolder.PacketType);
+
+            writeResult = packetWriteAction.Invoke(
+                packetHolder, _packetWriteBuffer, _packetCompressionBuffer);
+
             return true;
         }
 

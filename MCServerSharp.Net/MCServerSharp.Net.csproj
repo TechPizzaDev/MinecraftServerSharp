@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp5.0</TargetFramework>
+    <TargetFramework>net5.0</TargetFramework>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
@@ -12,6 +12,16 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
   </ItemGroup>
+
+  <!--
+  <ItemGroup>
+    <ProjectReference Include="..\MCServerSharp.Net.SourceGen\MCServerSharp.Net.SourceGen.csproj"
+                      OutputItemType="Analyzer" 
+                      ReferenceOutputAssembly="false" />
+
+    <AdditionalFiles Include="$(BaseIntermediateOutputPath)protocol_mapping.json" />
+  </ItemGroup>
+  -->
 
   <ItemGroup>
     <ProjectReference Include="..\MCServerSharp.Base\MCServerSharp.Base.csproj" />

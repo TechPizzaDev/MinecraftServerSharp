@@ -30,7 +30,7 @@ namespace MCServerSharp.Net.Packets
             MaxPlayers = maxPlayers;
         }
 
-        public void Write(NetBinaryWriter writer)
+        public void WriteTo(NetBinaryWriter writer)
         {
             bool isBeta = IsBeta;
             void WriteField(string value, bool delimit = true)

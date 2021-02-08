@@ -32,6 +32,8 @@ namespace MCServerSharp.Net
         public NetConnectionComponent(NetConnection connection) : base(connection)
         {
             GameTime = this.GetComponent<GameTimeComponent>();
+
+            
         }
 
         public void Tick()
