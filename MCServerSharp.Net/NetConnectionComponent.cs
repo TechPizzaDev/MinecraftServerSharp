@@ -33,7 +33,7 @@ namespace MCServerSharp.Net
         {
             GameTime = this.GetComponent<GameTimeComponent>();
 
-            
+
         }
 
         public void Tick()
@@ -329,30 +329,36 @@ namespace MCServerSharp.Net
             var blockLights = new List<LightArray>();
 
             int skyLightMask = 0;
-            int filledSkyLightMask = 0;
             int blockLightMask = 0;
-            int filledBlockLightMask = 0;
+
+            int emptySkyLightMask = 0;
+            int emptyBlockLightMask = 0;
+            
             for (int y = 0; y < 18; y++)
             {
-                if (chunkColumn.TryGetChunk(y - 1, out LocalChunk? chunk) && !chunk.IsEmpty)
+                if (chunkColumn.TryGetChunk(y - 1, out LocalChunk? chunk))
                 {
                     skyLightMask |= 1 << y;
-                    skyLights.Add(new LightArray());
+                    var skyLight = new LightArray();
+                    skyLight.Array.AsSpan().Fill(255);
+                    skyLights.Add(skyLight);
 
-                    blockLightMask |= 1 << y;
-                    blockLights.Add(new LightArray());
-                }
-                else
-                {
-                    filledSkyLightMask |= 1 << y;
-                    filledBlockLightMask |= 1 << y;
+                    if (chunk.IsEmpty)
+                    {
+                        emptyBlockLightMask |= 1 << y;
+                    }
+                    else
+                    {
+                        blockLightMask |= 1 << y;
+                        blockLights.Add(new LightArray());
+                    }
                 }
             }
 
             var updateLight = new ServerUpdateLight(
                 chunkColumn.Position.X, chunkColumn.Position.Z, true,
                 skyLightMask, blockLightMask,
-                filledSkyLightMask, filledBlockLightMask,
+                emptySkyLightMask, emptyBlockLightMask,
                 skyLights, blockLights);
             Connection.EnqueuePacket(updateLight);
 
