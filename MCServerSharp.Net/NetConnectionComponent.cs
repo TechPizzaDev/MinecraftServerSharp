@@ -114,7 +114,7 @@ namespace MCServerSharp.Net
                 // TODO: add a completion event to packets
                 //  and add a completion to the last chunk packet
                 //  to predict the connection speed and variate sending rate
-                int maxToSend = 5;
+                int maxToSend = 10;
 
                 foreach (List<ChunkColumnPosition> loadList in player.ChunkLoadLists)
                 {

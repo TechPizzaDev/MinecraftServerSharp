@@ -16,19 +16,23 @@ namespace MCServerSharp.World
 
     class ChunkInfo
     {
+        public IChunkColumn Column;
         public int Age;
     }
 
     public class Dimension : ComponentEntity, ITickable
     {
-        private ConcurrentDictionary<IChunkColumn, ChunkInfo> _chunkInfos = new();
+        private ConcurrentQueue<IChunkColumn> _infoAddQueue = new ConcurrentQueue<IChunkColumn>();
+        private ConcurrentQueue<IChunkColumn> _infoRemoveQueue = new ConcurrentQueue<IChunkColumn>();
+        private List<ChunkInfo> _chunkInfos = new();
+        private List<IChunkColumn> _chunksToRemove = new();
+
+        // TODO: turn players into proper API
+        public List<Player> players = new();
 
         public ChunkColumnManager ChunkColumnManager { get; }
 
         public DirectBlockPalette GlobalBlockPalette => ChunkColumnManager.GlobalBlockPalette;
-
-        // TODO: turn players into proper API
-        public List<Player> players = new();
 
         public bool HasSkylight => true;
 
@@ -41,33 +45,45 @@ namespace MCServerSharp.World
 
         private void ChunkColumnProvider_ChunkAdded(IChunkColumnProvider arg1, IChunkColumn arg2)
         {
-            _chunkInfos.TryAdd(arg2, new ChunkInfo());
+            _infoAddQueue.Enqueue(arg2);
         }
-
-        List<IChunkColumn> chunksToRemove = new List<IChunkColumn>();
 
         public void Tick()
         {
-            chunksToRemove.Clear();
+            while (_infoAddQueue.TryDequeue(out IChunkColumn? addColumn))
+                _chunkInfos.Add(new ChunkInfo() { Column = addColumn });
+
+            while (_infoRemoveQueue.TryDequeue(out IChunkColumn? removeColumn))
+            {
+                int index = _chunkInfos.FindIndex((c) => c.Column == removeColumn);
+                if (index == -1)
+                {
+                    _infoRemoveQueue.Enqueue(removeColumn);
+                    continue;
+                }
+                _chunkInfos.RemoveAt(index);
+            }
+
+            _chunksToRemove.Clear();
 
             // TODO: chunk reference counter 
-            foreach ((IChunkColumn chunk, ChunkInfo info) in _chunkInfos)
+            foreach (ChunkInfo info in _chunkInfos)
             {
                 info.Age++;
 
                 if (info.Age > 200)
                 {
-                    chunksToRemove.Add(chunk);
+                    _chunksToRemove.Add(info.Column);
                 }
             }
 
             void TryRemove(IChunkColumn? chunk)
             {
                 if (chunk != null)
-                    _chunkInfos.TryRemove(chunk, out _);
+                    _infoRemoveQueue.Enqueue(chunk);
             }
 
-            foreach (IChunkColumn? chunk in chunksToRemove)
+            foreach (IChunkColumn? chunk in _chunksToRemove)
             {
                 ValueTask<IChunkColumn?> removeTask = ChunkColumnManager.ChunkColumnProvider.RemoveChunkColumn(chunk.Position);
                 if (removeTask.IsCompleted)

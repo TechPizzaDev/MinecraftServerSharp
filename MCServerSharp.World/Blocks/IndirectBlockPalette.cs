@@ -97,7 +97,8 @@ namespace MCServerSharp.Blocks
         public static IndirectBlockPalette Create(IEnumerable<BlockState> blocks)
         {
             BlockState[] blockArray = blocks.ToArray();
-            IndirectBlockPalette palette = new();
+
+            IndirectBlockPalette palette = new(blockArray.Length);
             palette._idToBlock = blockArray;
             for (uint id = 0; id < blockArray.Length; id++)
             {
