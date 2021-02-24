@@ -59,6 +59,10 @@ namespace MCServerSharp
             _hashCode = Value.GetHashCode();
         }
 
+        public Utf8Identifier(string @namespace, string value) : this(@namespace.ToUtf8String(), value.ToUtf8String())
+        {
+        }
+
         public static bool TryParse(Utf8String value, out Utf8Identifier identifier)
         {
             if (value == null)

@@ -52,15 +52,15 @@ namespace MCServerSharp.Net.Packets
             writer.Write(FullChunk);
             writer.WriteVar(IncludedSectionsMask);
 
-            var motionBlocking = new NbtLongArray(36);
-            writer.Write(motionBlocking.AsCompound((Utf8String)"Heightmaps", (Utf8String)"MOTION_BLOCKING"));
+            var heightmaps = new NbtLongArray(36);
+            var motionBlocking = heightmaps.ToCompound((Utf8String)"Heightmaps", (Utf8String)"MOTION_BLOCKING");
+            writer.Write(motionBlocking);
 
             if (FullChunk)
             {
                 Span<int> biomes = stackalloc int[1024];
                 biomes.Fill(1); // 1=plains (defined in ServerMain)
 
-                // TODO: optimize by creating WriteVar for Span
                 writer.WriteVar(biomes.Length);
                 writer.WriteVar(biomes);
             }

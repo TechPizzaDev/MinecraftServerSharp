@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Reflection;
 using System.Text.Json;
@@ -31,6 +32,7 @@ namespace MCServerSharp.Server
         private static string? _requestPongBase;
 
         private static DirectBlockPalette _directBlockPalette;
+        private static Dictionary<string, TagContainer> _tagContainers;
 
         private static Ticker _ticker;
         private static Dimension _mainDimension;
@@ -226,6 +228,54 @@ namespace MCServerSharp.Server
                 _directBlockPalette = new DirectBlockPalette(blocks);
 
                 Console.WriteLine($"Loaded {blocks.Count} blocks, {_directBlockPalette.Count} states");
+            }
+
+            {
+                Console.WriteLine("Loading tags...");
+
+                _tagContainers = new Dictionary<string, TagContainer>();
+                Dictionary<string, List<Tag>> tagContainerBuilders = new();
+
+                tagContainerBuilders.Add("blocks", new());
+                tagContainerBuilders.Add("entity_types", new());
+                tagContainerBuilders.Add("fluids", new());
+                tagContainerBuilders.Add("items", new());
+
+                List<VarInt> tagEntryBuilder = new List<VarInt>();
+
+                string basePath = "GameData/data/minecraft/tags";
+                foreach ((string containerKey, List<Tag> containerTags) in tagContainerBuilders)
+                {
+                    IEnumerable<string> tagFiles = Directory.EnumerateFiles(Path.Combine(basePath, containerKey));
+                    foreach (string tagFile in tagFiles)
+                    {
+                        tagEntryBuilder.Clear();
+
+                        using (Stream tagFs = File.OpenRead(tagFile))
+                        using (JsonDocument tagDoc = JsonDocument.Parse(tagFs))
+                        {
+                            JsonElement valueArray = tagDoc.RootElement.GetProperty("values");
+                            foreach (JsonElement valueElement in valueArray.EnumerateArray())
+                            {
+                                string? entryName = valueElement.ToString();
+                                if (entryName != null)
+                                {
+                                    // TODO:
+                                    // block: BlockDescription desc = _directBlockPalette[entryName];
+                                }
+                            }
+                        }
+
+                        string tagName = Path.GetFileNameWithoutExtension(tagFile);
+                        Utf8Identifier tagId = new("minecraft", tagName);
+                        Tag tag = new(tagId, tagEntryBuilder.ToArray());
+                        containerTags.Add(tag);
+                    }
+
+                    _tagContainers.Add(containerKey, new TagContainer(containerTags.ToArray()));
+                }
+
+                Console.WriteLine($"Loaded {_tagContainers.Values.Sum(x => x.Tags.Length)} tags");
             }
         }
 
@@ -503,7 +553,6 @@ namespace MCServerSharp.Server
 
                 connection.EnqueuePacket(loginSuccess);
                 connection.ProtocolState = ProtocolState.Play;
-                _joiningPlayers.Enqueue(player);
 
                 var playerId = new EntityId(69);
 
@@ -602,6 +651,12 @@ namespace MCServerSharp.Server
                     (Utf8String)"minecraft:brand",
                     (Utf8String)"MCServerSharp"));
 
+                connection.EnqueuePacket(new ServerUpdateTags(
+                    _tagContainers["blocks"],
+                    _tagContainers["items"],
+                    _tagContainers["fluids"],
+                    _tagContainers["entity_types"]));
+
                 int startY = 33;
 
                 connection.EnqueuePacket(new ServerSpawnPosition(
@@ -614,6 +669,8 @@ namespace MCServerSharp.Server
                     PlayerAbilityFlags.AllowFlying | PlayerAbilityFlags.Flying,
                     0.8f, // 0.5f, // 0.33f,
                     0.1f));
+
+                _joiningPlayers.Enqueue(player);
             });
 
 

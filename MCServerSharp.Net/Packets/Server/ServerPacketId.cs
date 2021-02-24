@@ -51,6 +51,7 @@ namespace MCServerSharp.Net.Packets
         [Mapping(State.Play, 0x42)] SpawnPosition,
 
         [Mapping(State.Play, 0x56)] EntityTeleport,
+        [Mapping(State.Play, 0x5b)] UpdateTags,
 
         #endregion
     }
