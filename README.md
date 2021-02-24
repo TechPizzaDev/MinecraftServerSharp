@@ -17,12 +17,6 @@ Roadmap to be announced
 
 <br>
 
-## Performance Notice ⚠️
-Due to an incorrect implementation of lighting the vanilla game performs extremely poorly.  
-It is nearly necessary to use the [Phosphor mod](https://github.com/CaffeineMC/phosphor-fabric) for the time being!
-
-<br>
-
 ## Overview
 
 #### 🧩🌎 Extendable and Cross-platform
