@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
 namespace MCServerSharp.Net
@@ -30,10 +31,9 @@ namespace MCServerSharp.Net
 
         public void Enqueue(PacketHolder packetHolder)
         {
-            lock (PacketMutex)
-            {
-                _packets.Enqueue(packetHolder);
-            }
+            Debug.Assert(packetHolder != null);
+
+            _packets.Enqueue(packetHolder);
         }
 
         public bool TryPeek([MaybeNullWhen(false)] out PacketHolder packetHolder)

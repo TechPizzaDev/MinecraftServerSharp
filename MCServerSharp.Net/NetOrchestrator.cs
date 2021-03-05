@@ -146,7 +146,7 @@ namespace MCServerSharp.Net
         {
             lock (sendQueue.EngageMutex)
             {
-                if (sendQueue.IsEngaged)
+                if (sendQueue.IsEngaged || sendQueue.IsEmpty)
                     return;
                 sendQueue.IsEngaged = true;
             }

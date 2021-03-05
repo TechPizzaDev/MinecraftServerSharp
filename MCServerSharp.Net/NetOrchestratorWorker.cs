@@ -207,6 +207,8 @@ namespace MCServerSharp.Net
 
                 try
                 {
+                    bool brokenConnection = false;
+
                     try
                     {
                         while (sendQueue.TryPeek(out PacketHolder? peekedHolder))
@@ -219,10 +221,12 @@ namespace MCServerSharp.Net
                                     bool dequeued = sendQueue.TryDequeue(out PacketHolder? dequeuedHolder);
                                     Debug.Assert(dequeued);
                                     Debug.Assert(dequeuedHolder == peekedHolder);
+
+                                    Orchestrator.ReturnPacketHolder(dequeuedHolder);
                                 }
                                 else
                                 {
-                                    // TODO: somehow wait for a reconnect in some future implementation?
+                                    brokenConnection = true;
                                     break;
                                 }
                             }
@@ -233,23 +237,27 @@ namespace MCServerSharp.Net
                                 sendQueue.Connection.Kick();
                                 break;
                             }
-                            finally
-                            {
-                                Orchestrator.ReturnPacketHolder(peekedHolder);
-                            }
                         }
                     }
                     finally
                     {
-                        ValueTask<NetSendState> flushTask = sendQueue.Connection.FlushSendBuffer();
-                        if (flushTask.IsCompleted)
+                        if (brokenConnection)
                         {
-                            FinishSendQueue(flushTask.Result, sendQueue);
+                            // TODO: somehow wait for a reconnect in some future implementation?
+
                         }
                         else
                         {
-                            flushTask.AsTask().ContinueWith(
-                                FinishSendQueueAction, sendQueue, TaskContinuationOptions.ExecuteSynchronously);
+                            ValueTask<NetSendState> flushTask = sendQueue.Connection.FlushSendBuffer();
+                            if (flushTask.IsCompleted)
+                            {
+                                FinishSendQueue(flushTask.Result, sendQueue);
+                            }
+                            else
+                            {
+                                flushTask.AsTask().ContinueWith(
+                                    FinishSendQueueAction, sendQueue, TaskContinuationOptions.ExecuteSynchronously);
+                            }
                         }
                     }
                 }
@@ -307,11 +315,7 @@ namespace MCServerSharp.Net
             lock (queue.EngageMutex)
             {
                 queue.IsEngaged = false;
-
-                if (!queue.IsEmpty)
-                {
-                    queue.Connection.Orchestrator.EnqueueQueue(queue);
-                }
+                queue.Connection.Orchestrator.EnqueueQueue(queue);
             }
         }
 
