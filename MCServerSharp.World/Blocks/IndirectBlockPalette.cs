@@ -42,7 +42,7 @@ namespace MCServerSharp.Blocks
         [SkipLocalsInit]
         public void Write(NetBinaryWriter writer)
         {
-            Span<uint> tmp = stackalloc uint[2];
+            Span<uint> tmp = stackalloc uint[512];
             int offset = 0;
 
             // Palette Length

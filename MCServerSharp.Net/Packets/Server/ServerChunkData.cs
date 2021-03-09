@@ -107,6 +107,7 @@ namespace MCServerSharp.Net.Packets
                 if (chunkColumn.TryGetChunk(chunkY, out LocalChunk? chunk))
                 {
                     LocalChunk.BlockEnumerator blocks = chunk.EnumerateBlocks();
+                    WritePalette(writer, blocks.BlockPalette);
                     WriteBlocks(writer, ref blocks);
                 }
             }
@@ -138,6 +139,18 @@ namespace MCServerSharp.Net.Packets
             return length;
         }
 
+        public static void WritePalette(
+            NetBinaryWriter writer, IBlockPalette palette)
+        {
+            int bitsPerBlock = palette.BitsPerBlock;
+            int dataLength = GetUnderlyingDataLength(UnderlyingDataSize, bitsPerBlock);
+
+            writer.Write((short)LocalChunk.BlockCount);
+            writer.Write((byte)bitsPerBlock);
+            palette.Write(writer);
+            writer.WriteVar(dataLength);
+        }
+
         [SkipLocalsInit]
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         public static unsafe void WriteBlocks<TBlocks>(
@@ -146,12 +159,6 @@ namespace MCServerSharp.Net.Packets
         {
             IBlockPalette palette = blocks.BlockPalette;
             int bitsPerBlock = palette.BitsPerBlock;
-            int dataLength = GetUnderlyingDataLength(UnderlyingDataSize, bitsPerBlock);
-
-            writer.Write((short)LocalChunk.BlockCount);
-            writer.Write((byte)bitsPerBlock);
-            palette.Write(writer);
-            writer.WriteVar(dataLength);
 
             int blocksPerLong = 64 / bitsPerBlock;
             int valueShift = bitsPerBlock * blocksPerLong - bitsPerBlock;
@@ -168,7 +175,7 @@ namespace MCServerSharp.Net.Packets
             Span<uint> fullBlockBuffer = new Span<uint>(blockBufferP, blocksPerLong * 8);
             Span<uint> halfBlockBuffer = new Span<uint>(blockBufferP, blocksPerLong * 4);
 
-            int dataBufferLength = 256;
+            int dataBufferLength = 512;
             ulong* dataBufferP = stackalloc ulong[dataBufferLength];
             Span<ulong> dataBuffer = new Span<ulong>(dataBufferP, dataBufferLength);
 
