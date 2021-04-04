@@ -132,23 +132,7 @@ namespace MCServerSharp.NBT
             if (EndOfDocument)
                 return false;
 
-            if (_consumed >= _data.Length)
-            {
-                //if (_isNotPrimitive && IsLastSpan)
-                //{
-                //    if (_bitStack.CurrentDepth != 0)
-                //    {
-                //        ThrowHelper.ThrowJsonReaderException(ref this, ExceptionResource.ZeroDepthAtEnd);
-                //    }
-                //
-                //    if (_tokenType != JsonTokenType.EndArray && _tokenType != JsonTokenType.EndObject)
-                //    {
-                //        ThrowHelper.ThrowJsonReaderException(ref this, ExceptionResource.InvalidEndOfJsonNonPrimitive);
-                //    }
-                //}
-                return false;
-            }
-            return true;
+            return _consumed < _data.Length;
         }
 
         /// <summary>
@@ -176,7 +160,7 @@ namespace MCServerSharp.NBT
 
             // TODO: check if last tag was fully read
 
-            var slice = _data[_consumed..];
+            ReadOnlySpan<byte> slice = _data[_consumed..];
             int read = 0;
 
             PeekStack:
@@ -189,7 +173,7 @@ namespace MCServerSharp.NBT
                     _state._containerInfoStack.TryPop();
                     goto PeekStack;
                 }
-                else if(frame.ListEntriesRemaining != -1)
+                else if (frame.ListEntriesRemaining != -1)
                 {
                     inList = true;
                     frame.ListEntriesRemaining--;

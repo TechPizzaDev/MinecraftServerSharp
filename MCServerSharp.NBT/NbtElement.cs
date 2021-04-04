@@ -3,7 +3,6 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Text;
 
 namespace MCServerSharp.NBT
@@ -82,33 +81,64 @@ namespace MCServerSharp.NBT
             return _parent.GetContainerElement(_index, index);
         }
 
-        [SkipLocalsInit]
-        public NbtElement GetCompoundElement(
-            ReadOnlySpan<byte> utf8Name, StringComparison comparison = StringComparison.OrdinalIgnoreCase)
+        public bool TryGetCompoundElement(
+            ReadOnlySpan<byte> utf8Name, out NbtElement element,
+            StringComparison comparison = StringComparison.OrdinalIgnoreCase)
         {
             AssertValidInstance();
             if (Type != NbtType.Compound)
                 throw new InvalidOperationException("The tag is not a compound.");
 
-            foreach (NbtElement element in EnumerateContainer())
+            foreach (NbtElement item in EnumerateContainer())
             {
-                if (Utf8String.Equals(utf8Name, element.Name.Span, comparison))
-                    return element;
+                if (Utf8String.Equals(utf8Name, item.Name.Span, comparison))
+                {
+                    element = item;
+                    return true;
+                }
+            }
+            element = default;
+            return false;
+        }
+
+        // TODO: replace with Utf8Span
+        public NbtElement GetCompoundElement(
+            ReadOnlySpan<byte> utf8Name, StringComparison comparison = StringComparison.OrdinalIgnoreCase)
+        {
+            if (TryGetCompoundElement(utf8Name, out NbtElement element, comparison))
+            {
+                return element;
             }
             throw new KeyNotFoundException();
+        }
+
+        public bool TryGetCompoundElement(
+            ReadOnlySpan<char> name,
+            out NbtElement element,
+            StringComparison comparison = StringComparison.OrdinalIgnoreCase)
+        {
+            AssertValidInstance();
+            if (Type != NbtType.Compound)
+                throw new InvalidOperationException("The tag is not a compound.");
+
+            foreach (NbtElement item in EnumerateContainer())
+            {
+                if (Utf8String.Equals(name, item.Name.Span, comparison))
+                {
+                    element = item;
+                    return true;
+                }
+            }
+            element = default;
+            return false;
         }
 
         public NbtElement GetCompoundElement(
             ReadOnlySpan<char> name, StringComparison comparison = StringComparison.OrdinalIgnoreCase)
         {
-            AssertValidInstance();
-            if (Type != NbtType.Compound)
-                throw new InvalidOperationException("The tag is not a compound.");
-
-            foreach (NbtElement element in EnumerateContainer())
+            if (TryGetCompoundElement(name, out NbtElement element, comparison))
             {
-                if (Utf8String.Equals(name, element.Name.Span, comparison))
-                    return element;
+                return element;
             }
             throw new KeyNotFoundException();
         }

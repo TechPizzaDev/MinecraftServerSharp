@@ -16,7 +16,7 @@ dotnet_diagnostic.CA1000.severity = none
 dotnet_diagnostic.CA1034.severity = none
 
 # CA1051: Do not declare visible instance fields
-dotnet_diagnostic.CA1051.severity = suggestion
+dotnet_diagnostic.CA1051.severity = silent
 
 # CA1028: Enum Storage should be Int32
 dotnet_diagnostic.CA1028.severity = none

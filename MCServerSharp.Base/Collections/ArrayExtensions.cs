@@ -1,11 +1,12 @@
-﻿
-namespace MCServerSharp.Collections
+﻿using MCServerSharp.Collections;
+
+namespace MCServerSharp
 {
     public static class ArrayExtensions
     {
-        public static ArrayEnumerator<T> GetArrayEnumerator<T>(this T[] array)
+        public static ArrayEnumerable<T> GetEnumerable<T>(this T[] array)
         {
-            return new ArrayEnumerator<T>(array);
+            return new ArrayEnumerable<T>(array);
         }
     }
 }

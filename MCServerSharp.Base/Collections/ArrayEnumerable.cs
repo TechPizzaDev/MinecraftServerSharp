@@ -4,40 +4,35 @@ using System.Collections.Generic;
 
 namespace MCServerSharp.Collections
 {
-    public struct ArrayEnumerator<T> : IEnumerable<T>, IEnumerator<T>
+    public struct ArrayEnumerable<T> : IEnumerable<T>, IEnumerator<T>
     {
         private readonly T[] _array;
         private int _index;
 
-        public T Current { get; private set; }
+        public T Current => _array[_index];
         object? IEnumerator.Current => Current;
 
-        public ArrayEnumerator(T[] array)
+        public ArrayEnumerable(T[] array)
         {
             _array = array ?? throw new ArgumentNullException(nameof(array));
-            _index = 0;
-            Current = default!;
+            _index = -1;
         }
 
         public bool MoveNext()
         {
-            if ((uint)_index >= (uint)_array.Length)
-                return false;
-
-            Current = _array[_index++];
-            return true;
+            return ++_index < _array.Length;
         }
 
         public void Reset()
         {
-            _index = 0;
+            _index = -1;
         }
 
         public void Dispose()
         {
         }
 
-        public ArrayEnumerator<T> GetEnumerator()
+        public ArrayEnumerable<T> GetEnumerator()
         {
             return this;
         }
@@ -52,9 +47,9 @@ namespace MCServerSharp.Collections
             return GetEnumerator();
         }
 
-        public static implicit operator ArrayEnumerator<T>(T[] array)
+        public static implicit operator ArrayEnumerable<T>(T[] array)
         {
-            return new ArrayEnumerator<T>(array);
+            return new ArrayEnumerable<T>(array);
         }
     }
 }

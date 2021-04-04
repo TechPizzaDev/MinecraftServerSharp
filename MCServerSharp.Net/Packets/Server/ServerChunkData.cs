@@ -52,7 +52,7 @@ namespace MCServerSharp.Net.Packets
             writer.Write(FullChunk);
             writer.WriteVar(IncludedSectionsMask);
 
-            var heightmaps = new NbtLongArray(36);
+            var heightmaps = new NbtMutLongArray(36);
             var motionBlocking = heightmaps.ToCompound((Utf8String)"Heightmaps", (Utf8String)"MOTION_BLOCKING");
             writer.Write(motionBlocking);
 
