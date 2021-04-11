@@ -556,13 +556,13 @@ namespace MCServerSharp.Server
 
                 var playerId = new EntityId(69);
 
-                var dimensionTag = new NbtCompound
+                var dimensionTag = new NbtMutCompound
                 {
                     { "piglin_safe"         , new NbtByte(0) },
                     { "natural"             , new NbtByte(1) },
-                    { "ambient_light"       , new NbtFloat(1f) },
+                    { "ambient_light"       , new NbtFloat(0) },
                     { "infiniburn"          , new NbtString("minecraft:infiniburn_overworld") },
-                    { "respawn_anchor_works", new NbtByte(1) },
+                    { "respawn_anchor_works", new NbtByte(0) },
                     { "has_skylight"        , new NbtByte(1) },
                     { "bed_works"           , new NbtByte(1) },
                     { "effects"             , new NbtString("minecraft:overworld") },
@@ -578,15 +578,15 @@ namespace MCServerSharp.Server
                     false,
                     1,
                     -1,
-                    new Utf8Identifier[] { new Utf8Identifier("minecraft:overworld") },
-                    new NbtCompound
+                    new Utf8Identifier[] { new("minecraft:overworld") },
+                    new NbtMutCompound
                     {
-                        { "minecraft:dimension_type", new NbtCompound
+                        { "minecraft:dimension_type", new NbtMutCompound
                         {
                             { "type", new NbtString("minecraft:dimension_type") },
-                            { "value", new NbtList<NbtCompound>
+                            { "value", new NbtMutList<NbtCompound>
                             {
-                                new NbtCompound
+                                new NbtMutCompound
                                 {
                                     { "name", new NbtString("minecraft:overworld") },
                                     { "id", new NbtInt(0) },
@@ -596,25 +596,25 @@ namespace MCServerSharp.Server
                             }
                         }
                         },
-                        { "minecraft:worldgen/biome", new NbtCompound
+                        { "minecraft:worldgen/biome", new NbtMutCompound
                         {
                             { "type", new NbtString("minecraft:worldgen/biome") },
-                            { "value", new NbtList<NbtCompound>
+                            { "value", new NbtMutList<NbtCompound>
                             {
-                                new NbtCompound
+                                new NbtMutCompound
                                 {
                                     { "name", new NbtString("minecraft:plains") },
                                     { "id", new NbtInt(1) },
-                                    { "element", new NbtCompound
+                                    { "element", new NbtMutCompound
                                     {
                                         { "precipitation", new NbtString("rain") },
-                                        { "effects", new NbtCompound
+                                        { "effects", new NbtMutCompound
                                         {
                                             { "sky_color", new NbtInt(7907327) },
                                             { "water_fog_color", new NbtInt(329011) },
                                             { "fog_color", new NbtInt(12638463) },
                                             { "water_color", new NbtInt(4159204) },
-                                            { "mood_sound", new NbtCompound
+                                            { "mood_sound", new NbtMutCompound
                                             {
                                                 { "tick_delay", new NbtInt(6000) },
                                                 { "offset", new NbtDouble(2.0) },
@@ -632,6 +632,37 @@ namespace MCServerSharp.Server
                                     }
                                     },
                                 },
+                                new NbtMutCompound
+                                {
+                                    { "name", new NbtString("minecraft:ocean") },
+                                    { "id", new NbtInt(2) },
+                                    { "element", new NbtMutCompound
+                                    {
+                                        { "precipitation", new NbtString("rain") },
+                                        { "effects", new NbtMutCompound
+                                        {
+                                            { "sky_color", new NbtInt(8103167) },
+                                            { "water_fog_color", new NbtInt(329011) },
+                                            { "fog_color", new NbtInt(12638463) },
+                                            { "water_color", new NbtInt(4159204) },
+                                            { "mood_sound", new NbtMutCompound
+                                            {
+                                                { "tick_delay", new NbtInt(6000) },
+                                                { "offset", new NbtDouble(2.0) },
+                                                { "sound", new NbtString("minecraft:ambient.cave") },
+                                                { "block_search_extent", new NbtInt(8) }
+                                            }
+                                            }
+                                        }
+                                        },
+                                        { "depth"      , new NbtFloat (-1) },
+                                        { "temperature", new NbtFloat (0.5f) },
+                                        { "scale"      , new NbtFloat (0.1f) },
+                                        { "downfall"   , new NbtFloat (0.5f) },
+                                        { "category"   , new NbtString("ocean") }
+                                    }
+                                    },
+                                },
                             }
                             },
                         }
@@ -645,7 +676,7 @@ namespace MCServerSharp.Server
                     false,
                     true,
                     false,
-                    true));
+                    false));
 
                 connection.EnqueuePacket(new ServerPluginMessage(
                     (Utf8String)"minecraft:brand",
