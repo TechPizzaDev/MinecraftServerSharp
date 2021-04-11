@@ -155,16 +155,16 @@ namespace MCServerSharp.Data.IO
 
         // TODO: optimize
 
-        public void Write(Utf8String value)
+        public void Write(Utf8String? value)
         {
             // TODO: optimize/remove alloc
-            WriteString(value.ToString(), StringHelper.Utf8);
+            WriteString(value?.ToString(), StringHelper.Utf8);
         }
 
-        public void WriteRaw(Utf8String value)
+        public void WriteRaw(Utf8String? value)
         {
             // TODO: optimize/remove alloc
-            WriteStringRaw(value.ToString(), StringHelper.Utf8);
+            WriteStringRaw(value?.ToString(), StringHelper.Utf8);
         }
 
         public void Write(Utf8Memory value)
@@ -179,9 +179,39 @@ namespace MCServerSharp.Data.IO
             WriteStringRaw(value.ToString(), StringHelper.Utf8);
         }
 
-        private void WriteString(string? value, Encoding encoding)
+        public void WriteUtf8(ReadOnlySpan<char> value)
         {
-            if(value == null)
+            WriteString(value, StringHelper.Utf8);
+        }
+
+        public void WriteRawUtf8(ReadOnlySpan<char> value)
+        {
+            WriteStringRaw(value, StringHelper.Utf8);
+        }
+
+        public void WriteUtf8(ReadOnlyMemory<char> value)
+        {
+            WriteUtf8(value.Span);
+        }
+
+        public void WriteRawUtf8(ReadOnlyMemory<char> value)
+        {
+            WriteRawUtf8(value.Span);
+        }
+
+        public void WriteUtf8(string? value)
+        {
+            WriteUtf8((ReadOnlySpan<char>)value);
+        }
+
+        public void WriteRawUtf8(string? value)
+        {
+            WriteRawUtf8((ReadOnlySpan<char>)value);
+        }
+
+        private void WriteString(ReadOnlySpan<char> value, Encoding encoding)
+        {
+            if (value == null)
             {
                 Write((VarInt)0);
                 return;
@@ -194,11 +224,11 @@ namespace MCServerSharp.Data.IO
         }
 
         [SkipLocalsInit]
-        private void WriteStringRaw(string? value, Encoding encoding)
+        private void WriteStringRaw(ReadOnlySpan<char> value, Encoding encoding)
         {
-            if (value == null)
+            if (value.IsEmpty)
                 return;
-            
+
             int sliceSize = 512;
             int maxBytesPerSlice = encoding.GetMaxByteCount(sliceSize);
             Span<byte> byteBuffer = stackalloc byte[maxBytesPerSlice];
@@ -208,7 +238,7 @@ namespace MCServerSharp.Data.IO
             while (charsLeft > 0)
             {
                 int charsToWrite = Math.Min(charsLeft, sliceSize);
-                var charSlice = value.AsSpan(charOffset, charsToWrite);
+                ReadOnlySpan<char> charSlice = value.Slice(charOffset, charsToWrite);
                 int bytesWritten = encoding.GetBytes(charSlice, byteBuffer);
                 Write(byteBuffer.Slice(0, bytesWritten));
 

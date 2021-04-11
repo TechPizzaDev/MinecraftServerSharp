@@ -46,7 +46,6 @@ namespace MCServerSharp.World
             AirBlock = airBlock;
 
             _blocks = GC.AllocateUninitializedArray<uint>(BlockCount, false);
-            FillBlock(airBlock);
         }
 
         public BlockEnumerator EnumerateBlocks()

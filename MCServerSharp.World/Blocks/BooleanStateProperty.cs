@@ -4,15 +4,17 @@ namespace MCServerSharp.Blocks
 {
     public class BooleanStateProperty : StateProperty<bool>
     {
-        public override int ValueCount => 2;
+        private static ReadOnlySpan<bool> Values => new bool[2] { false, true };
+
+        public override int Count => 2;
 
         public BooleanStateProperty(string name) : base(name)
         {
         }
 
-        public override int ParseIndex(string value)
+        public override int GetIndex(ReadOnlyMemory<char> value)
         {
-            return GetIndex(bool.Parse(value));
+            return GetIndex(bool.Parse(value.Span));
         }
 
         public override int GetIndex(bool value)
@@ -22,12 +24,7 @@ namespace MCServerSharp.Blocks
 
         public override bool GetValue(int index)
         {
-            return index switch
-            {
-                0 => false,
-                1 => true,
-                _ => throw new ArgumentOutOfRangeException(nameof(index))
-            };
+            return Values[index];
         }
     }
 }

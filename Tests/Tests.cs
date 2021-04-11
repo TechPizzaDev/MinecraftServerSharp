@@ -5,10 +5,10 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Reflection.Metadata;
-using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using MCServerSharp;
+using MCServerSharp.AnvilStorage;
 using MCServerSharp.Data.IO;
 using MCServerSharp.IO.Compression;
 using MCServerSharp.NBT;
@@ -25,7 +25,7 @@ namespace Tests
 
             TestUtf8String();
             Console.WriteLine(nameof(TestUtf8String) + " passed");
-            
+
             TestStreamTrimStart();
             Console.WriteLine(nameof(TestStreamTrimStart) + " passed");
 
@@ -148,7 +148,16 @@ namespace Tests
             int chunkX = 0;
             int chunkZ = 0;
 
-            var files = Directory.GetFiles($@"..\..\..\..\MCJarServer\1.15.2\world\region");
+            string[] files;
+            if (Directory.Exists("region"))
+            {
+                files = Directory.GetFiles("region");
+            }
+            else
+            {
+                files = Directory.GetFiles($@"..\..\..\..\MCJarServer\1.16.5\world\region");
+            }
+
             foreach (string file in files)
             {
                 //using var stream = File.OpenRead(
@@ -161,108 +170,49 @@ namespace Tests
 
                 var reader = new NetBinaryReader(stream, NetBinaryOptions.JavaDefault);
 
-                var locations = new ChunkLocation[1024];
-                var locationsStatus = reader.Read(MemoryMarshal.AsBytes(locations.AsSpan()));
+                var regionReaderStatus = AnvilRegionReader.Create(reader, out var regionReader);
 
-                var timestamps = new int[1024];
-                var timestampsStatus = reader.Read(timestamps);
-
-                var locationIndices = new int[1024];
-                for (int i = 0; i < locationIndices.Length; i++)
-                    locationIndices[i] = i;
-
-                Array.Sort(locations, locationIndices);
-
-                // Find the first valid chunk location.
-                int firstValidLocation = 0;
-                for (int i = 0; i < locations.Length; i++)
-                {
-                    if (locations[i].SectorCount != 0)
-                    {
-                        firstValidLocation = i;
-                        break;
-                    }
-                }
-                int chunkCount = 1024 - firstValidLocation;
-
-                var chunkList = new (int Index, NbtDocument Chunk)[chunkCount];
+                Stopwatch watch = Stopwatch.StartNew();
+                regionReader.CompleteFullLoad(default).AsTask().Wait();
+                watch.Stop();
+                Console.WriteLine($"Loaded {regionReader.ChunkCount} chunks for region " + " in " + watch.ElapsedMilliseconds + "ms");
 
                 var compressedData = new MemoryStream();
                 var decompressedData = new MemoryStream();
 
-                for (int i = 0; i < chunkList.Length; i++)
+
+                for (int i = 0; i < regionReader.ChunkCount; i++)
                 {
-                    int locationIndex = firstValidLocation + i;
-                    var location = locations[locationIndex];
+                    int locationIndex = regionReader.FirstValidLocation + i;
+                    ChunkLocation location = regionReader.Locations[locationIndex];
 
-                    // Some files have empty sectors between chunks so check if skip is needed.
-                    long sectorPosition = location.SectorOffset * 4096;
-                    if (reader.Position != sectorPosition) // this should always be a multiple of 4096
-                    {
-                        long toSkip = sectorPosition - reader.Position;
-                        if (toSkip < 0) // locations are ordered by offset so this should never throw
-                            throw new InvalidDataException();
-                        reader.Seek(toSkip, SeekOrigin.Current);
-                    }
+                    AnvilChunkDocument? anvilDocument = regionReader.LoadAsync(i, default).AsTask().Result;
+                    NbtDocument? chunkDocument = anvilDocument.GetValueOrDefault().Document;
 
-                    var lengthStatus = reader.Read(out int actualDataLength);
-                    if (lengthStatus != OperationStatus.Done)
-                        throw new EndOfStreamException();
+                    Debug.Assert(chunkDocument != null);
 
-                    var compressionTypeStatus = reader.Read(out byte compressionType);
-                    if (compressionTypeStatus != OperationStatus.Done)
-                        throw new EndOfStreamException();
-
-                    int remainingByteCount = location.SectorCount * 4096 - sizeof(int) - sizeof(byte);
-
-                    compressedData.Position = 0;
-                    var compressedDataStatus = reader.WriteTo(compressedData, remainingByteCount);
-                    if (compressedDataStatus != OperationStatus.Done)
-                        throw new EndOfStreamException();
-
-                    compressedData.SetLength(actualDataLength - 1);
-                    compressedData.Position = 0;
-
-                    Stream dataStream = compressionType switch
-                    {
-                        1 => new GZipStream(compressedData, CompressionMode.Decompress, leaveOpen: true),
-                        2 => new ZlibStream(compressedData, CompressionMode.Decompress, leaveOpen: true),
-                        3 => compressedData,
-                        _ => throw new InvalidDataException("Unknown compression type.")
-                    };
-
-                    decompressedData.SetLength(0);
-                    decompressedData.Position = 0;
-                    dataStream.SpanCopyTo(decompressedData);
-
-                    var chunkData = decompressedData.GetBuffer().AsMemory(0, (int)decompressedData.Length);
-
-                    int chunkIndex = locationIndices[locationIndex];
-                    var chunkDocument = NbtDocument.Parse(chunkData, out int bytesConsumed, NbtOptions.JavaDefault);
-                    chunkList[i] = (chunkIndex, chunkDocument);
-
-                    var rootCompound = chunkDocument.RootTag;
-                    var rootClone = rootCompound.Clone();
+                    NbtElement rootCompound = chunkDocument.RootTag;
+                    NbtElement rootClone = rootCompound.Clone();
 
                     // TODO: add some kind of NbtDocument-to-(generic)object helper and NbtSerializer
 
-                    var levelCompound = rootCompound["Level"];
-                    var sectionsList = levelCompound["Sections"];
-
-                    foreach (var sectionCompound in sectionsList.EnumerateContainer())
-                    {
-                        var yInt = sectionCompound["Y"].GetInt();
-                        if (yInt == -1)
-                            continue;
-
-                        var paletteList = sectionCompound["Palette"];
-                        var blockList = sectionCompound["BlockStates"];
-                        var blockData = blockList.GetArrayData(out var tagType);
-                        if (tagType != NbtType.LongArray)
-                            throw new InvalidDataException();
-
-
-                    }
+                    //NbtElement levelCompound = rootCompound["Level"];
+                    //NbtElement sectionsList = levelCompound["Sections"];
+                    //
+                    //foreach (NbtElement sectionCompound in sectionsList.EnumerateContainer())
+                    //{
+                    //    int yInt = sectionCompound["Y"].GetInt();
+                    //    if (yInt == -1)
+                    //        continue;
+                    //
+                    //    NbtElement paletteList = sectionCompound["Palette"];
+                    //    NbtElement blockList = sectionCompound["BlockStates"];
+                    //    ReadOnlyMemory<byte> blockData = blockList.GetArrayData(out NbtType tagType);
+                    //    if (tagType != NbtType.LongArray)
+                    //        throw new InvalidDataException();
+                    //
+                    //
+                    //}
 
                     static void CompareContainers(NbtElement container1, NbtElement container2)
                     {
@@ -307,47 +257,8 @@ namespace Tests
                     //    }
                     //}
                 }
-            }
-        }
 
-        [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        [DebuggerDisplay("{" + nameof(GetDebuggerDisplay) + "(),nq}")]
-        public readonly struct ChunkLocation : IEquatable<ChunkLocation>, IComparable<ChunkLocation>
-        {
-            private readonly byte _offset0;
-            private readonly byte _offset1;
-            private readonly byte _offset2;
-
-            public byte SectorCount { get; }
-
-            public int SectorOffset => _offset0 << 16 | _offset1 << 8 | _offset2;
-
-            public int CompareTo(ChunkLocation other)
-            {
-                return SectorOffset.CompareTo(other.SectorOffset);
-            }
-
-            public bool Equals(ChunkLocation other)
-            {
-                return SectorCount == other.SectorCount
-                    && _offset0 == other._offset0
-                    && _offset1 == other._offset1
-                    && _offset2 == other._offset2;
-            }
-
-            private string GetDebuggerDisplay()
-            {
-                return ToString();
-            }
-
-            public override int GetHashCode()
-            {
-                return UnsafeR.As<ChunkLocation, int>(this);
-            }
-
-            public override string ToString()
-            {
-                return $"{SectorCount} @ [{SectorOffset}]";
+                Console.WriteLine("Parsed " + regionReader.ChunkCount + " chunks in " + file);
             }
         }
     }

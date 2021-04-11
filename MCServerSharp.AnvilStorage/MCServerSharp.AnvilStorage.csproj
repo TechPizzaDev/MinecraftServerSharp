@@ -2,12 +2,10 @@
 
   <PropertyGroup>
     <TargetFramework>net5.0</TargetFramework>
-    <OutputType>Exe</OutputType>
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\MCServerSharp.AnvilStorage\MCServerSharp.AnvilStorage.csproj" />
     <ProjectReference Include="..\MCServerSharp.Base\MCServerSharp.Base.csproj" />
     <ProjectReference Include="..\MCServerSharp.NBT\MCServerSharp.NBT.csproj" />
   </ItemGroup>

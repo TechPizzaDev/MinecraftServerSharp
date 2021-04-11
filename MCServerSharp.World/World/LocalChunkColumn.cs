@@ -1,19 +1,22 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
 using MCServerSharp.Blocks;
-using MCServerSharp.Collections;
 using MCServerSharp.Maths;
+using MCServerSharp.NBT;
 
 namespace MCServerSharp.World
 {
     public class LocalChunkColumn : IChunkColumn
     {
-        private ReaderWriterLockSlim _chunkLock;
-        private Dictionary<int, LocalChunk> _chunks;
+        private ReaderWriterLockSlim _chunkLock = new();
+        private Dictionary<int, LocalChunk> _chunks = new();
+
+        internal NbtDocument? _encodedColumn;
+        internal Dictionary<int, NbtElement>? _chunksToDecode;
+        internal int _chunksToDecodeRefCount;
 
         public ChunkColumnManager ColumnManager { get; }
         public ChunkColumnPosition Position { get; }
@@ -30,9 +33,6 @@ namespace MCServerSharp.World
         {
             ColumnManager = columnManager ?? throw new ArgumentNullException(nameof(columnManager));
             Position = position;
-
-            _chunkLock = new();
-            _chunks = new();
         }
 
         public bool ContainsChunk(int chunkY)

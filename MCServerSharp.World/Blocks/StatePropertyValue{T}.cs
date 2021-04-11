@@ -1,14 +1,30 @@
-﻿
+﻿using System;
+
 namespace MCServerSharp.Blocks
 {
-    public class StatePropertyValue<T> : StatePropertyValue, IStateProperty<T>
+    public readonly struct StatePropertyValue<T> : IStateProperty<T>, IEquatable<StatePropertyValue<T>>
     {
-        public new IStateProperty<T> Property => (IStateProperty<T>)base.Property;
+        public IStateProperty<T> Property { get; }
+        public int Index { get; }
 
-        public int ValueCount => Property.ValueCount;
+        public string Name => Property.Name;
+        public Type ElementType => Property.ElementType;
+        public int Count => Property.Count;
 
-        public StatePropertyValue(IStateProperty<T> property, int valueIndex) : base(property, valueIndex)
+        public StatePropertyValue(IStateProperty<T> property, int index)
         {
+            Property = property ?? throw new ArgumentNullException(nameof(property));
+            Index = index;
+        }
+
+        public int GetIndex(ReadOnlyMemory<char> value)
+        {
+            return Property.GetIndex(value);
+        }
+
+        public StatePropertyValue<T> GetPropertyValue(int index)
+        {
+            return Property.GetPropertyValue(index);
         }
 
         public int GetIndex(T value)
@@ -21,14 +37,40 @@ namespace MCServerSharp.Blocks
             return Property.GetValue(index);
         }
 
-        public T GetValue()
+        StatePropertyValue IStateProperty.GetPropertyValue(int index)
         {
-            return GetValue(ValueIndex);
+            return ((IStateProperty)Property).GetPropertyValue(index);
+        }
+
+        public bool Equals(StatePropertyValue<T> other)
+        {
+            return Index != other.Index
+                && Property == other.Property;
+        }
+
+        public override bool Equals(object? obj)
+        {
+            return obj is StatePropertyValue<T> other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(Property, Index);
         }
 
         public override string ToString()
         {
-            return Name + "=" + GetValue();
+            return Name + "=" + Index;
+        }
+
+        public static bool operator ==(StatePropertyValue<T> left, StatePropertyValue<T> right)
+        {
+            return left.Equals(right);
+        }
+
+        public static bool operator !=(StatePropertyValue<T> left, StatePropertyValue<T> right)
+        {
+            return !(left == right);
         }
     }
 }

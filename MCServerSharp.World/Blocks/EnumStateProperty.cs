@@ -6,28 +6,30 @@ namespace MCServerSharp.Blocks
     public class EnumStateProperty<TEnum> : StateProperty<TEnum>
         where TEnum : struct, Enum
     {
-        private Dictionary<TEnum, int> _valueToIndex;
-        private Dictionary<string, int> _parseToIndex;
-        private TEnum[] _values;
+        private static TEnum[] Values { get; } = Enum.GetValues<TEnum>();
 
-        public override int ValueCount => _valueToIndex.Count;
+        public static ReadOnlyMemoryCharComparer KeyComparer { get; } = new(StringComparison.Ordinal);
+
+        private Dictionary<TEnum, int> _valueToIndex;
+        private Dictionary<ReadOnlyMemory<char>, int> _parseToIndex;
+        
+        public override int Count => _valueToIndex.Count;
 
         public EnumStateProperty(string name) : base(name)
         {
-            _values = (TEnum[])typeof(TEnum).GetEnumValues();
-            _valueToIndex = new Dictionary<TEnum, int>(_values.Length);
-            _parseToIndex = new Dictionary<string, int>(_values.Length);
+            _valueToIndex = new Dictionary<TEnum, int>(Values.Length);
+            _parseToIndex = new Dictionary<ReadOnlyMemory<char>, int>(Values.Length, KeyComparer);
 
             int index = 0;
-            foreach (TEnum value in _values)
+            foreach (TEnum value in Values)
             {
                 _valueToIndex.Add(value, index);
-                _parseToIndex.Add(value.ToString().ToSnake().ToLowerInvariant(), index);
+                _parseToIndex.Add(value.ToString().ToSnake().ToLowerInvariant().AsMemory(), index);
                 index++;
             }
         }
 
-        public override int ParseIndex(string value)
+        public override int GetIndex(ReadOnlyMemory<char> value)
         {
             return _parseToIndex[value];
         }
@@ -39,7 +41,7 @@ namespace MCServerSharp.Blocks
 
         public override TEnum GetValue(int index)
         {
-            return _values[index];
+            return Values[index];
         }
     }
 }

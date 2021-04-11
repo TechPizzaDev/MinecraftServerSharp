@@ -2,6 +2,7 @@
 using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Text;
 
@@ -21,9 +22,13 @@ namespace MCServerSharp.NBT
 
         public NbtElement this[ReadOnlySpan<byte> utf8Name] => GetCompoundElement(utf8Name);
 
+        public NbtElement this[Utf8Memory utf8Name] => GetCompoundElement(utf8Name);
+
         public NbtElement this[ReadOnlySpan<char> name] => GetCompoundElement(name);
 
         public NbtElement this[string name] => this[name.AsSpan()];
+
+        public bool IsValid => _parent != null && _parent.ByteLength != 0;
 
         public NbtType Type => _parent?.GetTagType(_index) ?? NbtType.Undefined;
 
@@ -33,7 +38,14 @@ namespace MCServerSharp.NBT
             ? _parent.GetTagName(_index)
             : ReadOnlyMemory<byte>.Empty;
 
-        internal NbtElement[]? Children
+        /// <summary>
+        /// Creates a <see cref="Utf8String"/> from <see cref="Name"/>.
+        /// </summary>
+        public Utf8String NameString => Utf8String.Create(Name);
+
+#pragma warning disable IDE0051 // Remove unused private members
+        // These are useful for debugging.
+        private NbtElement[]? Children
         {
             get
             {
@@ -42,6 +54,10 @@ namespace MCServerSharp.NBT
                 return null;
             }
         }
+
+        private byte[] RawData => GetRawData().ToArray();
+        private byte[] ArrayData => GetArrayData().ToArray();
+#pragma warning restore IDE0051
 
         // TODO: add debug tree view
 
@@ -85,9 +101,7 @@ namespace MCServerSharp.NBT
             ReadOnlySpan<byte> utf8Name, out NbtElement element,
             StringComparison comparison = StringComparison.OrdinalIgnoreCase)
         {
-            AssertValidInstance();
-            if (Type != NbtType.Compound)
-                throw new InvalidOperationException("The tag is not a compound.");
+            AssertValidInstance(NbtType.Compound);
 
             foreach (NbtElement item in EnumerateContainer())
             {
@@ -101,6 +115,13 @@ namespace MCServerSharp.NBT
             return false;
         }
 
+        public bool TryGetCompoundElement(
+            Utf8Memory utf8Name, out NbtElement element,
+            StringComparison comparison = StringComparison.OrdinalIgnoreCase)
+        {
+            return TryGetCompoundElement(utf8Name.Span, out element, comparison);
+        }
+
         // TODO: replace with Utf8Span
         public NbtElement GetCompoundElement(
             ReadOnlySpan<byte> utf8Name, StringComparison comparison = StringComparison.OrdinalIgnoreCase)
@@ -112,14 +133,22 @@ namespace MCServerSharp.NBT
             throw new KeyNotFoundException();
         }
 
+        public NbtElement GetCompoundElement(
+            Utf8Memory utf8Name, StringComparison comparison = StringComparison.OrdinalIgnoreCase)
+        {
+            if (TryGetCompoundElement(utf8Name.Span, out NbtElement element, comparison))
+            {
+                return element;
+            }
+            throw new KeyNotFoundException();
+        }
+
         public bool TryGetCompoundElement(
             ReadOnlySpan<char> name,
             out NbtElement element,
             StringComparison comparison = StringComparison.OrdinalIgnoreCase)
         {
-            AssertValidInstance();
-            if (Type != NbtType.Compound)
-                throw new InvalidOperationException("The tag is not a compound.");
+            AssertValidInstance(NbtType.Compound);
 
             foreach (NbtElement item in EnumerateContainer())
             {
@@ -153,6 +182,11 @@ namespace MCServerSharp.NBT
         {
             AssertValidInstance();
             return _parent.GetArrayData(_index, out tagType);
+        }
+
+        public ReadOnlyMemory<byte> GetArrayData()
+        {
+            return GetArrayData(out _);
         }
 
         public int GetArrayElementSize()
@@ -210,8 +244,20 @@ namespace MCServerSharp.NBT
 
         public string GetString()
         {
-            AssertValidInstance();
+            AssertValidInstance(NbtType.String);
             return _parent.GetString(_index);
+        }
+
+        public Utf8String GetUtf8String()
+        {
+            AssertValidInstance(NbtType.String);
+            return _parent.GetUtf8String(_index);
+        }
+
+        public Utf8Memory GetUtf8Memory()
+        {
+            AssertValidInstance();
+            return Utf8Memory.CreateUnsafe(_parent.GetUtf8Memory(_index));
         }
 
         public ContainerEnumerator EnumerateContainer()
@@ -301,7 +347,7 @@ namespace MCServerSharp.NBT
         /// </remarks>
         public bool SequenceEqual(ReadOnlySpan<byte> data)
         {
-            AssertValidInstance();
+            AssertValidInstance(NbtType.String);
 
             return _parent.ArraySequenceEqual(_index, data);
         }
@@ -321,7 +367,7 @@ namespace MCServerSharp.NBT
         /// </remarks>
         public bool StringEquals(ReadOnlySpan<char> text)
         {
-            AssertValidInstance();
+            AssertValidInstance(NbtType.String);
 
             return _parent.StringEquals(_index, text);
         }
@@ -329,73 +375,111 @@ namespace MCServerSharp.NBT
         private void AssertValidInstance()
         {
             if (_parent == null)
-                throw new InvalidOperationException();
+                throw new InvalidOperationException("The tag is missing a parent document.");
         }
 
-        public override string ToString()
+        private void AssertValidInstance(NbtType type)
         {
-            var name = Name.ToUtf8String();
-            var builder = new StringBuilder(name.Length + 20);
+            if (_parent == null || _parent.GetTagType(_index) != type)
+            {
+                throw new InvalidOperationException(
+                    $"The tag is not a {type} (was {(_parent == null ? "missing parent" : Type.ToString())}.");
+            }
+        }
 
+        public void ToString(TextWriter writer)
+        {
             if (Flags.HasFlag(NbtFlags.Named))
-                builder.Append('"').Append(name).Append("\": ");
+            {
+                writer.Write('"');
+                writer.Write(StringHelper.Utf8.GetString(Name.Span));
+                writer.Write("\": ");
+            }
 
             var tagType = Type;
             switch (tagType)
             {
                 case NbtType.String:
-                    builder.Append('"').Append(GetString()).Append('"');
+                    string str = GetString();
+                    writer.Write('"');
+                    writer.Write(str);
+                    writer.Write('"');
                     break;
 
                 case NbtType.Byte:
-                    builder.Append(GetByte()).Append('b');
+                    writer.Write(GetByte());
+                    writer.Write('b');
                     break;
 
                 case NbtType.Short:
-                    builder.Append(GetShort()).Append('s');
+                    writer.Write(GetShort());
+                    writer.Write('s');
                     break;
 
                 case NbtType.Int:
-                    builder.Append(GetInt()).Append('i');
+                    writer.Write(GetInt());
+                    writer.Write('i');
                     break;
 
                 case NbtType.Long:
-                    builder.Append(GetLong()).Append('l');
+                    writer.Write(GetLong());
+                    writer.Write('l');
                     break;
 
                 case NbtType.Float:
-                    builder.Append(GetFloat()).Append('f');
+                    writer.Write(GetFloat());
+                    writer.Write('f');
                     break;
 
                 case NbtType.Double:
-                    builder.Append(GetDouble()).Append('d');
+                    writer.Write(GetDouble());
+                    writer.Write('d');
                     break;
 
                 case NbtType.Compound:
-                    builder.Append(tagType.ToString());
-                    builder.Append('{').Append(GetLength()).Append('}');
+                    writer.Write(tagType.ToString());
+                    writer.Write('{');
+                    writer.Write(GetLength());
+                    writer.Write('}');
                     break;
 
                 case NbtType.List:
                     var listType = GetBaseType();
-                    builder.Append('<').Append(listType).Append('>');
-                    builder.Append('[').Append(GetLength()).Append(']');
+                    writer.Write('<');
+                    writer.Write(listType);
+                    writer.Write('>');
+                    writer.Write('[');
+                    writer.Write(GetLength());
+                    writer.Write(']');
                     break;
 
                 case NbtType.ByteArray:
                 case NbtType.IntArray:
                 case NbtType.LongArray:
                     var arrayType = GetBaseType();
-                    builder.Append(arrayType);
-                    builder.Append('[').Append(GetLength()).Append(']');
+                    writer.Write(arrayType);
+                    writer.Write('[');
+                    writer.Write(GetLength());
+                    writer.Write(']');
                     break;
 
                 default:
-                    builder.Append(tagType.ToString());
+                    writer.Write(tagType.ToString());
                     break;
             }
+        }
 
-            return builder.ToString();
+        public string ToString(IFormatProvider? formatProvider)
+        {
+            var builder = new StringBuilder(StringHelper.Utf8.GetMaxCharCount(Name.Length) + 20);
+            var writer = new StringWriter(builder, formatProvider);
+            ToString(writer);
+            return writer.ToString();
+        }
+
+        public override string ToString()
+        {
+            return ToString(default(IFormatProvider));
         }
     }
 }

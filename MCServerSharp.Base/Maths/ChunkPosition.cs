@@ -8,7 +8,7 @@ namespace MCServerSharp.Maths
         public int Y { get; }
         public int Z { get; }
 
-        public ChunkColumnPosition ColumnPosition => new ChunkColumnPosition(X, Z);
+        public ChunkColumnPosition Column => new ChunkColumnPosition(X, Z);
 
         public ChunkPosition(int x, int y, int z)
         {

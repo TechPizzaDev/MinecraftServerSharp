@@ -7,12 +7,12 @@ namespace MCServerSharp.Blocks
     {
         private readonly StatePropertyValue[]? _properties;
 
-        public BlockDescription Block { get; }
+        public BlockDescription Description { get; }
         public uint StateId { get; }
 
-        public BlockState DefaultState => Block.DefaultState;
-        public uint BlockId => Block.BlockId;
-        public Identifier BlockIdentifier => Block.Identifier;
+        public BlockState DefaultState => Description.DefaultState;
+        public uint BlockId => Description.BlockId;
+        public Identifier BlockIdentifier => Description.Identifier;
 
         public ReadOnlyMemory<StatePropertyValue> Properties => _properties;
 
@@ -21,7 +21,7 @@ namespace MCServerSharp.Blocks
             if (properties?.Length == 0)
                 properties = null;
 
-            Block = block;
+            Description = block;
             _properties = properties;
             StateId = id;
         }
@@ -31,21 +31,21 @@ namespace MCServerSharp.Blocks
             if (_properties != null)
             {
                 var builder = _properties.ToListString();
-                builder.Insert(0, '[').Insert(0, Block.Identifier.ToString());
+                builder.Insert(0, '[').Insert(0, Description.Identifier.ToString());
                 builder.Append(']');
                 return builder.ToString();
             }
-            return Block.Identifier.ToString();
+            return Description.Identifier.ToString();
         }
 
         public long GetLongHashCode()
         {
-            return LongHashCode.Combine(StateId, BlockId, BlockIdentifier);
+            return LongHashCode.Combine(StateId, BlockId);
         }
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(StateId, BlockId, BlockIdentifier);
+            return HashCode.Combine(StateId, BlockId);
         }
     }
 }

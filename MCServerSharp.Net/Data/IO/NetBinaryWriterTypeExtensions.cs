@@ -23,7 +23,7 @@ namespace MCServerSharp.Data.IO
 
         public static void Write(this NetBinaryWriter writer, Identifier identifier)
         {
-            writer.Write((Utf8String)identifier.Value);
+            writer.WriteUtf8(identifier.Value);
         }
 
         public static void Write(this NetBinaryWriter writer, Utf8Identifier identifier)

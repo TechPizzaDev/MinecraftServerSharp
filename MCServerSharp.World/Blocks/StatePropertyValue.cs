@@ -2,69 +2,84 @@
 
 namespace MCServerSharp.Blocks
 {
-    public class StatePropertyValue : IStateProperty
+    public readonly struct StatePropertyValue : IStateProperty, IEquatable<StatePropertyValue>
     {
-        private readonly int _hashCode;
-
         public IStateProperty Property { get; }
-        public int ValueIndex { get; }
+        public int Index { get; }
 
         public string Name => Property.Name;
+        public Type ElementType => Property.ElementType;
+        public int Count => Property.Count;
 
-        public StatePropertyValue(IStateProperty property, int valueIndex)
+        public StatePropertyValue(IStateProperty property, int index)
         {
             Property = property ?? throw new ArgumentNullException(nameof(property));
-            ValueIndex = valueIndex;
-
-            _hashCode = HashCode.Combine(Property, ValueIndex);
+            Index = index;
         }
 
-        public int ParseIndex(string value)
+        public int GetIndex(ReadOnlyMemory<char> value)
         {
-            return Property.ParseIndex(value);
+            return Property.GetIndex(value);
+        }
+
+        public StatePropertyValue GetPropertyValue(int index)
+        {
+            return Property.GetPropertyValue(index);
+        }
+
+        public bool Equals(StatePropertyValue other)
+        {
+            return Index == other.Index
+                && Property == other.Property;
+        }
+
+        public override bool Equals(object? obj)
+        {
+            return obj is StatePropertyValue other && Equals(other);
         }
 
         public override int GetHashCode()
         {
-            return _hashCode;
+            return HashCode.Combine(Property, Index);
         }
 
         public override string ToString()
         {
-            return Name + "=" + ValueIndex;
+            return Name + "=" + Index;
         }
 
-        public static StatePropertyValue Create(IStateProperty property, int valueIndex)
+        public static bool operator ==(StatePropertyValue left, StatePropertyValue right)
         {
-            if (property == null)
-                throw new ArgumentNullException(nameof(property));
-
-            if (property is IStateProperty<bool> boolProp)
-                return new StatePropertyValue<bool>(boolProp, valueIndex);
-
-            if (property is IStateProperty<int> intProp)
-                return new StatePropertyValue<int>(intProp, valueIndex);
-
-            Type propertyType = property.GetType();
-            if (propertyType.IsConstructedGenericType)
-            {
-                Type[] genericTypeArgs = propertyType.GenericTypeArguments;
-                if (genericTypeArgs.Length == 1)
-                {
-                    Type genericType = genericTypeArgs[0];
-                    if (genericType.IsEnum && genericType.IsValueType)
-                    {
-                        Type constructType = typeof(StatePropertyValue<>).MakeGenericType(genericType);
-
-                        if (Activator.CreateInstance(constructType, property, valueIndex) is not StatePropertyValue propertyValue)
-                            throw new Exception("Failed to create property value.");
-
-                        return propertyValue;
-                    }
-                }
-            }
-
-            return new StatePropertyValue(property, valueIndex);
+            return left.Equals(right);
         }
+
+        public static bool operator !=(StatePropertyValue left, StatePropertyValue right)
+        {
+            return !(left == right);
+        }
+
+        //public static StatePropertyValue Create(IStateProperty property, int valueIndex)
+        //{
+        //    if (property == null)
+        //        throw new ArgumentNullException(nameof(property));
+        //
+        //    if (property is IStateProperty<bool> boolProp)
+        //        return new StatePropertyValue<bool>(boolProp, valueIndex);
+        //
+        //    if (property is IStateProperty<int> intProp)
+        //        return new StatePropertyValue<int>(intProp, valueIndex);
+        //
+        //    if (property.ElementType.IsEnum)
+        //    {
+        //        Type constructType = typeof(StatePropertyValue<>).MakeGenericType(property.ElementType);
+        //
+        //        if (Activator.CreateInstance(constructType, property, valueIndex) is not StatePropertyValue propertyValue)
+        //            throw new Exception("Failed to create property value.");
+        //
+        //        return propertyValue;
+        //    }
+        //
+        //    return new StatePropertyValue(property, valueIndex);
+        //}
     }
 }

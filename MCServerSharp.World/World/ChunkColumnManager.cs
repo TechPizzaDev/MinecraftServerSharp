@@ -42,7 +42,7 @@ namespace MCServerSharp.World
 
         public async ValueTask<IChunk> GetOrAddChunk(ChunkPosition position)
         {
-            IChunkColumn chunkColumn = await GetOrAddChunkColumn(position.ColumnPosition).Unchain();
+            IChunkColumn chunkColumn = await GetOrAddChunkColumn(position.Column).Unchain();
             IChunk chunk = await chunkColumn.GetOrAddChunk(position.Y).Unchain();
             return chunk;
         }
@@ -54,7 +54,7 @@ namespace MCServerSharp.World
 
         public bool TryGetChunk(ChunkPosition position, [MaybeNullWhen(false)] out IChunk chunk)
         {
-            if (TryGetChunkColumn(position.ColumnPosition, out IChunkColumn? column))
+            if (TryGetChunkColumn(position.Column, out IChunkColumn? column))
             {
                 return column.TryGetChunk(position.Y, out chunk);
             }

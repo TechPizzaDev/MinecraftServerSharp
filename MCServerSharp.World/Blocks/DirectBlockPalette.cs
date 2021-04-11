@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using MCServerSharp.Collections;
 using MCServerSharp.Data.IO;
 
 namespace MCServerSharp.Blocks
@@ -10,11 +11,12 @@ namespace MCServerSharp.Blocks
         private BlockState[] _blockStates;
         private Dictionary<Identifier, BlockDescription> _blockLookup;
         private Dictionary<Utf8Identifier, BlockDescription> _utf8BlockLookup;
+        private Dictionary<Utf8Memory, BlockDescription> _utf8MemoryBlockLookup;
 
         public BlockDescription this[Identifier identifier] => _blockLookup[identifier];
         public BlockDescription this[string identifier] => _blockLookup[new Identifier(identifier)];
         public BlockDescription this[Utf8Identifier identifier] => _utf8BlockLookup[identifier];
-        public BlockDescription this[Utf8String identifier] => this[new Utf8Identifier(identifier)];
+        public BlockDescription this[Utf8Memory identifier] => _utf8MemoryBlockLookup[identifier];
 
         public int BitsPerBlock { get; }
         public int Count => _blockStates.Length;
@@ -28,6 +30,8 @@ namespace MCServerSharp.Blocks
 
             _blockLookup = new Dictionary<Identifier, BlockDescription>();
             _utf8BlockLookup = new Dictionary<Utf8Identifier, BlockDescription>();
+            _utf8MemoryBlockLookup = new Dictionary<Utf8Memory, BlockDescription>(
+                LongEqualityComparer<Utf8Memory>.NonRandomDefault);
 
             // TODO: optimize/dont use an intermediate dictionary?
             var stateLookup = new Dictionary<uint, BlockState>();
@@ -37,7 +41,9 @@ namespace MCServerSharp.Blocks
             foreach (BlockDescription block in blocks)
             {
                 _blockLookup.Add(block.Identifier, block);
-                _utf8BlockLookup.Add(block.Identifier.ToUtf8Identifier(), block);
+                Utf8Identifier utf8Id = block.Identifier.ToUtf8Identifier();
+                _utf8BlockLookup.Add(utf8Id, block);
+                _utf8MemoryBlockLookup.Add(utf8Id.Value, block);
 
                 stateCount += block.StateCount;
                 foreach (BlockState state in block.States.Span)

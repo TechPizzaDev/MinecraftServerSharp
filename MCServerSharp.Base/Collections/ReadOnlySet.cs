@@ -36,6 +36,23 @@ namespace MCServerSharp.Collections
         }
 
         /// <summary>
+        /// Constructs a <see cref="ReadOnlySet{T}"/> that uses an <see cref="ISet{T}"/> as it's backing store.
+        /// </summary>
+        /// <param name="set">The set to wrap.</param>
+        public ReadOnlySet(ISet<T> set)
+        {
+            _set = new SetWrapper(set);
+        }
+
+        /// <summary>
+        /// Constructs a <see cref="ReadOnlySet{T}"/> that uses a <see cref="HashSet{T}"/> as it's backing store.
+        /// </summary>
+        /// <param name="set">The set to wrap.</param>
+        public ReadOnlySet(HashSet<T> set) : this((IReadOnlySet<T>)set)
+        {
+        }
+
+        /// <summary>
         /// Constructs an immutable <see cref="ReadOnlySet{T}"/>
         /// by copying elements from an <see cref="IEnumerable{T}"/>.
         /// </summary>
@@ -173,6 +190,36 @@ namespace MCServerSharp.Collections
                     _boxedCache = _hashSetEnumerator;
                 return _boxedCache;
             }
+        }
+
+        private class SetWrapper : IReadOnlySet<T>
+        {
+            public ISet<T> Set { get; }
+
+            public SetWrapper(ISet<T> set)
+            {
+                Set = set ?? throw new ArgumentNullException(nameof(set));
+            }
+
+            public int Count => Set.Count;
+
+            public bool Contains(T item) => Set.Contains(item);
+
+            public IEnumerator<T> GetEnumerator() => Set.GetEnumerator();
+
+            public bool IsProperSubsetOf(IEnumerable<T> other) => Set.IsProperSubsetOf(other);
+
+            public bool IsProperSupersetOf(IEnumerable<T> other) => Set.IsProperSupersetOf(other);
+
+            public bool IsSubsetOf(IEnumerable<T> other) => Set.IsSubsetOf(other);
+
+            public bool IsSupersetOf(IEnumerable<T> other) => Set.IsSupersetOf(other);
+
+            public bool Overlaps(IEnumerable<T> other) => Set.Overlaps(other);
+
+            public bool SetEquals(IEnumerable<T> other) => Set.SetEquals(other);
+
+            IEnumerator IEnumerable.GetEnumerator() => Set.GetEnumerator();
         }
     }
 }

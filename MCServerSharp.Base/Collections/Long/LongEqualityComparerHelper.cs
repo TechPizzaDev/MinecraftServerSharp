@@ -40,6 +40,13 @@ namespace MCServerSharp.Collections
                     : new NonRandomLongUtf8MemoryComparer();
             }
 
+            if (type == typeof(ReadOnlyMemory<char>))
+            {
+                return randomized
+                    ? new LongROMCharComparer()
+                    : new NonRandomLongROMCharComparer();
+            }
+
             if (type == typeof(long))
                 return new LongInt64Comparer();
 

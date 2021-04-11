@@ -8,14 +8,14 @@ namespace MCServerSharp.Data.IO
     {
         public static OperationStatus Read(this NetBinaryReader reader, out Identifier identifier)
         {
-            var status = reader.Read(out Utf8String identifierString);
+            var status = reader.ReadUtf8(out string identifierString);
             if (status != OperationStatus.Done)
             {
                 identifier = default;
                 return status;
             }
 
-            if (!Identifier.TryParse(identifierString.ToString(), out identifier))
+            if (!Identifier.TryParse(identifierString, out identifier))
                 return OperationStatus.InvalidData;
 
             return OperationStatus.Done;

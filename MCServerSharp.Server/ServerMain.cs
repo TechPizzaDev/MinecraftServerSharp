@@ -9,6 +9,7 @@ using System.Reflection;
 using System.Text.Json;
 using System.Threading;
 using MCServerSharp.Blocks;
+using MCServerSharp.Collections;
 using MCServerSharp.Data;
 using MCServerSharp.Entities.Mobs;
 using MCServerSharp.Enums;
@@ -21,7 +22,6 @@ using MCServerSharp.World;
 
 namespace MCServerSharp.Server
 {
-
     public static partial class ServerMain
     {
         // TODO: move these to a Game class
@@ -246,28 +246,81 @@ namespace MCServerSharp.Server
                 string basePath = "GameData/data/minecraft/tags";
                 foreach ((string containerKey, List<Tag> containerTags) in tagContainerBuilders)
                 {
-                    IEnumerable<string> tagFiles = Directory.EnumerateFiles(Path.Combine(basePath, containerKey));
-                    foreach (string tagFile in tagFiles)
+                    bool isBlocks = containerKey == "blocks";
+                    bool isFluids = containerKey == "fluids";
+
+                    string[] tagFiles = Directory.GetFiles(Path.Combine(basePath, containerKey));
+
+                    Dictionary<ReadOnlyMemory<char>, string?[]> tagLists = new(
+                        tagFiles.Length,
+                        LongEqualityComparer<ReadOnlyMemory<char>>.NonRandomDefault);
+
+                    for (int i = 0; i < tagFiles.Length; i++)
                     {
-                        tagEntryBuilder.Clear();
+                        string tagFile = tagFiles[i];
+                        string tagName = Path.GetFileNameWithoutExtension(tagFile);
 
                         using (Stream tagFs = File.OpenRead(tagFile))
                         using (JsonDocument tagDoc = JsonDocument.Parse(tagFs))
                         {
                             JsonElement valueArray = tagDoc.RootElement.GetProperty("values");
+                            string?[] tagEntries = new string[valueArray.GetArrayLength()];
+
+                            int entryIndex = 0;
                             foreach (JsonElement valueElement in valueArray.EnumerateArray())
                             {
                                 string? entryName = valueElement.ToString();
-                                if (entryName != null)
+                                tagEntries[entryIndex++] = entryName;
+                            }
+
+                            tagLists.Add(new Identifier("minecraft", tagName).ToString().AsMemory(), tagEntries);
+                        }
+                    }
+
+                    foreach ((ReadOnlyMemory<char> tagName, string?[] tagList) in tagLists)
+                    {
+                        tagEntryBuilder.Clear();
+
+                        void AppendValues(string?[] values)
+                        {
+                            for (int i = 0; i < values.Length; i++)
+                            {
+                                string? value = values[i];
+                                if (value == null)
+                                    continue;
+
+                                if (value.StartsWith('#'))
                                 {
-                                    // TODO:
-                                    // block: BlockDescription desc = _directBlockPalette[entryName];
+                                    ReadOnlyMemory<char> nestedTagName = value.AsMemory(1);
+                                    AppendValues(tagLists[nestedTagName]);
+                                }
+                                else
+                                {
+                                    if (isBlocks)
+                                    {
+                                        BlockDescription desc = _directBlockPalette[value];
+                                        tagEntryBuilder.Add((int)desc.BlockId);
+                                    }
+                                    else if (isFluids)
+                                    {
+                                        // TODO: FIXME:
+                                        if (value == "minecraft:empty")
+                                            tagEntryBuilder.Add(0);
+                                        else if (value == "minecraft:flowing_water")
+                                            tagEntryBuilder.Add(1);
+                                        else if (value == "minecraft:water")
+                                            tagEntryBuilder.Add(2);
+                                        else if (value == "minecraft:flowing_lava")
+                                            tagEntryBuilder.Add(3);
+                                        else if (value == "minecraft:lava")
+                                            tagEntryBuilder.Add(4);
+                                    }
                                 }
                             }
                         }
+                        AppendValues(tagList);
 
-                        string tagName = Path.GetFileNameWithoutExtension(tagFile);
-                        Utf8Identifier tagId = new("minecraft", tagName);
+                        Utf8Identifier tagId = new(tagName.Span);
                         Tag tag = new(tagId, tagEntryBuilder.ToArray());
                         containerTags.Add(tag);
                     }
@@ -282,7 +335,6 @@ namespace MCServerSharp.Server
         static (Type, HashSet<string>) GetEnumSet<TEnum>()
             where TEnum : struct, Enum
         {
-            Type type = typeof(EnumStateProperty<TEnum>);
             string[] names = typeof(TEnum).GetEnumNames();
             HashSet<string> set = new(names.Length, StringComparer.Ordinal);
             foreach (string name in names)
@@ -290,6 +342,8 @@ namespace MCServerSharp.Server
                 string dataName = name.ToSnake().ToLowerInvariant();
                 set.Add(dataName);
             }
+
+            Type type = typeof(EnumStateProperty<TEnum>);
             return (type, set);
         }
 
@@ -341,7 +395,9 @@ namespace MCServerSharp.Server
             List<BlockDescription> blocks = new List<BlockDescription>();
             List<IStateProperty> blockStatePropBuilder = new();
 
+            // TODO: read block id from registry
             uint blockId = 0;
+
             foreach (JsonProperty blockProperty in blocksDocument.RootElement.EnumerateObject())
             {
                 Identifier blockName = new(blockProperty.Name);
@@ -422,8 +478,8 @@ namespace MCServerSharp.Server
                             if (blockStateProp == null)
                                 throw new InvalidDataException("Failed to find matching block state property.");
 
-                            int valueIndex = blockStateProp.ParseIndex(GetEnumString(statePropProp.Value));
-                            propValues[propertyIndex++] = StatePropertyValue.Create(blockStateProp, valueIndex);
+                            var propName = GetEnumString(statePropProp.Value).AsMemory();
+                            propValues[propertyIndex++] = blockStateProp.GetPropertyValue(propName);
                         }
                     }
                     blockStates[i] = new BlockState(block, propValues, idProp.GetUInt32());
@@ -679,7 +735,7 @@ namespace MCServerSharp.Server
                     false));
 
                 connection.EnqueuePacket(new ServerPluginMessage(
-                    (Utf8String)"minecraft:brand",
+                    new Utf8Identifier("minecraft:brand"),
                     (Utf8String)"MCServerSharp"));
 
                 connection.EnqueuePacket(new ServerUpdateTags(
@@ -688,7 +744,7 @@ namespace MCServerSharp.Server
                     _tagContainers["fluids"],
                     _tagContainers["entity_types"]));
 
-                int startY = 33;
+                int startY = 70;
 
                 connection.EnqueuePacket(new ServerSpawnPosition(
                     new Position(0, startY, 0)));

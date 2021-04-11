@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using System.Text;
 
 namespace MCServerSharp
 {
     public static class StringSnakeExtensions
     {
+        [SkipLocalsInit]
         [return: NotNullIfNotNull("value")]
         public static string? ToSnake(this string? value)
         {
@@ -15,18 +17,36 @@ namespace MCServerSharp
             if (value.Length == 0)
                 return string.Empty;
 
-            StringBuilder builder = new StringBuilder(value.Length);
+            Span<char> buffer = stackalloc char[1024];
+            int bufferIndex = 0;
+
+            StringBuilder? builder = null;
             bool modified = false;
+
+            void Append(char c, Span<char> buffer)
+            {
+                if (bufferIndex == buffer.Length)
+                {
+                    if (builder == null)
+                    {
+                        builder = new StringBuilder((int)(value.Length * 1.5));
+                        builder.Append(buffer);
+                        builder.Append(c);
+                    }
+                    return;
+                }
+                buffer[bufferIndex++] = c;
+            }
 
             char c = value[0];
             if (char.IsWhiteSpace(c) || c == '-')
             {
-                builder.Append('_');
+                Append('_', buffer);
                 modified = true;
             }
             else
             {
-                builder.Append(c);
+                Append(c, buffer);
             }
 
             for (int i = 1; i < value.Length; i++)
@@ -34,20 +54,24 @@ namespace MCServerSharp
                 c = value[i];
                 if (char.IsUpper(c))
                 {
-                    builder.Append('_');
+                    Append('_', buffer);
                     modified = true;
                 }
                 else if (c == '-' || char.IsWhiteSpace(c))
                 {
-                    builder.Append('_');
+                    Append('_', buffer);
                     modified = true;
                     continue;
                 }
-                builder.Append(c);
+                Append(c, buffer);
             }
 
             if (!modified)
                 return value;
+
+            if (builder == null)
+                return buffer.Slice(0, bufferIndex).ToString();
+
             return builder.ToString();
         }
     }

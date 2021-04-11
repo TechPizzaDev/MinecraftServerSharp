@@ -20,7 +20,7 @@ namespace MCServerSharp.Blocks
         public ReadOnlyMemory<IStateProperty> Properties => _properties;
 
         public BlockDescription(
-            BlockState[] states, IStateProperty[]? properties, 
+            BlockState[] states, IStateProperty[]? properties,
             Identifier identifier, uint id, int defaultStateIndex)
         {
             if (!identifier.IsValid)
@@ -34,6 +34,20 @@ namespace MCServerSharp.Blocks
             _defaultStateIndex = defaultStateIndex;
             Identifier = identifier;
             BlockId = id;
+        }
+
+        public BlockState GetMatchingState(ReadOnlySpan<StatePropertyValue> propertyValues)
+        {
+            foreach (BlockState state in _states)
+            {
+                if (state.Properties.Span.SequenceEqual(propertyValues))
+                {
+                    return state;
+                }
+            }
+
+            Debug.Assert(propertyValues.Length == _properties?.Length);
+            return DefaultState;
         }
 
         public long GetLongHashCode()

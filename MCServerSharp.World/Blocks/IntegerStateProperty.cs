@@ -8,7 +8,7 @@ namespace MCServerSharp.Blocks
         public int Min { get; }
         public int Max { get; }
 
-        public override int ValueCount => Max - Min;
+        public override int Count => Max - Min;
 
         public IntegerStateProperty(string name, int min, int max) : base(name)
         {
@@ -18,9 +18,9 @@ namespace MCServerSharp.Blocks
             Max = max;
         }
 
-        public override int ParseIndex(string value)
+        public override int GetIndex(ReadOnlyMemory<char> value)
         {
-            return GetIndex(int.Parse(value, CultureInfo.InvariantCulture));
+            return GetIndex(int.Parse(value.Span, NumberStyles.Integer, CultureInfo.InvariantCulture));
         }
 
         public override int GetIndex(int value)

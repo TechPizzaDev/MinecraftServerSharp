@@ -18,10 +18,13 @@ namespace MCServerSharp.NBT
         public MetadataDb _metaDb;
         private byte[]? _extraRentedBytes;
         private (int, string?) _lastIndexAndString = (-1, null);
+        private (int, Utf8String?) _lastIndexAndUtf8String = (-1, null);
 
         internal bool IsDisposable { get; }
 
         public NbtOptions Options { get; }
+
+        public int ByteLength => _data.Length;
 
         /// <summary>
         /// The <see cref="NbtElement"/> representing the value of the document.
@@ -196,13 +199,9 @@ namespace MCServerSharp.NBT
             return segment;
         }
 
-        internal string GetString(int index)
+        internal ReadOnlyMemory<byte> GetUtf8Memory(int index)
         {
             AssertNotDisposed();
-
-            (int lastIndex, string? lastString) = _lastIndexAndString;
-            if (lastIndex == index)
-                return lastString ?? string.Empty;
 
             ref readonly DbRow row = ref _metaDb.GetRow(index);
             CheckExpectedType(NbtType.String, row.Type);
@@ -210,10 +209,29 @@ namespace MCServerSharp.NBT
             ReadOnlyMemory<byte> payload = GetTagPayload(row);
             ReadOnlySpan<byte> payloadSpan = payload.Span;
 
-            int stringLength = ReadStringLength(payloadSpan, Options, out int lengthBytes);
-            lastString = Encoding.UTF8.GetString(payloadSpan.Slice(lengthBytes, stringLength));
+            int stringLength = ReadStringLength(payload.Span, Options, out int lengthBytes);
+            return payload.Slice(lengthBytes, stringLength);
+        }
 
+        internal string GetString(int index)
+        {
+            (int lastIndex, string? lastString) = _lastIndexAndString;
+            if (lastIndex == index)
+                return lastString ?? string.Empty;
+
+            lastString = Encoding.UTF8.GetString(GetUtf8Memory(index).Span);
             _lastIndexAndString = (index, lastString);
+            return lastString;
+        }
+
+        internal Utf8String GetUtf8String(int index)
+        {
+            (int lastIndex, Utf8String? lastString) = _lastIndexAndUtf8String;
+            if (lastIndex == index)
+                return lastString ?? Utf8String.Empty;
+
+            lastString = Utf8String.Create(GetUtf8Memory(index).Span);
+            _lastIndexAndUtf8String = (index, lastString);
             return lastString;
         }
 
@@ -280,7 +298,7 @@ namespace MCServerSharp.NBT
             tagType = row.Type;
             int elementSize = GetArrayElementSize(row);
             ReadOnlyMemory<byte> payload = GetTagPayload(row);
-            var segment = payload.Slice(0, row.CollectionLength * elementSize);
+            var segment = payload.Slice(sizeof(int), row.CollectionLength * elementSize);
             return segment;
         }
 

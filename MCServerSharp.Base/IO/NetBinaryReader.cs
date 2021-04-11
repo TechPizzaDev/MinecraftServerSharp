@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Text.Unicode;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -289,7 +291,7 @@ namespace MCServerSharp.Data.IO
             }
 
             var code = OperationStatus.Done;
-            var readState = new StringReadState(this, &code);
+            var readState = new UnsafeStringReadState(this, &code);
 
             value = string.Create(length, readState, (output, state) =>
             {
@@ -321,9 +323,7 @@ namespace MCServerSharp.Data.IO
                 value = default!;
                 return OperationStatus.InvalidData;
             }
-
-            int length = byteCount / sizeof(byte);
-            return Read(length, out value);
+            return Read(byteCount, out value);
         }
 
         public OperationStatus Read(out Utf8Memory value)
@@ -333,13 +333,29 @@ namespace MCServerSharp.Data.IO
             return code;
         }
 
+        public OperationStatus ReadUtf8(out string value)
+        {
+            var code = Read(out VarInt byteCount, out int lengthBytes);
+            if (code != OperationStatus.Done)
+            {
+                value = default!;
+                return code;
+            }
+            if (lengthBytes > 3)
+            {
+                value = default!;
+                return OperationStatus.InvalidData;
+            }
+            return ReadUtf8(byteCount, out value);
+        }
+
         public unsafe OperationStatus Read(int length, out Utf8String value)
         {
             // length is already in bytes
             StringHelper.AssertValidStringByteLength(length);
 
             var code = OperationStatus.Done;
-            var readState = new StringReadState(this, &code);
+            var readState = new UnsafeStringReadState(this, &code);
 
             value = Utf8String.Create(length, readState, (output, state) =>
             {
@@ -347,6 +363,56 @@ namespace MCServerSharp.Data.IO
                 state.Code = state.Reader.Read(output);
             });
             return code;
+        }
+
+        [SkipLocalsInit]
+        public unsafe OperationStatus ReadUtf8(int length, out string value)
+        {
+            value = string.Empty;
+
+            if (!StringHelper.IsValidStringByteLength(length))
+            {
+                return OperationStatus.InvalidData;
+            }
+
+            byte[] buffer = ArrayPool<byte>.Shared.Rent(length * 2);
+            try
+            {
+                Span<char> charBuffer = MemoryMarshal.Cast<byte, char>(buffer);
+                Span<byte> readBuffer = stackalloc byte[1024];
+
+                Span<char> dst = charBuffer;
+                int totalWritten = 0;
+                int left = length;
+                do
+                {
+                    int toRead = Math.Min(left, readBuffer.Length);
+                    Span<byte> readSlice = readBuffer.Slice(0, toRead);
+
+                    var code = Read(readSlice);
+                    if (code != OperationStatus.Done)
+                        return code;
+
+                    code = Utf8.ToUtf16(readSlice, dst, out int read8, out int written16);
+                    if (code != OperationStatus.Done)
+                        return code;
+
+                    if (read8 != toRead)
+                        return OperationStatus.InvalidData;
+
+                    totalWritten += written16;
+                    dst = dst[written16..];
+                    left -= toRead;
+                }
+                while (left > 0);
+
+                value = new string(charBuffer.Slice(0, totalWritten));
+                return OperationStatus.Done;
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
+            }
         }
 
         public OperationStatus Read(int length, out Utf8Memory value)
@@ -358,15 +424,14 @@ namespace MCServerSharp.Data.IO
 
         #endregion
 
-        // TODO: put this under an unsafe conditional
-        private unsafe struct StringReadState
+        private unsafe struct UnsafeStringReadState
         {
             private OperationStatus* _codeOutput;
 
             public NetBinaryReader Reader { get; }
             public OperationStatus Code { get => *_codeOutput; set => *_codeOutput = value; }
 
-            public StringReadState(NetBinaryReader reader, OperationStatus* codeOutput)
+            public UnsafeStringReadState(NetBinaryReader reader, OperationStatus* codeOutput)
             {
                 Reader = reader;
                 _codeOutput = codeOutput;

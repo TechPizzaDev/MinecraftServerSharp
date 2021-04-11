@@ -28,7 +28,7 @@ namespace MCServerSharp
             if (!(move1 && move2) || parts.MoveNext())
             {
                 throw new ArgumentException(
-                    "Could not separate identifier into a namespace and location.", nameof(value));
+                    $"Could not separate identifier \"{value}\" into a namespace and location.", nameof(value));
             }
 
             Namespace = value.Substring(part1);
@@ -38,29 +38,29 @@ namespace MCServerSharp
             Identifier.ValidateLocation(Location);
         }
 
-        public Utf8Identifier(string value) : this(value.ToUtf8String())
+        public Utf8Identifier(ReadOnlySpan<char> value) : this(Utf8String.Create(value))
         {
         }
 
-        public Utf8Identifier(Utf8String @namespace, Utf8String location)
+        public Utf8Identifier(Utf8Memory @namespace, Utf8Memory location)
         {
             Identifier.ValidateNamespace(@namespace);
             Identifier.ValidateLocation(location);
 
-            Namespace = @namespace ?? DefaultNamespace;
+            if (@namespace.IsEmpty)
+                @namespace = DefaultNamespace;
+            Namespace = @namespace;
             Location = location;
             Value = Utf8String.Concat(Namespace, Separator, Location);
         }
 
-        public Utf8Identifier(string @namespace, string value) : this(@namespace.ToUtf8String(), value.ToUtf8String())
+        public Utf8Identifier(ReadOnlySpan<char> @namespace, ReadOnlySpan<char> value) : 
+            this(Utf8String.Create(@namespace), Utf8String.Create(value))
         {
         }
 
-        public static bool TryParse(Utf8String value, out Utf8Identifier identifier)
+        public static bool TryParse(Utf8Memory value, out Utf8Identifier identifier)
         {
-            if (value == null)
-                throw new ArgumentNullException(nameof(value));
-
             var parts = value.EnumerateSplit(Separator, StringSplitOptions.None);
 
             bool move1 = parts.MoveNext();
@@ -76,12 +76,12 @@ namespace MCServerSharp
             if (parts.MoveNext())
                 goto Fail;
 
-            Utf8String @namespace = value.Substring(part1);
-            if (!Identifier.IsValidNamespace(@namespace))
+            Utf8Memory @namespace = value.Substring(part1);
+            if (!Identifier.IsValidNamespace(@namespace, out _))
                 goto Fail;
 
-            Utf8String location = value.Substring(part2);
-            if (!Identifier.IsValidLocation(location))
+            Utf8Memory location = value.Substring(part2);
+            if (!Identifier.IsValidLocation(location, out _))
                 goto Fail;
 
             identifier = new Utf8Identifier(@namespace, location);
@@ -96,9 +96,15 @@ namespace MCServerSharp
         public RuneEnumerator EnumerateNamespace() => Namespace;
         public RuneEnumerator EnumerateLocation() => Location;
 
-        public bool Equals(Utf8Identifier other, StringComparison comparison) => Value.Equals(other.Value, comparison);
+        public bool Equals(Utf8Identifier other, StringComparison comparison)
+        {
+            return Value.Equals(other.Value, comparison);
+        }
 
-        public bool Equals(Utf8Identifier other) => Equals(other, StringComparison.Ordinal);
+        public bool Equals(Utf8Identifier other)
+        {
+            return Equals(other, StringComparison.Ordinal);
+        }
 
         public override bool Equals(object? obj)
         {

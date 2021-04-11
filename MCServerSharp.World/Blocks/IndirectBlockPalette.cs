@@ -15,13 +15,13 @@ namespace MCServerSharp.Blocks
         public int BitsPerBlock { get; private set; }
         public int Count => _idToBlock.Length;
 
-        private IndirectBlockPalette(int capacity)
+        protected IndirectBlockPalette(int capacity)
         {
             _idToBlock = new BlockState[capacity];
             _blockToId = new Dictionary<BlockState, uint>(capacity);
         }
 
-        private IndirectBlockPalette()
+        protected IndirectBlockPalette()
         {
             _idToBlock = Array.Empty<BlockState>();
             _blockToId = new Dictionary<BlockState, uint>();
@@ -91,22 +91,26 @@ namespace MCServerSharp.Blocks
 
         private void UpdateBitsPerBlock()
         {
-            BitsPerBlock = (int)Math.Ceiling(Math.Log2(Count));
+            BitsPerBlock = (int)Math.Max(1, Math.Ceiling(Math.Log2(Count)));
+        }
+
+        public static IndirectBlockPalette CreateUnsafe(BlockState[] blocks)
+        {
+            IndirectBlockPalette palette = new(blocks.Length);
+            palette._idToBlock = blocks;
+            for (uint id = 0; id < blocks.Length; id++)
+            {
+                palette._blockToId.Add(blocks[id], id);
+            }
+
+            palette.UpdateBitsPerBlock();
+            return palette;
         }
 
         public static IndirectBlockPalette Create(IEnumerable<BlockState> blocks)
         {
             BlockState[] blockArray = blocks.ToArray();
-
-            IndirectBlockPalette palette = new(blockArray.Length);
-            palette._idToBlock = blockArray;
-            for (uint id = 0; id < blockArray.Length; id++)
-            {
-                palette._blockToId.Add(blockArray[id], id);
-            }
-
-            palette.UpdateBitsPerBlock();
-            return palette;
+            return CreateUnsafe(blockArray);
         }
 
         public static OperationStatus Read(

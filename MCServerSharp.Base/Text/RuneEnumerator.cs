@@ -154,6 +154,19 @@ namespace MCServerSharp.Text
             return false;
         }
 
+        public readonly override string ToString()
+        {
+            RuneEnumerator runes = this;
+            StringBuilder builder = new();
+            Span<char> buffer = stackalloc char[4];
+            foreach (Rune rune in runes)
+            {
+                int encoded = rune.EncodeToUtf16(buffer);
+                builder.Append(buffer.Slice(0, encoded));
+            }
+            return builder.ToString();
+        }
+
         public static implicit operator RuneEnumerator(ReadOnlySpan<char> text)
         {
             return new RuneEnumerator(text.EnumerateRunes());
