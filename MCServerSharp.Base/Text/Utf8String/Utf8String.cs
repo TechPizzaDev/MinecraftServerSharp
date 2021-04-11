@@ -26,6 +26,8 @@ namespace MCServerSharp
         public ReadOnlySpan<byte> Bytes => _bytes.Span;
         public int Length => _bytes.Length;
 
+        public Utf8Memory Memory => Utf8Memory.CreateUnsafe(_bytes);
+
         #region Constructors
 
         private Utf8String(byte[] bytes)
@@ -59,6 +61,35 @@ namespace MCServerSharp
         }
 
         #endregion
+
+        public static Utf8String UnsafeWrap(ReadOnlyMemory<byte> data)
+        {
+            return new Utf8String(data);
+        }
+
+        public static Utf8String Create(ReadOnlySpan<byte> utf8)
+        {
+            if (utf8.IsEmpty)
+                return Empty;
+            return new Utf8String(utf8);
+        }
+
+        public static Utf8String Create(ReadOnlyMemory<byte> utf8)
+        {
+            return Create(utf8.Span);
+        }
+
+        public static Utf8String Create(ReadOnlySpan<char> utf16)
+        {
+            if (utf16.IsEmpty)
+                return Empty;
+            return new Utf8String(utf16);
+        }
+
+        public static Utf8String Create(ReadOnlyMemory<char> utf16)
+        {
+            return Create(utf16.Span);
+        }
 
         public static Utf8String Create<TState>(
             int length, TState state, SpanAction<byte, TState> action)
@@ -220,30 +251,36 @@ namespace MCServerSharp
 
         public static bool Equals(ReadOnlySpan<byte> firstUtf8, ReadOnlySpan<byte> secondUtf8, StringComparison comparison)
         {
-            Span<char> firstUtf16Buf = stackalloc char[32];
-            Span<char> secondUtf16Buf = stackalloc char[32];
+            Span<char> firstUtf16Buf = stackalloc char[16];
+            Span<char> secondUtf16Buf = stackalloc char[16];
+
+            if (comparison == StringComparison.Ordinal)
+            {
+                return firstUtf8.SequenceEqual(secondUtf8);
+            }
+
             do
             {
-                var firstStatus = Utf8.ToUtf16(firstUtf8, firstUtf16Buf, out int firstRead, out int firstWritten);
+                var firstStatus = Utf8.ToUtf16(firstUtf8, firstUtf16Buf, out int firstRead8, out int firstWritten16);
                 if (firstStatus != OperationStatus.Done &&
                     firstStatus != OperationStatus.DestinationTooSmall)
                     throw new Exception("Failed to convert UTF-8 to UTF-16.");
 
-                var secondStatus = Utf8.ToUtf16(secondUtf8, secondUtf16Buf, out int secondRead, out int secondWritten);
+                var secondStatus = Utf8.ToUtf16(secondUtf8, secondUtf16Buf, out int secondRead8, out int secondWritten16);
                 if (secondStatus != OperationStatus.Done &&
                     secondStatus != OperationStatus.DestinationTooSmall)
                     throw new Exception("Failed to convert UTF-8 to UTF-16.");
 
-                if (firstWritten > secondWritten)
+                if (firstWritten16 > secondWritten16)
                     break;
 
-                ReadOnlySpan<char> firstSlice = firstUtf16Buf.Slice(0, firstWritten);
-                ReadOnlySpan<char> secondSlice = secondUtf16Buf.Slice(0, secondWritten);
+                ReadOnlySpan<char> firstSlice = firstUtf16Buf.Slice(0, firstWritten16);
+                ReadOnlySpan<char> secondSlice = secondUtf16Buf.Slice(0, secondWritten16);
                 if (!firstSlice.Equals(secondSlice, comparison))
                     break;
 
-                firstUtf8 = firstUtf8[firstRead..];
-                secondUtf8 = secondUtf8[secondRead..];
+                firstUtf8 = firstUtf8[firstRead8..];
+                secondUtf8 = secondUtf8[secondRead8..];
             }
             while (firstUtf8.Length != secondUtf8.Length);
 
@@ -252,26 +289,54 @@ namespace MCServerSharp
 
         public static bool Equals(ReadOnlySpan<char> utf16, ReadOnlySpan<byte> utf8, StringComparison comparison)
         {
-            Span<char> utf16Buf = stackalloc char[32];
-            do
+            Span<char> utf16Buf = stackalloc char[16];
+
+            if (comparison == StringComparison.Ordinal)
             {
-                var status = Utf8.ToUtf16(utf8, utf16Buf, out int read, out int written);
-                if (status != OperationStatus.Done &&
-                    status != OperationStatus.DestinationTooSmall)
-                    throw new Exception("Failed to convert UTF-8 to UTF-16.");
+                Span<byte> utf8Buf = MemoryMarshal.AsBytes(utf16Buf);
 
-                if (written > utf16.Length)
-                    break;
+                do
+                {
+                    var status = Utf8.FromUtf16(utf16, utf8Buf, out int read16, out int written8);
+                    if (status != OperationStatus.Done &&
+                        status != OperationStatus.DestinationTooSmall)
+                        throw new Exception("Failed to convert UTF-16 to UTF-8.");
 
-                if (!utf16.Slice(0, written).Equals(utf16Buf.Slice(0, written), comparison))
-                    break;
+                    if (written8 > utf8.Length)
+                        break;
 
-                utf16 = utf16[written..];
-                utf8 = utf8[read..];
+                    if (!utf8Buf.Slice(0, written8).SequenceEqual(utf8.Slice(0, written8)))
+                        break;
+
+                    utf16 = utf16[read16..];
+                    utf8 = utf8[written8..];
+                }
+                while (utf16.Length > 0);
+
+                return utf16.IsEmpty;
             }
-            while (utf8.Length > 0);
+            else
+            {
+                do
+                {
+                    var status = Utf8.ToUtf16(utf8, utf16Buf, out int read8, out int written16);
+                    if (status != OperationStatus.Done &&
+                        status != OperationStatus.DestinationTooSmall)
+                        throw new Exception("Failed to convert UTF-8 to UTF-16.");
 
-            return utf8.IsEmpty;
+                    if (written16 > utf16.Length)
+                        break;
+
+                    if (!utf16.Slice(0, written16).Equals(utf16Buf.Slice(0, written16), comparison))
+                        break;
+
+                    utf16 = utf16[written16..];
+                    utf8 = utf8[read8..];
+                }
+                while (utf8.Length > 0);
+
+                return utf8.IsEmpty;
+            }
         }
 
         // TODO: possibly optimize with interning
@@ -316,8 +381,9 @@ namespace MCServerSharp
         public static bool operator ==(Utf8String? left, Utf8String? right)
         {
             if (left is null)
+            {
                 return right is null;
-
+            }
             return left.Equals(right);
         }
 
@@ -326,24 +392,13 @@ namespace MCServerSharp
             return !(left == right);
         }
 
-        public static bool operator <(Utf8String? left, Utf8String? right)
+        public static implicit operator Utf8Memory(Utf8String? value)
         {
-            return left is null ? right is object : left.CompareTo(right) < 0;
-        }
-
-        public static bool operator <=(Utf8String? left, Utf8String? right)
-        {
-            return left is null || left.CompareTo(right) <= 0;
-        }
-
-        public static bool operator >(Utf8String? left, Utf8String? right)
-        {
-            return left is object && left.CompareTo(right) > 0;
-        }
-
-        public static bool operator >=(Utf8String? left, Utf8String? right)
-        {
-            return left is null ? right is null : left.CompareTo(right) >= 0;
+            if (value == null)
+            {
+                return Utf8Memory.Empty;
+            }
+            return Utf8Memory.CreateUnsafe(value._bytes);
         }
     }
 }

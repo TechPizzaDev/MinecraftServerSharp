@@ -22,15 +22,22 @@ namespace MCServerSharp.Collections
             if (type == typeof(string))
             {
                 return randomized
-                    ? (object)new LongStringComparer()
+                    ? new LongStringComparer()
                     : new NonRandomLongStringComparer();
             }
 
             if (type == typeof(Utf8String))
             {
                 return randomized
-                    ? (object)new LongUtf8StringComparer()
+                    ? new LongUtf8StringComparer()
                     : new NonRandomLongUtf8StringComparer();
+            }
+
+            if (type == typeof(Utf8Memory))
+            {
+                return randomized
+                    ? new LongUtf8MemoryComparer()
+                    : new NonRandomLongUtf8MemoryComparer();
             }
 
             if (type == typeof(long))

@@ -56,6 +56,7 @@ namespace MCServerSharp.Net.Packets
             RegisterDataType(typeof(float));
             RegisterDataType(typeof(double));
             RegisterDataType(typeof(Utf8String));
+            RegisterDataType(typeof(Utf8Memory));
             RegisterDataType(typeof(string));
 
             RegisterDataType(typeof(NetBinaryWriter), typeof(Chat));

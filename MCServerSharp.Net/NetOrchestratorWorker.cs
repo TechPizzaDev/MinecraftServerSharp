@@ -121,7 +121,8 @@ namespace MCServerSharp.Net
             // TODO: hold packets and data while closing, 
             //  in case of the client being able to somehow reconnect in the future
 
-            if (!connection.Orchestrator.Codec.Encoder.TryGetPacketIdDefinition(
+            var orchestrator = connection.Orchestrator;
+            if (!orchestrator.Codec.Encoder.TryGetPacketIdDefinition(
                 holder.State, holder.PacketType, out var idDefinition))
             {
                 // We don't really want to continue if we don't even know what we're sending.
@@ -155,7 +156,7 @@ namespace MCServerSharp.Net
                 {
                     compressionBuffer.SetLength(0);
                     compressionBuffer.Position = 0;
-                    using (var compressor = new ZlibStream(compressionBuffer, CompressionLevel.Fastest, true))
+                    using (var compressor = new ZlibStream(compressionBuffer, orchestrator.PacketCompressionLevel, true))
                     {
                         packetWriter.Position = 0;
                         packetWriter.BaseStream.SpanCopyTo(compressor);
@@ -300,6 +301,8 @@ namespace MCServerSharp.Net
 
             writeResult = packetWriteAction.Invoke(
                 packetHolder, _packetWriteBuffer, _packetCompressionBuffer);
+
+            // TODO: packet diagnostics based on packet type, potentially packet data, and write result
 
             return true;
         }

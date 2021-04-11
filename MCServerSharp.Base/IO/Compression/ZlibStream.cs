@@ -2,6 +2,8 @@
 using System.Buffers.Binary;
 using System.IO;
 using System.IO.Compression;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace MCServerSharp.IO.Compression
 {
@@ -79,6 +81,13 @@ namespace MCServerSharp.IO.Compression
             return Read(buffer.AsSpan(offset, count));
         }
 
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            int read = await _deflate.ReadAsync(buffer, cancellationToken);
+            _adlerChecksum = Adler32.Calculate(buffer.Slice(0, read).Span, _adlerChecksum);
+            return read;
+        }
+
         public override int ReadByte()
         {
             Span<byte> buf = stackalloc byte[1];
@@ -99,6 +108,12 @@ namespace MCServerSharp.IO.Compression
             _adlerChecksum = Adler32.Calculate(buffer.AsSpan(offset, count), _adlerChecksum);
         }
 
+        public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            await _deflate.WriteAsync(buffer, cancellationToken);
+            _adlerChecksum = Adler32.Calculate(buffer.Span, _adlerChecksum);
+        }
+
         public override void WriteByte(byte value)
         {
             _deflate.WriteByte(value);
@@ -110,6 +125,11 @@ namespace MCServerSharp.IO.Compression
             _deflate.Flush();
         }
 
+        public override Task FlushAsync(CancellationToken cancellationToken)
+        {
+            return _deflate.FlushAsync(cancellationToken);
+        }
+
         public override long Seek(long offset, SeekOrigin origin)
         {
             throw new NotSupportedException();
@@ -118,6 +138,27 @@ namespace MCServerSharp.IO.Compression
         public override void SetLength(long value)
         {
             throw new NotSupportedException();
+        }
+
+        public override async ValueTask DisposeAsync()
+        {
+            if (_deflate != null)
+            {
+                var baseStream = BaseStream;
+                await _deflate.DisposeAsync().Unchain();
+                _deflate = null!;
+
+                if (_mode == CompressionMode.Compress)
+                {
+                    byte[] checksumBytes = new byte[sizeof(uint)];
+                    BinaryPrimitives.WriteUInt32BigEndian(checksumBytes, _adlerChecksum);
+                    await baseStream.WriteAsync(checksumBytes).Unchain();
+                }
+
+                if (!_leaveOpen)
+                    await baseStream.DisposeAsync().Unchain();
+            }
+            GC.SuppressFinalize(this);
         }
 
         protected override void Dispose(bool disposing)

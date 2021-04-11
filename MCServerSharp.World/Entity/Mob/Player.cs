@@ -1,7 +1,5 @@
-﻿
-using System;
+﻿using System;
 using System.Collections.Generic;
-using MCServerSharp.Collections;
 using MCServerSharp.Maths;
 using MCServerSharp.World;
 
@@ -19,24 +17,24 @@ namespace MCServerSharp.Entities.Mobs
 
         public int ChunkX => (int)Math.Floor(Position.X) / 16;
         public int ChunkZ => (int)Math.Floor(Position.Z) / 16;
-        public ChunkColumnPosition ChunkPosition => new ChunkColumnPosition(ChunkX, ChunkZ);
+        public ChunkColumnPosition ChunkPosition => new(ChunkX, ChunkZ);
 
         public bool ScheduleFullChunkView;
-        public LongHashSet<ChunkColumnPosition> LoadedChunks;
-        public LongHashSet<ChunkColumnPosition> ChunksToUnload;
+        public HashSet<ChunkColumnPosition> LoadedChunks;
+        public HashSet<ChunkColumnPosition> ChunksToUnload;
         public List<List<ChunkColumnPosition>> ChunkLoadLists;
 
-        public LongHashSet<ChunkColumnPosition> ChunkLoadSet; // TODO: get rid of this
+        public HashSet<ChunkColumnPosition> ChunkLoadSet; // TODO: get rid of this
 
         public long SentColumnCount;
 
         public Player(Dimension dimension) : base(dimension)
         {
-            LoadedChunks = new LongHashSet<ChunkColumnPosition>();
-            ChunksToUnload = new LongHashSet<ChunkColumnPosition>();
+            LoadedChunks = new HashSet<ChunkColumnPosition>();
+            ChunksToUnload = new HashSet<ChunkColumnPosition>();
             ChunkLoadLists = new List<List<ChunkColumnPosition>>();
 
-            ChunkLoadSet = new LongHashSet<ChunkColumnPosition>();
+            ChunkLoadSet = new HashSet<ChunkColumnPosition>();
         }
     }
 }

@@ -164,6 +164,11 @@ namespace MCServerSharp.Text
             return new RuneEnumerator(text.Span.EnumerateRunes());
         }
 
+        public static implicit operator RuneEnumerator(Utf8Memory text)
+        {
+            return new RuneEnumerator(text.EnumerateRunes());
+        }
+
         public static implicit operator RuneEnumerator(string? text)
         {
             if (text == null)

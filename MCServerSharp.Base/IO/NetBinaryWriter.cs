@@ -145,35 +145,60 @@ namespace MCServerSharp.Data.IO
 
         public void Write(string? value) // TODO: , bool isBigEndian)
         {
-            WriteString(value, StringHelper.BigUtf16, true);
+            WriteString(value, StringHelper.BigUtf16);
         }
 
         public void WriteRaw(string? value) // TODO: , bool isBigEndian)
         {
-            WriteString(value, StringHelper.BigUtf16, false);
+            WriteStringRaw(value, StringHelper.BigUtf16);
         }
 
         // TODO: optimize
 
-        public void Write(Utf8String? value)
+        public void Write(Utf8String value)
         {
-            WriteString(value?.ToString(), StringHelper.Utf8, true);
+            // TODO: optimize/remove alloc
+            WriteString(value.ToString(), StringHelper.Utf8);
         }
 
-        public void WriteRaw(Utf8String? value)
+        public void WriteRaw(Utf8String value)
         {
-            WriteString(value?.ToString(), StringHelper.Utf8, false);
+            // TODO: optimize/remove alloc
+            WriteStringRaw(value.ToString(), StringHelper.Utf8);
+        }
+
+        public void Write(Utf8Memory value)
+        {
+            // TODO: optimize/remove alloc
+            WriteString(value.ToString(), StringHelper.Utf8);
+        }
+
+        public void WriteRaw(Utf8Memory value)
+        {
+            // TODO: optimize/remove alloc
+            WriteStringRaw(value.ToString(), StringHelper.Utf8);
+        }
+
+        private void WriteString(string? value, Encoding encoding)
+        {
+            if(value == null)
+            {
+                Write((VarInt)0);
+                return;
+            }
+
+            int byteCount = encoding.GetByteCount(value);
+            Write((VarInt)byteCount);
+
+            WriteStringRaw(value, encoding);
         }
 
         [SkipLocalsInit]
-        private void WriteString(string? value, Encoding encoding, bool includeLength)
+        private void WriteStringRaw(string? value, Encoding encoding)
         {
-            value ??= string.Empty;
-
-            int byteCount = encoding.GetByteCount(value);
-            if (includeLength)
-                Write((VarInt)byteCount);
-
+            if (value == null)
+                return;
+            
             int sliceSize = 512;
             int maxBytesPerSlice = encoding.GetMaxByteCount(sliceSize);
             Span<byte> byteBuffer = stackalloc byte[maxBytesPerSlice];

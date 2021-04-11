@@ -2,13 +2,13 @@
 
 namespace MCServerSharp
 {
-    public partial class Utf8String
+    public readonly partial struct Utf8Memory
     {
         public Utf8Splitter EnumerateSplit(
             ReadOnlySpan<byte> separator,
             StringSplitOptions splitOptions = StringSplitOptions.None)
         {
-            return new Utf8Splitter(Bytes, separator, splitOptions);
+            return new Utf8Splitter(Span, separator, splitOptions);
         }
 
         public Utf8Splitter EnumerateSplit(

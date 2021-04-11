@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO.Compression;
 using MCServerSharp.Net.Packets;
 using MCServerSharp.Utility;
 
@@ -32,6 +33,8 @@ namespace MCServerSharp.Net
         public NetPacketCodec Codec { get; }
 
         public ConcurrentDictionary<NetConnection, NetPacketSendQueue> PacketSendQueues { get; } = new();
+
+        public CompressionLevel PacketCompressionLevel { get; set; } = CompressionLevel.Optimal;
 
         public NetOrchestrator(RecyclableMemoryManager memoryManager, NetPacketCodec codec)
         {

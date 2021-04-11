@@ -4,6 +4,8 @@ using System.Buffers.Binary;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace MCServerSharp.Data.IO
 {
@@ -46,6 +48,11 @@ namespace MCServerSharp.Data.IO
             return BaseStream.Read(buffer);
         }
 
+        public ValueTask<int> ReadBytesAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            return BaseStream.ReadAsync(buffer, cancellationToken);
+        }
+
         public int ReadByte()
         {
             return BaseStream.ReadByte();
@@ -61,17 +68,33 @@ namespace MCServerSharp.Data.IO
 
         public OperationStatus Read(Span<byte> buffer)
         {
-            if (Remaining < buffer.Length)
-                return OperationStatus.NeedMoreData;
-
             int read;
             while ((read = ReadBytes(buffer)) > 0)
+            {
                 buffer = buffer[read..];
+            }
 
             if (!buffer.IsEmpty)
+            {
                 // this should not happen if everything else works correctly
                 return OperationStatus.NeedMoreData;
+            }
+            return OperationStatus.Done;
+        }
 
+        public async ValueTask<OperationStatus> ReadAsync(Memory<byte> buffer)
+        {
+            int read;
+            while ((read = await ReadBytesAsync(buffer)) > 0)
+            {
+                buffer = buffer[read..];
+            }
+
+            if (!buffer.IsEmpty)
+            {
+                // this should not happen if everything else works correctly
+                return OperationStatus.NeedMoreData;
+            }
             return OperationStatus.Done;
         }
 
@@ -303,6 +326,13 @@ namespace MCServerSharp.Data.IO
             return Read(length, out value);
         }
 
+        public OperationStatus Read(out Utf8Memory value)
+        {
+            OperationStatus code = Read(out Utf8String str);
+            value = str;
+            return code;
+        }
+
         public unsafe OperationStatus Read(int length, out Utf8String value)
         {
             // length is already in bytes
@@ -316,6 +346,13 @@ namespace MCServerSharp.Data.IO
                 // We can use the string as the backing buffer.
                 state.Code = state.Reader.Read(output);
             });
+            return code;
+        }
+
+        public OperationStatus Read(int length, out Utf8Memory value)
+        {
+            OperationStatus code = Read(length, out Utf8String str);
+            value = str;
             return code;
         }
 

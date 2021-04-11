@@ -58,6 +58,7 @@ namespace MCServerSharp.Net.Packets
             RegisterDataTypeAsOut(typeof(float));
             RegisterDataTypeAsOut(typeof(double));
             RegisterDataTypeAsOut(typeof(Utf8String));
+            RegisterDataTypeAsOut(typeof(Utf8Memory));
             RegisterDataTypeAsOut(typeof(string));
 
             RegisterDataTypeAsOut(typeof(NetBinaryReader), typeof(Identifier));
@@ -78,6 +79,10 @@ namespace MCServerSharp.Net.Packets
         {
             return (NetPacketReaderAction<TPacket>)GetPacketAction(typeof(TPacket));
         }
+
+        // TODO: do special case for Utf8String and Utf8Memory where 
+        // both use big array of memory and share the array between instances
+        // instead of allocating many small array
 
         /// <summary>
         /// 

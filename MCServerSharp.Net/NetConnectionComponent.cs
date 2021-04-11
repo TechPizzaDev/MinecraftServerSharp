@@ -14,6 +14,8 @@ namespace MCServerSharp.Net
 
     public class NetConnectionComponent : Component<NetConnection>, ITickable
     {
+        public int SendRate = 10;
+
         private bool _firstSend = true;
         private Task _sendTask = Task.CompletedTask;
         private List<ValueTask<IChunk>> _taskBuffer = new();
@@ -58,7 +60,7 @@ namespace MCServerSharp.Net
                     _sendTask = Task.Run(async () =>
                     {
                         GatherChunksToSend(player);
-                        await SendChunks(player, _taskBuffer).Unchain();
+                        await SendChunks(SendRate, player, _taskBuffer).Unchain();
                     });
                 }
             }
@@ -88,7 +90,7 @@ namespace MCServerSharp.Net
             Connection.EnqueuePacket(packet);
         }
 
-        private async Task SendChunks(Player player, List<ValueTask<IChunk>> taskBuffer)
+        private async Task SendChunks(int maxChunksToSend, Player player, List<ValueTask<IChunk>> taskBuffer)
         {
             try
             {
@@ -98,7 +100,7 @@ namespace MCServerSharp.Net
 
                 // TODO: get rid of player.ChunkLoadSet
 
-                Collections.LongHashSet<ChunkColumnPosition>? chunksToUnload = player.ChunksToUnload;
+                var chunksToUnload = player.ChunksToUnload;
 
                 foreach (ChunkColumnPosition chunkPos in chunksToUnload)
                 {
@@ -114,7 +116,7 @@ namespace MCServerSharp.Net
                 // TODO: add a completion event to packets
                 //  and add a completion to the last chunk packet
                 //  to predict the connection speed and variate sending rate
-                int maxToSend = 10;
+                int maxToSend = maxChunksToSend;
 
                 foreach (List<ChunkColumnPosition> loadList in player.ChunkLoadLists)
                 {
@@ -154,7 +156,7 @@ namespace MCServerSharp.Net
             {
                 Connection.Kick(ex);
 
-                Console.WriteLine("Failed to send chunks to client: " + ex.Message);
+                Console.WriteLine("Failed to send chunks to client: " + ex);
             }
         }
 
@@ -213,9 +215,9 @@ namespace MCServerSharp.Net
                             player.CameraPosition.X,
                             player.CameraPosition.Z));
 
-                    Console.WriteLine(
-                        player.UserName + " moved from chunk " +
-                        lastCameraPos + " to " + player.CameraPosition);
+                    //Console.WriteLine(
+                    //    player.UserName + " moved from chunk " +
+                    //    lastCameraPos + " to " + player.CameraPosition);
                 }
             }
 

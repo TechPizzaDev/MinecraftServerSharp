@@ -65,7 +65,7 @@ namespace MCServerSharp.Net.Packets
                 writer.WriteVar(biomes);
             }
 
-            int sectionDataLength = GetChunkSectionDataLength(ChunkColumn);
+            int sectionDataLength = GetChunkColumnDataLength(ChunkColumn);
             writer.WriteVar(sectionDataLength);
             WriteChunk(writer, ChunkColumn);
 
@@ -81,7 +81,7 @@ namespace MCServerSharp.Net.Packets
             //}
         }
 
-        public static int GetChunkSectionDataLength(LocalChunkColumn chunkColumn)
+        public static int GetChunkColumnDataLength(LocalChunkColumn chunkColumn)
         {
             if (chunkColumn == null)
                 throw new ArgumentNullException(nameof(chunkColumn));
@@ -91,7 +91,10 @@ namespace MCServerSharp.Net.Packets
             for (int chunkY = 0; chunkY < ColumnHeight; chunkY++)
             {
                 if (chunkColumn.TryGetChunk(chunkY, out LocalChunk? chunk))
-                    length += GetChunkSectionDataLength(chunk);
+                {
+                    JavaCompatibleBlockPalette<IBlockPalette> javaPalette = new(chunk.BlockPalette);
+                    length += GetChunkDataLength(javaPalette);
+                }
             }
 
             return length;
@@ -107,8 +110,11 @@ namespace MCServerSharp.Net.Packets
                 if (chunkColumn.TryGetChunk(chunkY, out LocalChunk? chunk))
                 {
                     LocalChunk.BlockEnumerator blocks = chunk.EnumerateBlocks();
-                    WritePalette(writer, blocks.BlockPalette);
-                    WriteBlocks(writer, ref blocks);
+
+                    JavaCompatibleBlockPalette<IBlockPalette> javaPalette = new(blocks.BlockPalette);
+
+                    WritePalette(writer, javaPalette);
+                    WriteBlocks(writer, ref blocks, javaPalette.BitsPerBlock);
                 }
             }
         }
@@ -120,13 +126,9 @@ namespace MCServerSharp.Net.Packets
             return longCount;
         }
 
-        public static int GetChunkSectionDataLength(IChunk chunk)
+        public static int GetChunkDataLength<TPalette>(TPalette palette)
+            where TPalette : IBlockPalette
         {
-            if (chunk == null)
-                throw new ArgumentNullException(nameof(chunk));
-
-            IBlockPalette palette = chunk.BlockPalette;
-
             int length = 0;
             length += sizeof(short);
             length += sizeof(byte);
@@ -139,8 +141,8 @@ namespace MCServerSharp.Net.Packets
             return length;
         }
 
-        public static void WritePalette(
-            NetBinaryWriter writer, IBlockPalette palette)
+        public static void WritePalette<TPalette>(NetBinaryWriter writer, TPalette palette)
+            where TPalette : IBlockPalette
         {
             int bitsPerBlock = palette.BitsPerBlock;
             int dataLength = GetUnderlyingDataLength(UnderlyingDataSize, bitsPerBlock);
@@ -154,12 +156,9 @@ namespace MCServerSharp.Net.Packets
         [SkipLocalsInit]
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         public static unsafe void WriteBlocks<TBlocks>(
-            NetBinaryWriter writer, ref TBlocks blocks)
+            NetBinaryWriter writer, ref TBlocks blocks, int bitsPerBlock)
             where TBlocks : IBlockEnumerator
         {
-            IBlockPalette palette = blocks.BlockPalette;
-            int bitsPerBlock = palette.BitsPerBlock;
-
             int blocksPerLong = 64 / bitsPerBlock;
             int valueShift = bitsPerBlock * blocksPerLong - bitsPerBlock;
 
@@ -173,9 +172,9 @@ namespace MCServerSharp.Net.Packets
             uint* blockBufferP6 = blockBufferP + blocksPerLong * 6;
             uint* blockBufferP7 = blockBufferP + blocksPerLong * 7;
             Span<uint> fullBlockBuffer = new Span<uint>(blockBufferP, blocksPerLong * 8);
-            Span<uint> halfBlockBuffer = new Span<uint>(blockBufferP, blocksPerLong * 4);
+            Span<uint> quarterBlockBuffer = new Span<uint>(blockBufferP, blocksPerLong * 2);
 
-            int dataBufferLength = 512;
+            int dataBufferLength = 256;
             ulong* dataBufferP = stackalloc ulong[dataBufferLength];
             Span<ulong> dataBuffer = new Span<ulong>(dataBufferP, dataBufferLength);
 
@@ -189,6 +188,12 @@ namespace MCServerSharp.Net.Packets
             ulong bitBuffer6 = 0;
             ulong bitBuffer7 = 0;
 
+            byte bBitsPerBlock = (byte)bitsPerBlock;
+            byte bValueShift = (byte)valueShift;
+
+            Vector128<ulong> vBitsPerBlock = Vector128.Create((ulong)bitsPerBlock);
+            Vector128<ulong> vValueShift = Vector128.Create((ulong)valueShift);
+
             while (blocks.Remaining >= fullBlockBuffer.Length)
             {
                 int consumed = blocks.Consume(fullBlockBuffer);
@@ -200,41 +205,77 @@ namespace MCServerSharp.Net.Packets
                     dataOffset = 0;
                 }
 
-                for (int j = 0; j < blocksPerLong; j++)
+                if (Sse2.IsSupported)
                 {
-                    bitBuffer0 >>= bitsPerBlock;
-                    bitBuffer1 >>= bitsPerBlock;
-                    bitBuffer2 >>= bitsPerBlock;
-                    bitBuffer3 >>= bitsPerBlock;
-                    bitBuffer4 >>= bitsPerBlock;
-                    bitBuffer5 >>= bitsPerBlock;
-                    bitBuffer6 >>= bitsPerBlock;
-                    bitBuffer7 >>= bitsPerBlock;
-                    bitBuffer0 |= (ulong)blockBufferP0[j] << valueShift;
-                    bitBuffer1 |= (ulong)blockBufferP1[j] << valueShift;
-                    bitBuffer2 |= (ulong)blockBufferP2[j] << valueShift;
-                    bitBuffer3 |= (ulong)blockBufferP3[j] << valueShift;
-                    bitBuffer4 |= (ulong)blockBufferP4[j] << valueShift;
-                    bitBuffer5 |= (ulong)blockBufferP5[j] << valueShift;
-                    bitBuffer6 |= (ulong)blockBufferP6[j] << valueShift;
-                    bitBuffer7 |= (ulong)blockBufferP7[j] << valueShift;
+                    Vector128<ulong> vBitBuffer0 = Vector128<ulong>.Zero;
+                    Vector128<ulong> vBitBuffer1 = Vector128<ulong>.Zero;
+                    Vector128<ulong> vBitBuffer2 = Vector128<ulong>.Zero;
+                    Vector128<ulong> vBitBuffer3 = Vector128<ulong>.Zero;
+
+                    for (int j = 0; j < blocksPerLong; j++)
+                    {
+                        vBitBuffer0 = Sse2.ShiftRightLogical(vBitBuffer0, vBitsPerBlock);
+                        vBitBuffer1 = Sse2.ShiftRightLogical(vBitBuffer1, vBitsPerBlock);
+                        vBitBuffer2 = Sse2.ShiftRightLogical(vBitBuffer2, vBitsPerBlock);
+                        vBitBuffer3 = Sse2.ShiftRightLogical(vBitBuffer3, vBitsPerBlock);
+
+                        Vector128<ulong> vBits0 = Vector128.Create(blockBufferP0[j], blockBufferP1[j]).AsUInt64();
+                        Vector128<ulong> vBits1 = Vector128.Create(blockBufferP2[j], blockBufferP3[j]).AsUInt64();
+                        Vector128<ulong> vBits2 = Vector128.Create(blockBufferP4[j], blockBufferP5[j]).AsUInt64();
+                        Vector128<ulong> vBits3 = Vector128.Create(blockBufferP6[j], blockBufferP7[j]).AsUInt64();
+
+                        vBitBuffer0 = Sse2.Or(vBitBuffer0, Sse2.ShiftLeftLogical(vBits0, vValueShift));
+                        vBitBuffer1 = Sse2.Or(vBitBuffer1, Sse2.ShiftLeftLogical(vBits1, vValueShift));
+                        vBitBuffer2 = Sse2.Or(vBitBuffer2, Sse2.ShiftLeftLogical(vBits2, vValueShift));
+                        vBitBuffer3 = Sse2.Or(vBitBuffer3, Sse2.ShiftLeftLogical(vBits3, vValueShift));
+                    }
+
+                    ulong* dataBufferPOff = dataBufferP + dataOffset;
+                    Sse2.Store(dataBufferPOff + 0, vBitBuffer0);
+                    Sse2.Store(dataBufferPOff + 2, vBitBuffer1);
+                    Sse2.Store(dataBufferPOff + 4, vBitBuffer2);
+                    Sse2.Store(dataBufferPOff + 6, vBitBuffer3);
+                    dataOffset += 8;
                 }
-                dataBufferP[dataOffset++] = bitBuffer0;
-                dataBufferP[dataOffset++] = bitBuffer1;
-                dataBufferP[dataOffset++] = bitBuffer2;
-                dataBufferP[dataOffset++] = bitBuffer3;
-                dataBufferP[dataOffset++] = bitBuffer4;
-                dataBufferP[dataOffset++] = bitBuffer5;
-                dataBufferP[dataOffset++] = bitBuffer6;
-                dataBufferP[dataOffset++] = bitBuffer7;
+                else
+                {
+                    for (int j = 0; j < blocksPerLong; j++)
+                    {
+                        bitBuffer0 >>= bitsPerBlock;
+                        bitBuffer1 >>= bitsPerBlock;
+                        bitBuffer2 >>= bitsPerBlock;
+                        bitBuffer3 >>= bitsPerBlock;
+                        bitBuffer4 >>= bitsPerBlock;
+                        bitBuffer5 >>= bitsPerBlock;
+                        bitBuffer6 >>= bitsPerBlock;
+                        bitBuffer7 >>= bitsPerBlock;
+                        bitBuffer0 |= (ulong)blockBufferP0[j] << valueShift;
+                        bitBuffer1 |= (ulong)blockBufferP1[j] << valueShift;
+                        bitBuffer2 |= (ulong)blockBufferP2[j] << valueShift;
+                        bitBuffer3 |= (ulong)blockBufferP3[j] << valueShift;
+                        bitBuffer4 |= (ulong)blockBufferP4[j] << valueShift;
+                        bitBuffer5 |= (ulong)blockBufferP5[j] << valueShift;
+                        bitBuffer6 |= (ulong)blockBufferP6[j] << valueShift;
+                        bitBuffer7 |= (ulong)blockBufferP7[j] << valueShift;
+                    }
+                    dataBufferP[dataOffset++] = bitBuffer0;
+                    dataBufferP[dataOffset++] = bitBuffer1;
+                    dataBufferP[dataOffset++] = bitBuffer2;
+                    dataBufferP[dataOffset++] = bitBuffer3;
+                    dataBufferP[dataOffset++] = bitBuffer4;
+                    dataBufferP[dataOffset++] = bitBuffer5;
+                    dataBufferP[dataOffset++] = bitBuffer6;
+                    dataBufferP[dataOffset++] = bitBuffer7;
+                }
             }
 
-            while (blocks.Remaining >= halfBlockBuffer.Length)
+            // This loop only results in marginal speed increase :)
+            while (blocks.Remaining >= quarterBlockBuffer.Length)
             {
-                int consumed = blocks.Consume(halfBlockBuffer);
-                Debug.Assert(consumed == halfBlockBuffer.Length);
+                int consumed = blocks.Consume(quarterBlockBuffer);
+                Debug.Assert(consumed == quarterBlockBuffer.Length);
 
-                if (dataOffset + 4 >= dataBuffer.Length)
+                if (dataOffset + 2 >= dataBuffer.Length)
                 {
                     writer.Write(dataBuffer.Slice(0, dataOffset));
                     dataOffset = 0;
@@ -244,17 +285,11 @@ namespace MCServerSharp.Net.Packets
                 {
                     bitBuffer0 >>= bitsPerBlock;
                     bitBuffer1 >>= bitsPerBlock;
-                    bitBuffer2 >>= bitsPerBlock;
-                    bitBuffer3 >>= bitsPerBlock;
                     bitBuffer0 |= (ulong)blockBufferP0[j] << valueShift;
                     bitBuffer1 |= (ulong)blockBufferP1[j] << valueShift;
-                    bitBuffer2 |= (ulong)blockBufferP2[j] << valueShift;
-                    bitBuffer3 |= (ulong)blockBufferP3[j] << valueShift;
                 }
                 dataBufferP[dataOffset++] = bitBuffer0;
                 dataBufferP[dataOffset++] = bitBuffer1;
-                dataBufferP[dataOffset++] = bitBuffer2;
-                dataBufferP[dataOffset++] = bitBuffer3;
             }
 
             while (blocks.Remaining > 0)

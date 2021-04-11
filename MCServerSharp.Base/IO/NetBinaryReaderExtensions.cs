@@ -4,6 +4,8 @@ using System.Buffers.Binary;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace MCServerSharp.Data.IO
 {
@@ -43,6 +45,33 @@ namespace MCServerSharp.Data.IO
             while (count > 0);
 
             if(count > 0)
+                return OperationStatus.NeedMoreData;
+
+            return OperationStatus.Done;
+        }
+
+        public static async ValueTask<OperationStatus> WriteToAsync(
+            this NetBinaryReader reader, Stream output, int count, CancellationToken cancellationToken = default)
+        {
+            if (output == null)
+                throw new ArgumentNullException(nameof(output));
+            if (count < 0)
+                throw new ArgumentOutOfRangeException(nameof(count));
+
+            Memory<byte> buffer = new byte[4096];
+            do
+            {
+                int toRead = Math.Min(buffer.Length, count);
+                int read = await reader.ReadBytesAsync(buffer.Slice(0, toRead), cancellationToken).Unchain();
+                if (read == 0)
+                    break;
+
+                await output.WriteAsync(buffer.Slice(0, read), cancellationToken).Unchain();
+                count -= read;
+            }
+            while (count > 0);
+
+            if (count > 0)
                 return OperationStatus.NeedMoreData;
 
             return OperationStatus.Done;

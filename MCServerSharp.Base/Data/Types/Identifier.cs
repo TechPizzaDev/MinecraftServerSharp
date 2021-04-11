@@ -14,8 +14,6 @@ namespace MCServerSharp
         public static string DefaultNamespace { get; } = string.Intern("minecraft");
         public static string Separator { get; } = ":";
 
-        private readonly int _hashCode;
-
         public string Value { get; }
         public string Namespace { get; }
         public string Location { get; }
@@ -53,7 +51,6 @@ namespace MCServerSharp
 
             Namespace = string.IsInterned(parts[0]) ?? parts[0];
             Location = parts[1];
-            _hashCode = Value.GetHashCode();
         }
 
         public Identifier(string @namespace, string location)
@@ -64,7 +61,6 @@ namespace MCServerSharp
             Namespace = @namespace ?? DefaultNamespace;
             Location = location;
             Value = Namespace + Separator + Location;
-            _hashCode = Value.GetHashCode();
         }
 
         #endregion
@@ -135,9 +131,15 @@ namespace MCServerSharp
         public RuneEnumerator EnumerateNamespace() => Namespace;
         public RuneEnumerator EnumerateLocation() => Location;
 
-        public bool Equals(Identifier other, StringComparison comparison) => Value.Equals(other.Value, comparison);
+        public bool Equals(Identifier other, StringComparison comparison)
+        {
+            return Value.Equals(other.Value, comparison);
+        }
 
-        public bool Equals(Identifier other) => Equals(other, StringComparison.Ordinal);
+        public bool Equals(Identifier other)
+        {
+            return Equals(other, StringComparison.Ordinal);
+        }
 
         public override bool Equals(object? obj)
         {
@@ -146,7 +148,7 @@ namespace MCServerSharp
 
         public override int GetHashCode()
         {
-            return _hashCode;
+            return Value.GetHashCode();
         }
 
         public override string ToString()
