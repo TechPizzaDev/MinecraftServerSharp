@@ -58,23 +58,28 @@ namespace MCServerSharp.Data.IO
             if (count < 0)
                 throw new ArgumentOutOfRangeException(nameof(count));
 
-            Memory<byte> buffer = new byte[4096];
-            do
+            byte[] bufferArray = ArrayPool<byte>.Shared.Rent(1024 * 16);
+            try
             {
-                int toRead = Math.Min(buffer.Length, count);
-                int read = await reader.ReadBytesAsync(buffer.Slice(0, toRead), cancellationToken).Unchain();
-                if (read == 0)
-                    break;
+                Memory<byte> buffer = bufferArray;
+                do
+                {
+                    int toRead = Math.Min(buffer.Length, count);
+                    int read = await reader.ReadBytesAsync(buffer.Slice(0, toRead), cancellationToken).Unchain();
+                    if (read == 0)
+                        break;
 
-                await output.WriteAsync(buffer.Slice(0, read), cancellationToken).Unchain();
-                count -= read;
+                    await output.WriteAsync(buffer.Slice(0, read), cancellationToken).Unchain();
+                    count -= read;
+                }
+                while (count > 0);
             }
-            while (count > 0);
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(bufferArray);
+            }
 
-            if (count > 0)
-                return OperationStatus.NeedMoreData;
-
-            return OperationStatus.Done;
+            return count > 0 ? OperationStatus.NeedMoreData : OperationStatus.Done;
         }
 
         public static OperationStatus Read(this NetBinaryReader reader, Span<int> destination)

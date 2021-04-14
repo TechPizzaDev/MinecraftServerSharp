@@ -1,5 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 
 namespace MCServerSharp.Blocks
 {
@@ -7,7 +10,7 @@ namespace MCServerSharp.Blocks
     public class BlockDescription : ILongHashable
     {
         private readonly BlockState[] _states;
-        private readonly IStateProperty[]? _properties;
+        private readonly IStateProperty[] _properties;
         private readonly int _defaultStateIndex;
 
         public Identifier Identifier { get; }
@@ -26,14 +29,32 @@ namespace MCServerSharp.Blocks
             if (!identifier.IsValid)
                 throw new ArgumentException("The identifier is not valid.", nameof(identifier));
 
-            if (properties?.Length == 0)
-                properties = null;
-
             _states = states ?? throw new ArgumentNullException(nameof(states));
-            _properties = properties;
+            _properties = properties ?? Array.Empty<IStateProperty>();
             _defaultStateIndex = defaultStateIndex;
             Identifier = identifier;
             BlockId = id;
+        }
+
+        public IStateProperty GetProperty(Utf8Memory name)
+        {
+            if (TryGetProperty(name, out IStateProperty? property))
+                return property;
+            throw new KeyNotFoundException();
+        }
+
+        public bool TryGetProperty(Utf8Memory name, [MaybeNullWhen(false)] out IStateProperty property)
+        {
+            foreach (IStateProperty prop in _properties)
+            {
+                if (prop.NameUtf8 == name)
+                {
+                    property = prop;
+                    return true;
+                }
+            }
+            property = null;
+            return false;
         }
 
         public BlockState GetMatchingState(ReadOnlySpan<StatePropertyValue> propertyValues)
@@ -46,7 +67,7 @@ namespace MCServerSharp.Blocks
                 }
             }
 
-            Debug.Assert(propertyValues.Length == _properties?.Length);
+            Debug.Assert(propertyValues.Length == _properties.Length);
             return DefaultState;
         }
 

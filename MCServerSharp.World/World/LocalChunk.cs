@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using MCServerSharp.Blocks;
 using MCServerSharp.Components;
@@ -8,7 +9,7 @@ using MCServerSharp.Maths;
 
 namespace MCServerSharp.World
 {
-    public partial class LocalChunk : ComponentEntity, IChunk
+    public unsafe partial class LocalChunk : ComponentEntity, IChunk
     {
         public const int Width = 16;
         public const int Height = 16;
@@ -46,6 +47,8 @@ namespace MCServerSharp.World
             AirBlock = airBlock;
 
             _blocks = GC.AllocateUninitializedArray<uint>(BlockCount, false);
+            //_blocks = (uint*)Marshal.AllocHGlobal(BlockCount * sizeof(uint));
+            //GC.AddMemoryPressure(BlockCount * sizeof(uint));
         }
 
         public BlockEnumerator EnumerateBlocks()
@@ -134,9 +137,15 @@ namespace MCServerSharp.World
             SetBlock(paletteId, index);
         }
 
+        internal Span<uint> GetBlockSpan()
+        {
+            return _blocks;
+            //return new Span<uint>(_blocks, BlockCount);
+        }
+
         public void FillBlock(BlockState block)
         {
-            _blocks.AsSpan().Fill(BlockPalette.IdForBlock(block));
+            GetBlockSpan().Fill(BlockPalette.IdForBlock(block));
 
             if (block == AirBlock)
                 IsEmpty = true;
@@ -146,7 +155,7 @@ namespace MCServerSharp.World
 
         public void FillBlockLevel(BlockState block, int y)
         {
-            _blocks.AsSpan(y * LevelBlockCount, LevelBlockCount).Fill(BlockPalette.IdForBlock(block));
+            GetBlockSpan().Slice(y * LevelBlockCount, LevelBlockCount).Fill(BlockPalette.IdForBlock(block));
             IsEmpty = false;
         }
 
@@ -169,5 +178,12 @@ namespace MCServerSharp.World
         {
             throw new NotImplementedException();
         }
+
+        //~LocalChunk()
+        //{
+        //    Marshal.FreeHGlobal((IntPtr)_blocks);
+        //    _blocks = null;
+        //    GC.RemoveMemoryPressure(BlockCount * sizeof(uint));
+        //}
     }
 }

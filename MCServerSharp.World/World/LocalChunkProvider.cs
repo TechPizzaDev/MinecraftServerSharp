@@ -80,11 +80,19 @@ namespace MCServerSharp.World
                         IndirectBlockPalette palette = ParsePalette(columnManager.GlobalBlockPalette, paletteNbt);
                         chunk = new LocalChunk(column, chunkPosition.Y, palette, columnManager.Air);
 
-                        ReadOnlyMemory<byte> blockStateRawData = blockStatesNbt.GetArrayData(out NbtType dataType);
-                        if (dataType != NbtType.LongArray)
-                            throw new InvalidDataException();
+                        if (palette.Count == 1 &&
+                            palette.BlockForId(0) == columnManager.Air)
+                        {
+                            chunk.FillBlock(columnManager.Air);
+                        }
+                        else
+                        {
+                            ReadOnlyMemory<byte> blockStateRawData = blockStatesNbt.GetArrayData(out NbtType dataType);
+                            if (dataType != NbtType.LongArray)
+                                throw new InvalidDataException();
 
-                        SetBlocksFromData(chunk, palette, MemoryMarshal.Cast<byte, ulong>(blockStateRawData.Span));
+                            SetBlocksFromData(chunk, palette, MemoryMarshal.Cast<byte, ulong>(blockStateRawData.Span));
+                        }
                     }
                     else
                     {
@@ -146,66 +154,82 @@ namespace MCServerSharp.World
             }
         }
 
+        private static Utf8String _paletteNameKey = "Name".ToUtf8String();
+        private static Utf8String _palettePropertiesKey = "Properties".ToUtf8String();
+
         private IndirectBlockPalette ParsePalette(DirectBlockPalette globalPalette, NbtElement element)
         {
-            int blockStateIndex = 0;
-            BlockState[] blockStates = new BlockState[element.GetLength()];
+            ArrayPool<StatePropertyValue> propPool = ArrayPool<StatePropertyValue>.Shared;
+            ArrayPool<char> utf16Pool = ArrayPool<char>.Shared;
 
-            StatePropertyValue[] propertyBuffer = new StatePropertyValue[8];
-            char[] utf16Buffer = new char[32];
-
-            ReadOnlyMemory<char> StoreUtf8(Utf8Memory memory)
+            StatePropertyValue[] propertyBuffer = propPool.Rent(8);
+            char[] utf16Buffer = utf16Pool.Rent(32);
+            try
             {
-                ReadOnlySpan<byte> utf8 = memory.Span;
-                Span<char> utf16 = utf16Buffer;
-                int totalWritten = 0;
+                int blockStateIndex = 0;
+                BlockState[] blockStates = new BlockState[element.GetLength()];
 
-                TryDecode:
-                OperationStatus status = Utf8.ToUtf16(utf8, utf16, out int read, out int written);
-                utf8 = utf8[read..];
-                totalWritten += written;
-
-                if (status == OperationStatus.DestinationTooSmall)
+                ReadOnlyMemory<char> StoreUtf8(Utf8Memory memory)
                 {
-                    Array.Resize(ref utf16Buffer, utf16Buffer.Length * 2);
-                    utf16 = utf16Buffer.AsSpan()[totalWritten..];
-                    goto TryDecode;
-                }
+                    ReadOnlySpan<byte> utf8 = memory.Span;
+                    Span<char> utf16 = utf16Buffer;
+                    int totalWritten = 0;
 
-                return utf16Buffer.AsMemory(0, totalWritten);
-            }
-
-            foreach (NbtElement blockStateNbt in element.EnumerateContainer())
-            {
-                Utf8Memory name = blockStateNbt["Name"].GetUtf8Memory();
-                BlockDescription blockDescription = globalPalette[name];
-                BlockState state = blockDescription.DefaultState;
-
-                if (blockStateNbt.TryGetCompoundElement("Properties", out NbtElement propertiesNbt))
-                {
-                    ReadOnlySpan<IStateProperty> blockProps = blockDescription.Properties.Span;
-
-                    if (propertyBuffer.Length < blockProps.Length)
+                    do
                     {
-                        Array.Resize(ref propertyBuffer, propertyBuffer.Length * 2);
-                    }
+                        OperationStatus status = Utf8.ToUtf16(utf8, utf16, out int read, out int written);
+                        utf8 = utf8[read..];
+                        totalWritten += written;
 
-                    int propIndex = 0;
-                    foreach (IStateProperty prop in blockProps)
-                    {
-                        if (propertiesNbt.TryGetCompoundElement(prop.Name, out NbtElement propNbt))
+                        if (status == OperationStatus.DestinationTooSmall)
                         {
-                            ReadOnlyMemory<char> indexName = StoreUtf8(propNbt.GetUtf8Memory());
-                            propertyBuffer[propIndex++] = prop.GetPropertyValue(indexName);
+                            utf16Pool.Resize(ref utf16Buffer, utf16Buffer.Length * 2);
+                            utf16 = utf16Buffer.AsSpan()[totalWritten..];
                         }
                     }
-                    state = blockDescription.GetMatchingState(propertyBuffer.AsSpan(0, propIndex));
+                    while (utf8.Length > 0);
+
+                    return utf16Buffer.AsMemory(0, totalWritten);
                 }
 
-                blockStates[blockStateIndex++] = state;
-            }
+                foreach (NbtElement blockStateNbt in element.EnumerateContainer())
+                {
+                    Utf8Memory name = blockStateNbt[_paletteNameKey].GetUtf8Memory();
+                    BlockDescription blockDescription = globalPalette[name];
+                    BlockState state = blockDescription.DefaultState;
 
-            return IndirectBlockPalette.CreateUnsafe(blockStates);
+                    if (blockStateNbt.TryGetCompoundElement(_palettePropertiesKey, out NbtElement propertiesNbt))
+                    {
+                        ReadOnlySpan<IStateProperty> blockProps = blockDescription.Properties.Span;
+
+                        if (propertyBuffer.Length < blockProps.Length)
+                        {
+                            int newLength = Math.Max(blockProps.Length, propertyBuffer.Length * 2);
+                            propPool.ReturnRent(ref propertyBuffer, newLength);
+                        }
+
+                        int propIndex = 0;
+                        foreach (IStateProperty prop in blockProps)
+                        {
+                            if (propertiesNbt.TryGetCompoundElement(prop.Name, out NbtElement propNbt))
+                            {
+                                ReadOnlyMemory<char> indexName = StoreUtf8(propNbt.GetUtf8Memory());
+                                propertyBuffer[propIndex++] = prop.GetPropertyValue(indexName);
+                            }
+                        }
+                        state = blockDescription.GetMatchingState(propertyBuffer.AsSpan(0, propIndex));
+                    }
+
+                    blockStates[blockStateIndex++] = state;
+                }
+
+                return IndirectBlockPalette.CreateUnsafe(blockStates);
+            }
+            finally
+            {
+                propPool.Return(propertyBuffer);
+                utf16Pool.Return(utf16Buffer);
+            }
         }
 
         public bool TryGetChunk(ChunkPosition chunkPosition, [MaybeNullWhen(false)] out IChunk chunk)

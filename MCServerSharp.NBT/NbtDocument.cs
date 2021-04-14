@@ -17,10 +17,11 @@ namespace MCServerSharp.NBT
         private ReadOnlyMemory<byte> _data;
         public MetadataDb _metaDb;
         private byte[]? _extraRentedBytes;
+        private ArrayPool<byte>? _pool;
         private (int, string?) _lastIndexAndString = (-1, null);
         private (int, Utf8String?) _lastIndexAndUtf8String = (-1, null);
 
-        internal bool IsDisposable { get; }
+        internal bool IsDisposable => _pool != null;
 
         public NbtOptions Options { get; }
 
@@ -36,18 +37,18 @@ namespace MCServerSharp.NBT
             NbtOptions options,
             MetadataDb parsedData,
             byte[]? extraRentedBytes,
-            bool isDisposable = true)
+            ArrayPool<byte>? pool)
         {
             Debug.Assert(!data.IsEmpty);
 
             _data = data;
             _metaDb = parsedData;
             _extraRentedBytes = extraRentedBytes;
+            _pool = pool;
             Options = options;
-            IsDisposable = isDisposable;
-
+            
             // extraRentedBytes better be null if we're not disposable.
-            Debug.Assert(isDisposable || extraRentedBytes == null);
+            Debug.Assert(IsDisposable || extraRentedBytes == null);
         }
 
         public void Dispose()
@@ -65,7 +66,7 @@ namespace MCServerSharp.NBT
             if (extraRentedBytes != null)
             {
                 extraRentedBytes.AsSpan(0, length).Clear();
-                ArrayPool<byte>.Shared.Return(extraRentedBytes);
+                _pool?.Return(extraRentedBytes);
             }
         }
 
@@ -164,10 +165,10 @@ namespace MCServerSharp.NBT
             return _data[start..end];
         }
 
-        internal ReadOnlyMemory<byte> GetTagName(in DbRow row)
+        internal Utf8Memory GetTagName(in DbRow row)
         {
             if (!row.Flags.HasFlag(NbtFlags.Named))
-                return ReadOnlyMemory<byte>.Empty;
+                return Utf8Memory.Empty;
 
             ReadOnlyMemory<byte> segment = _data[row.Location..];
 
@@ -175,10 +176,10 @@ namespace MCServerSharp.NBT
                 segment = SkipTagType(segment);
 
             int nameLength = ReadStringLength(segment.Span, Options, out int lengthBytes);
-            return segment.Slice(lengthBytes, nameLength);
+            return Utf8Memory.CreateUnsafe(segment.Slice(lengthBytes, nameLength));
         }
 
-        internal ReadOnlyMemory<byte> GetTagName(int index)
+        internal Utf8Memory GetTagName(int index)
         {
             AssertNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
@@ -419,14 +420,14 @@ namespace MCServerSharp.NBT
         internal NbtElement CloneTag(int index)
         {
             int endIndex = GetEndIndex(index);
-            MetadataDb newDb = _metaDb.CopySegment(index, endIndex);
+            MetadataDb newDb = _metaDb.CopySegment(index, endIndex, _pool);
 
             var segment = GetRawData(index);
             var segmentCopy = new byte[segment.Length];
             segment.CopyTo(segmentCopy);
 
             var newDocument = new NbtDocument(
-                segmentCopy, Options, newDb, null, isDisposable: false);
+                segmentCopy, Options, newDb, null, null);
 
             return newDocument.RootTag;
         }
@@ -467,15 +468,6 @@ namespace MCServerSharp.NBT
                 throw new NotImplementedException();
                 //ReadOnlySpan<byte> segment = data.Slice(row.Location, gib length here);
                 //writer.WriteRaw(segment);
-            }
-        }
-
-        private static void ClearAndReturn(ArraySegment<byte> rented)
-        {
-            if (rented.Array != null)
-            {
-                rented.AsSpan().Clear();
-                ArrayPool<byte>.Shared.Return(rented.Array);
             }
         }
 

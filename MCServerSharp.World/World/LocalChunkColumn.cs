@@ -12,7 +12,7 @@ namespace MCServerSharp.World
     public class LocalChunkColumn : IChunkColumn
     {
         private ReaderWriterLockSlim _chunkLock = new();
-        private Dictionary<int, LocalChunk> _chunks = new();
+        private Dictionary<int, LocalChunk> _chunks = new(18); // 16 chunk + 2 empty light chunks
 
         internal NbtDocument? _encodedColumn;
         internal Dictionary<int, NbtElement>? _chunksToDecode;

@@ -81,6 +81,23 @@ namespace MCServerSharp.Net.Packets
             return (NetPacketWriterAction<TPacket>)GetPacketAction(typeof(TPacket));
         }
 
+        private static void TryAddDisposableCall(ParameterExpression packetParam, List<Expression> expressions)
+        {
+            if (!typeof(IDisposable).IsAssignableFrom(packetParam.Type))
+            {
+                return;
+            }
+
+            var disposeMethod = packetParam.Type.GetMethod(nameof(IDisposable.Dispose));
+            if (disposeMethod == null)
+            {
+                throw new Exception(
+                    $"Failed to get public {nameof(IDisposable.Dispose)} method required for reflection.");
+            }
+            var disposeCall = Expression.Call(packetParam, disposeMethod);
+            expressions.Add(disposeCall);
+        }
+
         public override Delegate CreatePacketAction(PacketStructInfo structInfo)
         {
             // TODO: add support IDisposable
@@ -94,9 +111,10 @@ namespace MCServerSharp.Net.Packets
                 string methodName = nameof(IDataWritable.WriteTo);
                 var writeMethod = structInfo.Type.GetMethod(methodName, new[] { writerParam.Type });
                 if (writeMethod == null)
+                {
                     throw new Exception(
                         $"Failed to get public {nameof(IDataWritable.WriteTo)} method required for reflection.");
-
+                }
                 var writeCall = Expression.Call(packetParam, writeMethod, writerParam);
                 expressions.Add(writeCall);
             }
@@ -104,6 +122,8 @@ namespace MCServerSharp.Net.Packets
             {
                 ReflectiveWrite(expressions, writerParam, packetParam);
             }
+
+            TryAddDisposableCall(packetParam, expressions);
 
             var actionType = typeof(NetPacketWriterAction<>).MakeGenericType(structInfo.Type);
             var lambdaBody = Expression.Block(expressions);
@@ -179,17 +199,57 @@ namespace MCServerSharp.Net.Packets
 
                     DataSerializeMode elementMode = dataEnumerable.ElementMode;
 
-                    // TODO: Span and Memory
-                    if (propExpresion.Type.IsArray)
+                    Type propType = propExpresion.Type;
+                    Type propGenericDef = propType.IsGenericType
+                        ? propType.GetGenericTypeDefinition()
+                        : propType;
+
+                    bool isROSpan = propGenericDef == typeof(ReadOnlySpan<>);
+                    bool isSpan = propGenericDef == typeof(Span<>);
+                    bool isROMemory = propGenericDef == typeof(ReadOnlyMemory<>);
+                    bool isMemory = propGenericDef == typeof(Memory<>);
+                    bool isSpanOrMemory = isROSpan || isSpan || isROMemory || isMemory;
+
+                    if (propType.IsArray || isSpanOrMemory)
                     {
-                        Type elementType = propExpresion.Type.GetElementType()!;
+                        Type elementType = isSpanOrMemory 
+                            ? propType.GenericTypeArguments[0]
+                            : propType.GetElementType()!;
+
                         elementMode = PickModeByType(elementMode, elementType);
 
                         if (elementMode == DataSerializeMode.Copy)
                         {
-                            var blitMethod = BlitArrayMethod.MakeGenericMethod(elementType);
-                            var call = Expression.Call(blitMethod, writerParam, propExpresion);
-                            collectionExpressions.Add(call);
+                            var blitMethod = BlitSpanMethod.MakeGenericMethod(elementType);
+
+                            var spanField = Expression.Variable(typeof(ReadOnlySpan<>).MakeGenericType(elementType));
+                            collectionVariables.Add(spanField);
+
+                            if (isROSpan)
+                            {
+                                collectionExpressions.Add(Expression.Assign(spanField, propExpresion));
+                            }
+                            else if (isROMemory)
+                            {
+                                collectionExpressions.Add(Expression.Assign(
+                                    spanField, Expression.Property(propExpresion, "Span")));
+                            }
+                            else if (isMemory)
+                            {
+                                collectionExpressions.Add(Expression.Assign(
+                                    spanField,
+                                    Expression.Convert(
+                                        Expression.Property(propExpresion, "Span"), spanField.Type)));
+                            }
+                            else // if (isSpan || isArray)
+                            {
+                                collectionExpressions.Add(Expression.Assign(
+                                    spanField,
+                                    Expression.Convert(propExpresion, spanField.Type)));
+                            }
+
+                            var writerCall = Expression.Call(blitMethod, writerParam, spanField);
+                            collectionExpressions.Add(writerCall);
                         }
                         else
                         {
@@ -219,7 +279,7 @@ namespace MCServerSharp.Net.Packets
                     }
                     else
                     {
-                        var getEnumeratorMethod = propExpresion.Type.GetMethod(
+                        var getEnumeratorMethod = propType.GetMethod(
                             "GetEnumerator", BindingFlags.Instance | BindingFlags.Public);
                         if (getEnumeratorMethod == null)
                             throw new Exception($"Property {propExpresion} is missing a \"GetEnumerator\" method.");
@@ -270,7 +330,8 @@ namespace MCServerSharp.Net.Packets
                 {
                     // TODO: Call WriteElement first as it may throw more descriptive errors.
                     var writeExpressions = new List<Expression>();
-                    ReflectiveWriteElement(propInfo.PropertyAttrib.SerializeMode, writeExpressions, writerParam, propExpresion);
+                    ReflectiveWriteElement(
+                        propInfo.PropertyAttrib.SerializeMode, writeExpressions, writerParam, propExpresion);
 
                     TryApplyLengthPrefix(expressions, propInfo, writerParam, instance);
                     expressions.AddRange(writeExpressions);
@@ -308,8 +369,12 @@ namespace MCServerSharp.Net.Packets
 
                 if (moveNextMethod == null)
                     throw new ArgumentException("The enumerator does not have a \"MoveNext\" method.");
+
                 if (moveNextMethod.ReturnType != typeof(bool))
-                    throw new ArgumentException("The enumerator's \"MoveNext\" method does not return a boolean}.");
+                {
+                    throw new ArgumentException(
+                        "The enumerator's \"MoveNext\" method does not return a boolean}.");
+                }
             }
 
             {
@@ -329,7 +394,10 @@ namespace MCServerSharp.Net.Packets
 
             mode = PickModeByType(mode, instance.Type);
 
-            void AddMethodCall(ParameterExpression? writerParam, MethodInfo writeMethod, Expression[] arguments)
+            void AddMethodCall(
+                ParameterExpression? writerParam,
+                MethodInfo writeMethod,
+                Expression[] arguments)
             {
                 expressions.Add(Expression.Call(writerParam, writeMethod, arguments));
             }
@@ -343,11 +411,12 @@ namespace MCServerSharp.Net.Packets
                 if (!DataTypeHandlers.TryGetValue(enumTypeKey, out var writeMethod))
                     throw new Exception("Missing enum write method for \"" + enumTypeKey + "\".");
 
-                AddMethodCall(writerParam, writeMethod, new[] { Expression.Convert(instance, writeType) });
+                var args = new[] { Expression.Convert(instance, writeType) };
+                AddMethodCall(writerParam, writeMethod, args);
             }
             else
             {
-                Type writeType = instance.Type;
+                Type? writeType = instance.Type;
 
                 var writeInfos = new[]
                 {
@@ -357,10 +426,10 @@ namespace MCServerSharp.Net.Packets
 
                     (Writer: null,
                     Args: new Expression[] { writerParam, instance },
-                    Key: new DataTypeKey(typeof(void), typeof(NetBinaryWriter), writeType)),
+                    Key: new DataTypeKey(typeof(void), typeof(NetBinaryWriter), writeType))
                 };
 
-                foreach (var (Writer, Args, Key) in writeInfos)
+                foreach ((var Writer, var Args, var Key) in writeInfos)
                 {
                     if (DataTypeHandlers.TryGetValue(Key, out var writeMethod))
                     {
@@ -375,10 +444,11 @@ namespace MCServerSharp.Net.Packets
                     if (!DataObjectActions.TryGetValue(writeType, out var writeDelegate))
                     {
                         var writeBody = new List<Expression>();
+                        var writeVariables = new List<ParameterExpression>();
                         var instanceParam = Expression.Parameter(writeType, "Instance");
                         ReflectiveWrite(writeBody, writerParam, instanceParam);
 
-                        var writeBlock = Expression.Block(writeBody);
+                        var writeBlock = Expression.Block(writeVariables, writeBody);
                         var writeLambda = Expression.Lambda(writeBlock, new[] { writerParam, instanceParam });
 
                         writeDelegate = writeLambda.Compile();
@@ -458,19 +528,21 @@ namespace MCServerSharp.Net.Packets
         public static Expression CollectionLength(Expression instance)
         {
             if (instance.Type.GetGenericTypeDefinition() == typeof(ICollection<>))
-                return Expression.Property(instance, typeof(ICollection<>).GetProperty("Count"));
+                return Expression.Property(instance, typeof(ICollection<>).GetProperty("Count")!);
 
             if (instance.Type.GetGenericTypeDefinition() == typeof(IReadOnlyCollection<>))
-                return Expression.Property(instance, typeof(IReadOnlyCollection<>).GetProperty("Count"));
+                return Expression.Property(instance, typeof(IReadOnlyCollection<>).GetProperty("Count")!);
 
             throw new Exception(
                 $"The expression is not of type {typeof(ICollection<>).Name} or {typeof(IReadOnlyCollection<>).Name}.");
         }
 
-        public static MethodInfo BlitArrayMethod { get; } =
-            ((Action<NetBinaryWriter, int[]>)BlitArray).Method.GetGenericMethodDefinition();
+        private delegate void BlitSpanDelegateHelper(NetBinaryWriter writer, ReadOnlySpan<int> span);
 
-        public static void BlitArray<T>(NetBinaryWriter writer, T[] array)
+        public static MethodInfo BlitSpanMethod { get; } =
+            ((BlitSpanDelegateHelper)BlitSpan).Method.GetGenericMethodDefinition();
+
+        public static void BlitSpan<T>(NetBinaryWriter writer, ReadOnlySpan<T> span)
             where T : unmanaged
         {
             if (typeof(T) == typeof(short))
@@ -487,7 +559,7 @@ namespace MCServerSharp.Net.Packets
             }
             else if (typeof(T) == typeof(int))
             {
-                var ints = MemoryMarshal.Cast<T, int>(array.AsSpan());
+                var ints = MemoryMarshal.Cast<T, int>(span);
                 writer.Write(ints);
             }
             else if (typeof(T) == typeof(uint))
@@ -498,17 +570,17 @@ namespace MCServerSharp.Net.Packets
             }
             else if (typeof(T) == typeof(long))
             {
-                var longs = MemoryMarshal.Cast<T, long>(array.AsSpan());
+                var longs = MemoryMarshal.Cast<T, long>(span);
                 writer.Write(longs);
             }
             else if (typeof(T) == typeof(ulong))
             {
-                var longs = MemoryMarshal.Cast<T, ulong>(array.AsSpan());
+                var longs = MemoryMarshal.Cast<T, ulong>(span);
                 writer.Write(longs);
             }
             else
             {
-                var bytes = MemoryMarshal.AsBytes(array.AsSpan());
+                var bytes = MemoryMarshal.AsBytes(span);
                 writer.Write(bytes);
             }
         }

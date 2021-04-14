@@ -34,9 +34,9 @@ namespace MCServerSharp.NBT
 
         public NbtFlags Flags => _parent?.GetFlags(_index) ?? NbtFlags.None;
 
-        public ReadOnlyMemory<byte> Name => _parent != null
+        public Utf8Memory Name => _parent != null
             ? _parent.GetTagName(_index)
-            : ReadOnlyMemory<byte>.Empty;
+            : Utf8Memory.Empty;
 
         /// <summary>
         /// Creates a <see cref="Utf8String"/> from <see cref="Name"/>.
@@ -99,7 +99,7 @@ namespace MCServerSharp.NBT
 
         public bool TryGetCompoundElement(
             ReadOnlySpan<byte> utf8Name, out NbtElement element,
-            StringComparison comparison = StringComparison.OrdinalIgnoreCase)
+            StringComparison comparison = StringComparison.Ordinal)
         {
             AssertValidInstance(NbtType.Compound);
 
@@ -117,14 +117,14 @@ namespace MCServerSharp.NBT
 
         public bool TryGetCompoundElement(
             Utf8Memory utf8Name, out NbtElement element,
-            StringComparison comparison = StringComparison.OrdinalIgnoreCase)
+            StringComparison comparison = StringComparison.Ordinal)
         {
             return TryGetCompoundElement(utf8Name.Span, out element, comparison);
         }
 
         // TODO: replace with Utf8Span
         public NbtElement GetCompoundElement(
-            ReadOnlySpan<byte> utf8Name, StringComparison comparison = StringComparison.OrdinalIgnoreCase)
+            ReadOnlySpan<byte> utf8Name, StringComparison comparison = StringComparison.Ordinal)
         {
             if (TryGetCompoundElement(utf8Name, out NbtElement element, comparison))
             {
@@ -134,7 +134,7 @@ namespace MCServerSharp.NBT
         }
 
         public NbtElement GetCompoundElement(
-            Utf8Memory utf8Name, StringComparison comparison = StringComparison.OrdinalIgnoreCase)
+            Utf8Memory utf8Name, StringComparison comparison = StringComparison.Ordinal)
         {
             if (TryGetCompoundElement(utf8Name.Span, out NbtElement element, comparison))
             {
@@ -146,7 +146,7 @@ namespace MCServerSharp.NBT
         public bool TryGetCompoundElement(
             ReadOnlySpan<char> name,
             out NbtElement element,
-            StringComparison comparison = StringComparison.OrdinalIgnoreCase)
+            StringComparison comparison = StringComparison.Ordinal)
         {
             AssertValidInstance(NbtType.Compound);
 
@@ -163,7 +163,7 @@ namespace MCServerSharp.NBT
         }
 
         public NbtElement GetCompoundElement(
-            ReadOnlySpan<char> name, StringComparison comparison = StringComparison.OrdinalIgnoreCase)
+            ReadOnlySpan<char> name, StringComparison comparison = StringComparison.Ordinal)
         {
             if (TryGetCompoundElement(name, out NbtElement element, comparison))
             {

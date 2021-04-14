@@ -1,6 +1,10 @@
 ﻿using System;
+using System.Buffers;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks;
 using MCServerSharp.Collections;
 
 namespace MCServerSharp.NBT
@@ -10,12 +14,16 @@ namespace MCServerSharp.NBT
         [SkipLocalsInit]
         private static NbtDocument Parse(
             ReadOnlyMemory<byte> data,
-            NbtOptions options,
+            NbtOptions? options,
             byte[]? extraRentedBytes,
+            ArrayPool<byte>? pool,
             out int bytesConsumed)
         {
+            pool ??= ArrayPool<byte>.Shared;
+            NbtOptions nbtOptions = options ?? NbtOptions.JavaDefault;
+
             ReadOnlySpan<byte> dataSpan = data.Span;
-            MetadataDb database = new(data.Length);
+            MetadataDb database = new(pool, data.Length);
 
             ByteStack<NbtReader.ContainerFrame> readerStack;
             unsafe
@@ -24,7 +32,7 @@ namespace MCServerSharp.NBT
                 Span<NbtReader.ContainerFrame> stackSpan = new(stackBuffer, NbtOptions.DefaultMaxDepth);
                 readerStack = new(stackSpan, clearOnReturn: false);
             }
-            NbtReaderState readerState = new(readerStack, options);
+            NbtReaderState readerState = new(readerStack, nbtOptions);
             NbtReader reader = new(dataSpan, isFinalBlock: true, readerState);
 
             ByteStack<ContainerFrame> docStack;
@@ -52,7 +60,7 @@ namespace MCServerSharp.NBT
                 docStack.Dispose();
             }
 
-            return new NbtDocument(data, options, database, extraRentedBytes, isDisposable: true);
+            return new NbtDocument(data, nbtOptions, database, extraRentedBytes, pool);
         }
 
         // TODO:
@@ -61,15 +69,50 @@ namespace MCServerSharp.NBT
         //
         //}
 
-        //public static Task<NbtDocument> ParseAsync(Stream data, NbtOptions? options = default)
-        //{
-        //
-        //}
+        public static async Task<NbtDocument> ParseAsync(
+            Stream data, NbtOptions? options, ArrayPool<byte>? pool, CancellationToken cancellationToken)
+        {
+            pool ??= ArrayPool<byte>.Shared;
+
+            int initialBufferLength = 1024 * 64;
+            if (data.CanSeek)
+                initialBufferLength = (int)(data.Length - data.Position);
+
+            byte[] bufferArray = pool.Rent(initialBufferLength);
+            try
+            {
+                int totalRead = 0;
+                int read = 0;
+                do
+                {
+                    Memory<byte> buffer = bufferArray.AsMemory(totalRead);
+                    if (buffer.Length == 0)
+                    {
+                        byte[] oldBufferArray = bufferArray;
+                        bufferArray = pool.Rent(bufferArray.Length * 2);
+                        Buffer.BlockCopy(oldBufferArray, 0, bufferArray, 0, totalRead);
+                        pool.Return(oldBufferArray);
+                        continue;
+                    }
+
+                    read = await data.ReadAsync(buffer, cancellationToken).Unchain();
+                    totalRead += read;
+                }
+                while (read > 0);
+
+                return Parse(bufferArray.AsMemory(0, totalRead), options, bufferArray, pool, out _);
+            }
+            catch
+            {
+                pool.Return(bufferArray, true);
+                throw;
+            }
+        }
 
         public static NbtDocument Parse(
-            ReadOnlyMemory<byte> data, out int bytesConsumed, NbtOptions? options = default)
+            ReadOnlyMemory<byte> data, out int bytesConsumed, NbtOptions? options = default, ArrayPool<byte>? pool = null)
         {
-            return Parse(data, options ?? NbtOptions.JavaDefault, null, out bytesConsumed);
+            return Parse(data, options, null, pool, out bytesConsumed);
         }
 
         //public static NbtDocument ParseValue(ref NbtReader reader)

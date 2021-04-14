@@ -2,12 +2,14 @@
 
 namespace MCServerSharp.Blocks
 {
-    public readonly struct StatePropertyValue : IStateProperty, IEquatable<StatePropertyValue>
+    public readonly struct StatePropertyValue : 
+        IStateProperty, IEquatable<StatePropertyValue>, IComparable<StatePropertyValue>
     {
         public IStateProperty Property { get; }
         public int Index { get; }
 
         public string Name => Property.Name;
+        public Utf8String NameUtf8 => Property.NameUtf8;
         public Type ElementType => Property.ElementType;
         public int Count => Property.Count;
 
@@ -25,6 +27,11 @@ namespace MCServerSharp.Blocks
         public StatePropertyValue GetPropertyValue(int index)
         {
             return Property.GetPropertyValue(index);
+        }
+
+        public int CompareTo(StatePropertyValue other)
+        {
+            return NameUtf8.CompareTo(other.NameUtf8);
         }
 
         public bool Equals(StatePropertyValue other)

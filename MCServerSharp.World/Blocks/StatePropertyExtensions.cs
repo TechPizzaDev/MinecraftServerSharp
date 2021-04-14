@@ -13,5 +13,15 @@ namespace MCServerSharp.Blocks
         {
             return property.GetPropertyValue(property.GetIndex(name));
         }
+
+        public static StatePropertyValue GetPropertyValue(this IStateProperty property, string? name)
+        {
+            return property.GetPropertyValue(name.AsMemory());
+        }
+
+        public static StatePropertyValue<T> GetPropertyValue<T>(this IStateProperty<T> property, string? name)
+        {
+            return property.GetPropertyValue(name.AsMemory());
+        }
     }
 }

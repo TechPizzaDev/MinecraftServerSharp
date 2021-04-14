@@ -4,9 +4,9 @@ using MCServerSharp.Text;
 
 namespace MCServerSharp
 {
-    public readonly partial struct Utf8Memory : 
+    public readonly partial struct Utf8Memory :
         IComparable<Utf8Memory>, IComparable<Utf8String>,
-        IEquatable<Utf8Memory>, IEquatable<Utf8String>, 
+        IEquatable<Utf8Memory>, IEquatable<Utf8String>,
         ILongHashable
     {
         public static Utf8Memory Empty => default;
@@ -64,9 +64,6 @@ namespace MCServerSharp
 
         public bool Equals(Utf8Memory other, StringComparison comparison)
         {
-            if (comparison == StringComparison.Ordinal)
-                return Span.SequenceEqual(other.Span);
-
             return Utf8String.Equals(Span, other.Span, comparison);
         }
 

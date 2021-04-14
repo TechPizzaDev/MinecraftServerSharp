@@ -1,10 +1,11 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 
 namespace MCServerSharp.Net.Packets
 {
     [PacketStruct(ServerPacketId.UpdateLight)]
-    public readonly struct ServerUpdateLight
+    public readonly struct ServerUpdateLight : IDisposable
     {
         [DataProperty(0)] public VarInt ChunkX { get; }
         [DataProperty(1)] public VarInt ChunkY { get; }
@@ -22,19 +23,23 @@ namespace MCServerSharp.Net.Packets
         [DataEnumerable]
         public List<LightArray> BlockLightArrays { get; }
 
+        public ArrayPool<byte>? Pool { get; }
+
         public ServerUpdateLight(
             VarInt chunkX,
-            VarInt chunkY, 
+            VarInt chunkY,
             bool trustEdges,
-            VarInt skyLightMask, 
-            VarInt blockLightMask, 
+            VarInt skyLightMask,
+            VarInt blockLightMask,
             VarInt emptySkyLightMask,
             VarInt emptyBlockLightMask,
             List<LightArray> skyLightArrays,
-            List<LightArray> blockLightArrays)
+            List<LightArray> blockLightArrays,
+            ArrayPool<byte>? pool)
         {
             SkyLightArrays = skyLightArrays ?? throw new ArgumentNullException(nameof(skyLightArrays));
             BlockLightArrays = blockLightArrays ?? throw new ArgumentNullException(nameof(blockLightArrays));
+            Pool = pool ?? throw new ArgumentNullException(nameof(pool));
 
             ChunkX = chunkX;
             ChunkY = chunkY;
@@ -44,19 +49,44 @@ namespace MCServerSharp.Net.Packets
             EmptySkyLightMask = emptySkyLightMask;
             EmptyBlockLightMask = emptyBlockLightMask;
         }
+
+        public void Dispose()
+        {
+            if (Pool != null)
+            {
+                foreach (var array in SkyLightArrays)
+                    array.Return(Pool);
+
+                foreach (var array in BlockLightArrays)
+                    array.Return(Pool);
+            }
+        }
     }
-    
+
     [DataObject]
-    public class LightArray
+    public unsafe readonly struct LightArray
     {
+        public const int Length = 2048;
+
+        private readonly byte[] _data;
+
         [DataProperty(0)]
         [DataEnumerable]
         [DataLengthPrefixed(typeof(VarInt))]
-        public byte[] Array { get; }
+        public Span<byte> Data => _data.AsSpan(0, Length);
 
-        public LightArray()
+        public LightArray(byte[] data)
         {
-            Array = new byte[2048];
+            _data = data;
+        }
+
+        public LightArray(ArrayPool<byte> pool) : this(pool.Rent(Length))
+        {
+        }
+
+        public void Return(ArrayPool<byte> pool)
+        {
+            pool.Return(_data);
         }
     }
 }

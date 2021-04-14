@@ -3,11 +3,20 @@ namespace MCServerSharp.Components
 {
     public class ComponentEntity : IComponentEntity
     {
-        public ComponentCollection Components { get; }
+        private ComponentCollection? _components;
+
+        public ComponentCollection Components
+        {
+            get
+            {
+                if (_components == null)
+                    _components = new ComponentCollection();
+                return _components;
+            }
+        }
 
         public ComponentEntity()
         {
-            Components = new ComponentCollection();
         }
     }
 }

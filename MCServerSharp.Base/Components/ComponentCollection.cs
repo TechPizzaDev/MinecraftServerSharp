@@ -14,9 +14,12 @@ namespace MCServerSharp.Components
     /// </summary>
     public class ComponentCollection : IReadOnlyCollection<Component>, ITickable
     {
+        private static List<Component> _emptyComponents = new();
+        private static List<ITickable> _emptyTickables = new();
+
         // TODO: consider swapping between list and hashset if 
         // a component amount threshold is reached
-        
+
         private List<Component> _components;
         private List<ITickable> _tickables;
 
@@ -24,8 +27,8 @@ namespace MCServerSharp.Components
 
         public ComponentCollection()
         {
-            _components = new List<Component>();
-            _tickables = new List<ITickable>();
+            _components = _emptyComponents;
+            _tickables = _emptyTickables;
         }
 
         public TComponent Get<TComponent>()
@@ -85,7 +88,7 @@ namespace MCServerSharp.Components
         }
 
         public TComponent GetOrAdd<TState, TComponent>(
-            [AllowNull] TState state, 
+            [AllowNull] TState state,
             GetOrAddFactory<TState, TComponent> factory)
             where TComponent : Component
         {
@@ -126,8 +129,16 @@ namespace MCServerSharp.Components
                 throw new InvalidOperationException();
 
             if (component is ITickable tickable)
+            {
+                if (_tickables == _emptyTickables)
+                    _tickables = new();
                 _tickables.Add(tickable);
+            }
+
+            if (_components == _emptyComponents)
+                _components = new();
             _components.Add(component);
+
             return component;
         }
 

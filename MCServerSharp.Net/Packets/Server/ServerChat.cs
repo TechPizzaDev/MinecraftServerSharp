@@ -2,7 +2,7 @@
 namespace MCServerSharp.Net.Packets
 {
     [PacketStruct(ServerPacketId.ChatMessage)]
-    public readonly partial struct ServerChat
+    public readonly struct ServerChat
     {
         [DataProperty(0)] public Chat JsonData { get; }
         [DataProperty(1)] public byte Position { get; }

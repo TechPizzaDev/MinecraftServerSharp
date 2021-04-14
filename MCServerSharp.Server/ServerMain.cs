@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -43,7 +44,7 @@ namespace MCServerSharp.Server
         private static ConcurrentQueue<Player> _leavingPlayers = new();
 
         // TODO: use source generators for these enums
-        private static (Type, HashSet<string>)[] _stateEnumSets = new[]
+        private static (Func<string, IStateProperty>, HashSet<string>)[] _stateEnumSets = new[]
         {
             GetEnumSet<Axis>(),
             GetEnumSet<HorizontalAxis>(),
@@ -332,7 +333,7 @@ namespace MCServerSharp.Server
             }
         }
 
-        static (Type, HashSet<string>) GetEnumSet<TEnum>()
+        static (Func<string, IStateProperty>, HashSet<string>) GetEnumSet<TEnum>()
             where TEnum : struct, Enum
         {
             string[] names = typeof(TEnum).GetEnumNames();
@@ -343,8 +344,7 @@ namespace MCServerSharp.Server
                 set.Add(dataName);
             }
 
-            Type type = typeof(EnumStateProperty<TEnum>);
-            return (type, set);
+            return ((name) => new EnumStateProperty<TEnum>(name), set);
         }
 
         private static IStateProperty ParseStateProperty(string name, HashSet<string> values)
@@ -374,14 +374,13 @@ namespace MCServerSharp.Server
             if (isIntProperty)
                 return new IntegerStateProperty(name, min, max);
 
-            foreach ((Type propertyType, HashSet<string> enumValues) in _stateEnumSets)
+            foreach ((Func<string, IStateProperty> factory, HashSet<string> enumValues) in _stateEnumSets)
             {
                 if (enumValues.SetEquals(values))
                 {
-                    object? enumProperty = Activator.CreateInstance(propertyType, name);
-                    if (enumProperty == null)
-                        throw new Exception("Failed to create enum property.");
-                    return (IStateProperty)enumProperty;
+                    IStateProperty enumProperty = factory.Invoke(name);
+                    Debug.Assert(enumProperty != null, "Failed to create enum property.");
+                    return enumProperty;
                 }
             }
 
@@ -463,25 +462,18 @@ namespace MCServerSharp.Server
                     {
                         propValues = new StatePropertyValue[blockProps.Length];
                         JsonElement statePropsObject = stateObject.GetProperty("properties");
-                        int propertyIndex = 0;
-                        foreach (JsonProperty statePropProp in statePropsObject.EnumerateObject())
+
+                        for (int propIndex = 0; propIndex < blockProps.Length; propIndex++)
                         {
-                            IStateProperty? blockStateProp = null;
-                            foreach (IStateProperty blockProp in blockProps)
-                            {
-                                if (statePropProp.NameEquals(blockProp.Name))
-                                {
-                                    blockStateProp = blockProp;
-                                    break;
-                                }
-                            }
-                            if (blockStateProp == null)
+                            IStateProperty blockProp = blockProps[propIndex];
+                            if (!statePropsObject.TryGetProperty(blockProp.Name, out JsonElement statePropProp))
                                 throw new InvalidDataException("Failed to find matching block state property.");
 
-                            var propName = GetEnumString(statePropProp.Value).AsMemory();
-                            propValues[propertyIndex++] = blockStateProp.GetPropertyValue(propName);
+                            string propName = GetEnumString(statePropProp);
+                            propValues[propIndex] = blockProp.GetPropertyValue(propName);
                         }
                     }
+
                     blockStates[i] = new BlockState(block, propValues, idProp.GetUInt32());
                 }
 

@@ -15,18 +15,24 @@ namespace MCServerSharp.NBT
         /// </summary>
         public struct MetadataDb : IDisposable
         {
+            private ArrayPool<byte>? _pool;
             private byte[] _data;
 
             public int ByteLength { get; private set; }
 
-            public MetadataDb(byte[] completeDb, int byteLength)
+            public MetadataDb(ArrayPool<byte> pool, byte[] completeDb, int byteLength)
             {
+                Debug.Assert(pool != null);
+
+                _pool = pool;
                 _data = completeDb;
                 ByteLength = byteLength;
             }
 
-            public MetadataDb(int payloadLength)
+            public MetadataDb(ArrayPool<byte> pool, int payloadLength)
             {
+                Debug.Assert(pool != null);
+
                 // Add one tag's worth of data just because.
                 int initialSize = DbRow.Size + payloadLength;
 
@@ -38,23 +44,9 @@ namespace MCServerSharp.NBT
                 if (initialSize > OneMegabyte && initialSize <= 4 * OneMegabyte)
                     initialSize = OneMegabyte;
 
-                _data = ArrayPool<byte>.Shared.Rent(initialSize);
+                _pool = pool;
+                _data = _pool.Rent(initialSize);
                 ByteLength = 0;
-            }
-
-            public MetadataDb(MetadataDb source, bool useArrayPools)
-            {
-                ByteLength = source.ByteLength;
-
-                if (useArrayPools)
-                {
-                    _data = ArrayPool<byte>.Shared.Rent(ByteLength);
-                    source._data.AsSpan(0, ByteLength).CopyTo(_data);
-                }
-                else
-                {
-                    _data = source._data.AsSpan(0, ByteLength).ToArray();
-                }
             }
 
             public void Dispose()
@@ -66,7 +58,7 @@ namespace MCServerSharp.NBT
                 // The data in this rented buffer only conveys the positions and
                 // lengths of tags in a document, but no content; so it does not
                 // need to be cleared.
-                ArrayPool<byte>.Shared.Return(data);
+                _pool?.Return(data);
                 ByteLength = 0;
             }
 
@@ -78,7 +70,7 @@ namespace MCServerSharp.NBT
                 // "Is half-empty" is just a rough metric for "is trimming worth it?".
                 if (ByteLength <= _data.Length / 2)
                 {
-                    byte[] newRent = ArrayPool<byte>.Shared.Rent(ByteLength);
+                    byte[] newRent = _pool.Rent(ByteLength);
                     byte[] returnBuf = newRent;
 
                     if (newRent.Length < _data.Length)
@@ -91,7 +83,7 @@ namespace MCServerSharp.NBT
                     // The data in this rented buffer only conveys the positions and
                     // lengths of tags in a document, but no content; so it does not
                     // need to be cleared.
-                    ArrayPool<byte>.Shared.Return(returnBuf);
+                    _pool.Return(returnBuf);
                 }
             }
 
@@ -110,14 +102,16 @@ namespace MCServerSharp.NBT
 
             private void Enlarge()
             {
+                Debug.Assert(_pool != null);
+
                 byte[] toReturn = _data;
-                _data = ArrayPool<byte>.Shared.Rent(toReturn.Length * 2);
+                _data = _pool.Rent(toReturn.Length * 2);
                 Buffer.BlockCopy(toReturn, 0, _data, 0, toReturn.Length);
 
                 // The data in this rented buffer only conveys the positions and
                 // lengths of tags in a document, but no content; so it does not
                 // need to be cleared.
-                ArrayPool<byte>.Shared.Return(toReturn);
+                _pool.Return(toReturn);
             }
 
             [Conditional("DEBUG")]
@@ -178,7 +172,7 @@ namespace MCServerSharp.NBT
                 MemoryMarshal.Write(dataPos, ref length);
             }
 
-            public MetadataDb CopySegment(int startIndex, int endIndex)
+            public MetadataDb CopySegment(int startIndex, int endIndex, ArrayPool<byte> pool)
             {
                 Debug.Assert(
                     endIndex > startIndex,
@@ -189,7 +183,7 @@ namespace MCServerSharp.NBT
 
                 int length = endIndex - startIndex;
 
-                var newDatabase = ArrayPool<byte>.Shared.Rent(length);
+                byte[]? newDatabase = pool.Rent(length);
                 _data.AsSpan(startIndex, length).CopyTo(newDatabase);
 
                 Span<int> newDbInts = MemoryMarshal.Cast<byte, int>(newDatabase);
@@ -201,7 +195,7 @@ namespace MCServerSharp.NBT
                     newDbInts[i] -= locationOffset;
                 }
 
-                return new MetadataDb(newDatabase, length);
+                return new MetadataDb(pool, newDatabase, length);
             }
         }
     }

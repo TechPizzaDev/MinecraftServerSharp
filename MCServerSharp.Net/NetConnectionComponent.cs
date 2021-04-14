@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
@@ -335,14 +336,16 @@ namespace MCServerSharp.Net
 
             int emptySkyLightMask = 0;
             int emptyBlockLightMask = 0;
-            
+
+            ArrayPool<byte> pool = ArrayPool<byte>.Shared;
+
             for (int y = 0; y < 18; y++)
             {
                 if (chunkColumn.TryGetChunk(y - 1, out LocalChunk? chunk))
                 {
                     skyLightMask |= 1 << y;
-                    var skyLight = new LightArray();
-                    skyLight.Array.AsSpan().Fill(255);
+                    var skyLight = new LightArray(pool);
+                    skyLight.Data.Fill(255);
                     skyLights.Add(skyLight);
 
                     if (chunk.IsEmpty)
@@ -352,7 +355,9 @@ namespace MCServerSharp.Net
                     else
                     {
                         blockLightMask |= 1 << y;
-                        blockLights.Add(new LightArray());
+                        var blockLight = new LightArray(pool);
+                        blockLight.Data.Clear();
+                        blockLights.Add(blockLight);
                     }
                 }
             }
@@ -361,10 +366,11 @@ namespace MCServerSharp.Net
                 chunkColumn.Position.X, chunkColumn.Position.Z, true,
                 skyLightMask, blockLightMask,
                 emptySkyLightMask, emptyBlockLightMask,
-                skyLights, blockLights);
+                skyLights, blockLights, pool);
             Connection.EnqueuePacket(updateLight);
 
-            var chunkData = new ServerChunkData(chunkColumn, 65535);
+            int chunkSectionMask = ServerChunkData.GetSectionMask(chunkColumn);
+            var chunkData = new ServerChunkData(chunkColumn, chunkSectionMask, true);
             Connection.EnqueuePacket(chunkData);
         }
     }

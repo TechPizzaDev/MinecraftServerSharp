@@ -79,6 +79,11 @@ namespace MCServerSharp
             return Create(utf8.Span);
         }
 
+        public static Utf8String Create(Utf8Memory utf8)
+        {
+            return Create(utf8.Span);
+        }
+
         public static Utf8String Create(ReadOnlySpan<char> utf16)
         {
             if (utf16.IsEmpty)
@@ -291,52 +296,25 @@ namespace MCServerSharp
         {
             Span<char> utf16Buf = stackalloc char[16];
 
-            if (comparison == StringComparison.Ordinal)
+            do
             {
-                Span<byte> utf8Buf = MemoryMarshal.AsBytes(utf16Buf);
+                var status = Utf8.ToUtf16(utf8, utf16Buf, out int read8, out int written16);
+                if (status != OperationStatus.Done &&
+                    status != OperationStatus.DestinationTooSmall)
+                    throw new Exception("Failed to convert UTF-8 to UTF-16.");
 
-                do
-                {
-                    var status = Utf8.FromUtf16(utf16, utf8Buf, out int read16, out int written8);
-                    if (status != OperationStatus.Done &&
-                        status != OperationStatus.DestinationTooSmall)
-                        throw new Exception("Failed to convert UTF-16 to UTF-8.");
+                if (written16 > utf16.Length)
+                    break;
 
-                    if (written8 > utf8.Length)
-                        break;
+                if (!utf16.Slice(0, written16).Equals(utf16Buf.Slice(0, written16), comparison))
+                    break;
 
-                    if (!utf8Buf.Slice(0, written8).SequenceEqual(utf8.Slice(0, written8)))
-                        break;
-
-                    utf16 = utf16[read16..];
-                    utf8 = utf8[written8..];
-                }
-                while (utf16.Length > 0);
-
-                return utf16.IsEmpty;
+                utf16 = utf16[written16..];
+                utf8 = utf8[read8..];
             }
-            else
-            {
-                do
-                {
-                    var status = Utf8.ToUtf16(utf8, utf16Buf, out int read8, out int written16);
-                    if (status != OperationStatus.Done &&
-                        status != OperationStatus.DestinationTooSmall)
-                        throw new Exception("Failed to convert UTF-8 to UTF-16.");
+            while (utf8.Length > 0);
 
-                    if (written16 > utf16.Length)
-                        break;
-
-                    if (!utf16.Slice(0, written16).Equals(utf16Buf.Slice(0, written16), comparison))
-                        break;
-
-                    utf16 = utf16[written16..];
-                    utf8 = utf8[read8..];
-                }
-                while (utf8.Length > 0);
-
-                return utf8.IsEmpty;
-            }
+            return utf8.IsEmpty;
         }
 
         // TODO: possibly optimize with interning

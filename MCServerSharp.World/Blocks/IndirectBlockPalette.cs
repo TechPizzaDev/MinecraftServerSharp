@@ -11,20 +11,22 @@ namespace MCServerSharp.Blocks
     {
         private BlockState[] _idToBlock;
         private Dictionary<BlockState, uint> _blockToId;
-
+        
         public int BitsPerBlock { get; private set; }
         public int Count => _idToBlock.Length;
 
         protected IndirectBlockPalette(int capacity)
         {
             _idToBlock = new BlockState[capacity];
-            _blockToId = new Dictionary<BlockState, uint>(capacity);
+            _blockToId = new Dictionary<BlockState,uint>(capacity);
         }
 
-        protected IndirectBlockPalette()
+        protected IndirectBlockPalette(
+            BlockState[] idToBlock, 
+            Dictionary<BlockState, uint> blockToId)
         {
-            _idToBlock = Array.Empty<BlockState>();
-            _blockToId = new Dictionary<BlockState, uint>();
+            _idToBlock = idToBlock ?? throw new ArgumentNullException(nameof(idToBlock));
+            _blockToId = blockToId ?? throw new ArgumentNullException(nameof(blockToId));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -96,8 +98,7 @@ namespace MCServerSharp.Blocks
 
         public static IndirectBlockPalette CreateUnsafe(BlockState[] blocks)
         {
-            IndirectBlockPalette palette = new(blocks.Length);
-            palette._idToBlock = blocks;
+            IndirectBlockPalette palette = new(blocks, new Dictionary<BlockState, uint>(blocks.Length));
             for (uint id = 0; id < blocks.Length; id++)
             {
                 palette._blockToId.Add(blocks[id], id);

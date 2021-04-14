@@ -3,7 +3,7 @@ using MCServerSharp.Utility;
 
 namespace MCServerSharp.Blocks
 {
-    public class BlockState : ILongHashable
+    public class BlockState : IEquatable<BlockState>, IComparable<BlockState>, ILongHashable
     {
         private readonly StatePropertyValue[]? _properties;
 
@@ -38,14 +38,67 @@ namespace MCServerSharp.Blocks
             return Description.Identifier.ToString();
         }
 
+        public int CompareTo(BlockState? other)
+        {
+            if (other == null)
+                return 1;
+            return StateId.CompareTo(other.StateId);
+        }
+
+        public bool Equals(BlockState? other)
+        {
+            if (other == null)
+                return false;
+            return StateId == other.StateId;
+        }
+
+        public override bool Equals(object? obj)
+        {
+            return Equals(obj as BlockState);
+        }
+
         public long GetLongHashCode()
         {
-            return LongHashCode.Combine(StateId, BlockId);
+            return LongHashCode.Combine(StateId);
         }
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(StateId, BlockId);
+            return HashCode.Combine(StateId);
+        }
+
+        public static bool operator ==(BlockState left, BlockState right)
+        {
+            if (left is null)
+            {
+                return right is null;
+            }
+            return left.Equals(right);
+        }
+
+        public static bool operator !=(BlockState left, BlockState right)
+        {
+            return !(left == right);
+        }
+
+        public static bool operator <(BlockState left, BlockState right)
+        {
+            return left is null ? right is not null : left.CompareTo(right) < 0;
+        }
+
+        public static bool operator <=(BlockState left, BlockState right)
+        {
+            return left is null || left.CompareTo(right) <= 0;
+        }
+
+        public static bool operator >(BlockState left, BlockState right)
+        {
+            return left is not null && left.CompareTo(right) > 0;
+        }
+
+        public static bool operator >=(BlockState left, BlockState right)
+        {
+            return left is null ? right is null : left.CompareTo(right) >= 0;
         }
     }
 }

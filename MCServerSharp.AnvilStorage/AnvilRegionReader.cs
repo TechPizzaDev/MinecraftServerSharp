@@ -74,8 +74,7 @@ namespace MCServerSharp.AnvilStorage
         private async Task LoadFullAsync(CancellationToken cancellationToken)
         {
             var compressedData = new MemoryStream();
-            var decompressedData = new MemoryStream();
-
+            
             for (int i = 0; i < ChunkCount; i++)
             {
                 int locationIndex = FirstValidLocation + i;
@@ -112,9 +111,6 @@ namespace MCServerSharp.AnvilStorage
                 compressedData.SetLength(actualDataLength - 1);
                 compressedData.Position = 0;
 
-                decompressedData.SetLength(0);
-                decompressedData.Position = 0;
-
                 bool closeDataStream;
                 Stream dataStream;
                 switch (compressionType)
@@ -138,9 +134,14 @@ namespace MCServerSharp.AnvilStorage
                         throw new InvalidDataException("Unknown compression type.");
                 };
 
+                NbtDocument chunkDocument;
                 try
                 {
-                    await dataStream.CopyToAsync(decompressedData, cancellationToken).Unchain();
+                    chunkDocument = await NbtDocument.ParseAsync(
+                        dataStream,
+                        NbtOptions.JavaDefault, 
+                        null,
+                        cancellationToken).Unchain();
                 }
                 finally
                 {
@@ -148,12 +149,8 @@ namespace MCServerSharp.AnvilStorage
                         await dataStream.DisposeAsync();
                 }
 
-                Memory<byte> chunkData = decompressedData.GetBuffer().AsMemory(0, (int)decompressedData.Length);
-                chunkData = chunkData.ToArray(); // TODO: FIXME: 
-
                 //int chunkIndex = LocationIndices[locationIndex];
-                NbtDocument chunkDocument = NbtDocument.Parse(chunkData, out int bytesConsumed, NbtOptions.JavaDefault);
-
+                
                 // TODO: add some kind of NbtDocument-to-(generic)object helper and NbtSerializer
 
                 ChunkColumnPosition columnPosition = GetColumnPosition(chunkDocument.RootTag);

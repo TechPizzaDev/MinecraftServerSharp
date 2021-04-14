@@ -19,15 +19,16 @@ namespace MCServerSharp.Net.Packets
 
         public LocalChunkColumn ChunkColumn { get; }
         public int IncludedSectionsMask { get; }
-        public bool FullChunk => IncludedSectionsMask == 65535;
+        public bool FullChunk { get; }
 
         // TODO?: create flash-copying (fast deep-clone) of chunks for serialization purposes,
         // possibly with some kind of locking on end of dimension tick
 
-        public ServerChunkData(LocalChunkColumn chunkColumn, int includedSectionsMask)
+        public ServerChunkData(LocalChunkColumn chunkColumn, int includedSectionsMask, bool fullChunk)
         {
             ChunkColumn = chunkColumn;
             IncludedSectionsMask = includedSectionsMask;
+            FullChunk = fullChunk;
         }
 
         public static int GetSectionMask(LocalChunkColumn chunkColumn)
@@ -38,8 +39,11 @@ namespace MCServerSharp.Net.Packets
             int sectionMask = 0;
             for (int sectionY = 0; sectionY < ColumnHeight; sectionY++)
             {
-                if (chunkColumn.ContainsChunk(sectionY))
-                    sectionMask |= 1 << sectionY;
+                if (chunkColumn.TryGetChunk(sectionY, out var chunk))
+                {
+                    if (!chunk.IsEmpty)
+                        sectionMask |= 1 << sectionY;
+                }
             }
             return sectionMask;
         }
@@ -65,9 +69,9 @@ namespace MCServerSharp.Net.Packets
                 writer.WriteVar(biomes);
             }
 
-            int sectionDataLength = GetChunkColumnDataLength(ChunkColumn);
+            int sectionDataLength = GetChunkColumnDataLength(ChunkColumn, IncludedSectionsMask);
             writer.WriteVar(sectionDataLength);
-            WriteChunk(writer, ChunkColumn);
+            WriteChunk(writer, ChunkColumn, IncludedSectionsMask);
 
             // If you don't support block entities yet, use 0
             // If you need to implement it by sending block entities later with the update block entity packet,
@@ -81,16 +85,19 @@ namespace MCServerSharp.Net.Packets
             //}
         }
 
-        public static int GetChunkColumnDataLength(LocalChunkColumn chunkColumn)
+        public static int GetChunkColumnDataLength(LocalChunkColumn chunkColumn, int includeMask)
         {
             if (chunkColumn == null)
                 throw new ArgumentNullException(nameof(chunkColumn));
 
             int length = 0;
 
-            for (int chunkY = 0; chunkY < ColumnHeight; chunkY++)
+            for (int sectionY = 0; sectionY < ColumnHeight; sectionY++)
             {
-                if (chunkColumn.TryGetChunk(chunkY, out LocalChunk? chunk))
+                if ((includeMask & (1 << sectionY)) == 0)
+                    continue;
+
+                if (chunkColumn.TryGetChunk(sectionY, out LocalChunk? chunk))
                 {
                     JavaCompatibleBlockPalette<IBlockPalette> javaPalette = new(chunk.BlockPalette);
                     length += GetChunkDataLength(javaPalette);
@@ -100,14 +107,17 @@ namespace MCServerSharp.Net.Packets
             return length;
         }
 
-        public static void WriteChunk(NetBinaryWriter writer, LocalChunkColumn chunkColumn)
+        public static void WriteChunk(NetBinaryWriter writer, LocalChunkColumn chunkColumn, int includeMask)
         {
             if (chunkColumn == null)
                 throw new ArgumentNullException(nameof(chunkColumn));
 
-            for (int chunkY = 0; chunkY < ColumnHeight; chunkY++)
+            for (int sectionY = 0; sectionY < ColumnHeight; sectionY++)
             {
-                if (chunkColumn.TryGetChunk(chunkY, out LocalChunk? chunk))
+                if ((includeMask & (1 << sectionY)) == 0)
+                    continue;
+
+                if (chunkColumn.TryGetChunk(sectionY, out LocalChunk? chunk))
                 {
                     LocalChunk.BlockEnumerator blocks = chunk.EnumerateBlocks();
 

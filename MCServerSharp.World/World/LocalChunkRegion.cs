@@ -57,13 +57,14 @@ namespace MCServerSharp.World
             Debug.Assert(AnvilRegionReader.GetColumnPosition(document.RootTag) == columnPosition);
 
             var column = new LocalChunkColumn(columnManager, columnPosition);
-            column._encodedColumn = document;
-            column._chunksToDecode = new();
-
+            
             // TODO: move this to a Anvil parser
             {
                 NbtElement level = document.RootTag["Level"];
                 NbtElement sections = level["Sections"];
+
+                column._encodedColumn = document;
+                column._chunksToDecode = new(sections.GetLength());
 
                 foreach (NbtElement section in sections.EnumerateContainer())
                 {

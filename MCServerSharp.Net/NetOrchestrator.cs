@@ -34,7 +34,7 @@ namespace MCServerSharp.Net
 
         public ConcurrentDictionary<NetConnection, NetPacketSendQueue> PacketSendQueues { get; } = new();
 
-        public CompressionLevel PacketCompressionLevel { get; set; } = CompressionLevel.Optimal;
+        public CompressionLevel PacketCompressionLevel { get; set; } = CompressionLevel.Fastest;
 
         public NetOrchestrator(RecyclableMemoryManager memoryManager, NetPacketCodec codec)
         {

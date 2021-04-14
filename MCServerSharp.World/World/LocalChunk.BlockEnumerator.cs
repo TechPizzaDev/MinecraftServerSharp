@@ -5,10 +5,9 @@ namespace MCServerSharp.World
 {
     public partial class LocalChunk
     {
-        public struct BlockEnumerator : IBlockEnumerator
+        public unsafe struct BlockEnumerator : IBlockEnumerator
         {
             private LocalChunk _chunk;
-            private uint[] _array;
             private int _offset;
 
             public IBlockPalette BlockPalette => _chunk.BlockPalette;
@@ -18,20 +17,20 @@ namespace MCServerSharp.World
             public BlockEnumerator(LocalChunk chunk) : this()
             {
                 _chunk = chunk ?? throw new ArgumentNullException(nameof(chunk));
-                _array = _chunk._blocks;
             }
 
             public int Consume(Span<uint> destination)
             {
-                uint[] array = _array;
-                if ((uint)_offset >= (uint)array.Length)
+                Span<uint> span = _chunk.GetBlockSpan();
+                int offset = _offset;
+                if ((uint)offset >= (uint)span.Length)
                     return 0;
 
-                int left = array.Length - _offset;
+                int left = span.Length - offset;
                 if (left > destination.Length)
                     left = destination.Length;
 
-                array.AsSpan(_offset, left).CopyTo(destination);
+                span.Slice(offset, left).CopyTo(destination);
                 _offset += left;
                 return left;
             }
