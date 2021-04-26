@@ -83,6 +83,8 @@ namespace MCServerSharp.Net.Packets
             //{
             //    WriteCompoundTag(data, tag);
             //}
+
+            //Console.WriteLine(BitArray32.dic);
         }
 
         public static int GetChunkColumnDataLength(LocalChunkColumn chunkColumn, int includeMask)
@@ -184,6 +186,16 @@ namespace MCServerSharp.Net.Packets
             Span<uint> fullBlockBuffer = new Span<uint>(blockBufferP, blocksPerLong * 8);
             Span<uint> quarterBlockBuffer = new Span<uint>(blockBufferP, blocksPerLong * 2);
 
+            Vector256<int> vBufferIndices = Vector256.Create(
+                blocksPerLong * 0,
+                blocksPerLong * 1,
+                blocksPerLong * 2,
+                blocksPerLong * 3,
+                blocksPerLong * 4,
+                blocksPerLong * 5,
+                blocksPerLong * 6,
+                blocksPerLong * 7);
+
             int dataBufferLength = 256;
             ulong* dataBufferP = stackalloc ulong[dataBufferLength];
             Span<ulong> dataBuffer = new Span<ulong>(dataBufferP, dataBufferLength);
@@ -215,25 +227,53 @@ namespace MCServerSharp.Net.Packets
                     dataOffset = 0;
                 }
 
-                if (Sse2.IsSupported)
+                if (false && Avx2.IsSupported)
+                {
+                    Vector256<ulong> vBitBuffer0 = Vector256<ulong>.Zero;
+                    Vector256<ulong> vBitBuffer1 = Vector256<ulong>.Zero;
+                
+                    for (int j = 0; j < blocksPerLong; j++)
+                    {
+                        vBitBuffer0 = Avx2.ShiftRightLogical(vBitBuffer0, vBitsPerBlock);
+                        vBitBuffer1 = Avx2.ShiftRightLogical(vBitBuffer1, vBitsPerBlock);
+                
+                        Vector256<int> vBaseIndices = Vector256.Create(j);
+                        Vector256<int> vIndices = Avx2.Add(vBaseIndices, vBufferIndices);
+                        Vector256<uint> vGather = Avx2.GatherVector256(blockBufferP, vIndices, 4);
+                
+                        Vector128<uint> vLower = vGather.GetLower();
+                        Vector128<uint> vUpper = vGather.GetUpper();
+                        Vector256<ulong> vBits0 = Avx2.ConvertToVector256Int64(vLower).AsUInt64();
+                        Vector256<ulong> vBits1 = Avx2.ConvertToVector256Int64(vUpper).AsUInt64();
+                        
+                        vBitBuffer0 = Avx2.Or(vBitBuffer0, Avx2.ShiftLeftLogical(vBits0, vValueShift));
+                        vBitBuffer1 = Avx2.Or(vBitBuffer1, Avx2.ShiftLeftLogical(vBits1, vValueShift));
+                    }
+
+                    ulong* dataBufferPOff = dataBufferP + dataOffset;
+                    Avx.Store(dataBufferPOff + 0, vBitBuffer0);
+                    Avx.Store(dataBufferPOff + 4, vBitBuffer1);
+                    dataOffset += 8;
+                }
+                else if (Sse2.IsSupported)
                 {
                     Vector128<ulong> vBitBuffer0 = Vector128<ulong>.Zero;
                     Vector128<ulong> vBitBuffer1 = Vector128<ulong>.Zero;
                     Vector128<ulong> vBitBuffer2 = Vector128<ulong>.Zero;
                     Vector128<ulong> vBitBuffer3 = Vector128<ulong>.Zero;
-
+                
                     for (int j = 0; j < blocksPerLong; j++)
                     {
                         vBitBuffer0 = Sse2.ShiftRightLogical(vBitBuffer0, vBitsPerBlock);
                         vBitBuffer1 = Sse2.ShiftRightLogical(vBitBuffer1, vBitsPerBlock);
                         vBitBuffer2 = Sse2.ShiftRightLogical(vBitBuffer2, vBitsPerBlock);
                         vBitBuffer3 = Sse2.ShiftRightLogical(vBitBuffer3, vBitsPerBlock);
-
+                
                         Vector128<ulong> vBits0 = Vector128.Create(blockBufferP0[j], blockBufferP1[j]).AsUInt64();
                         Vector128<ulong> vBits1 = Vector128.Create(blockBufferP2[j], blockBufferP3[j]).AsUInt64();
                         Vector128<ulong> vBits2 = Vector128.Create(blockBufferP4[j], blockBufferP5[j]).AsUInt64();
                         Vector128<ulong> vBits3 = Vector128.Create(blockBufferP6[j], blockBufferP7[j]).AsUInt64();
-
+                
                         vBitBuffer0 = Sse2.Or(vBitBuffer0, Sse2.ShiftLeftLogical(vBits0, vValueShift));
                         vBitBuffer1 = Sse2.Or(vBitBuffer1, Sse2.ShiftLeftLogical(vBits1, vValueShift));
                         vBitBuffer2 = Sse2.Or(vBitBuffer2, Sse2.ShiftLeftLogical(vBits2, vValueShift));
@@ -247,6 +287,7 @@ namespace MCServerSharp.Net.Packets
                     Sse2.Store(dataBufferPOff + 6, vBitBuffer3);
                     dataOffset += 8;
                 }
+                // TODO: ARM intrinsics
                 else
                 {
                     for (int j = 0; j < blocksPerLong; j++)
@@ -279,29 +320,6 @@ namespace MCServerSharp.Net.Packets
                 }
             }
 
-            // This loop only results in marginal speed increase :)
-            while (blocks.Remaining >= quarterBlockBuffer.Length)
-            {
-                int consumed = blocks.Consume(quarterBlockBuffer);
-                Debug.Assert(consumed == quarterBlockBuffer.Length);
-
-                if (dataOffset + 2 >= dataBuffer.Length)
-                {
-                    writer.Write(dataBuffer.Slice(0, dataOffset));
-                    dataOffset = 0;
-                }
-
-                for (int j = 0; j < blocksPerLong; j++)
-                {
-                    bitBuffer0 >>= bitsPerBlock;
-                    bitBuffer1 >>= bitsPerBlock;
-                    bitBuffer0 |= (ulong)blockBufferP0[j] << valueShift;
-                    bitBuffer1 |= (ulong)blockBufferP1[j] << valueShift;
-                }
-                dataBufferP[dataOffset++] = bitBuffer0;
-                dataBufferP[dataOffset++] = bitBuffer1;
-            }
-
             while (blocks.Remaining > 0)
             {
                 if (dataOffset == dataBuffer.Length)
@@ -312,13 +330,12 @@ namespace MCServerSharp.Net.Packets
 
                 Span<uint> blockBuffer0 = fullBlockBuffer.Slice(0, blocksPerLong);
                 int consumed = blocks.Consume(blockBuffer0);
-                Span<uint> blockSlice = blockBuffer0.Slice(0, consumed);
 
                 ulong bitBuffer = 0;
-                for (int j = blockSlice.Length; j-- > 0;)
+                for (int j = consumed; j-- > 0;)
                 {
                     bitBuffer <<= bitsPerBlock;
-                    bitBuffer |= blockSlice[j];
+                    bitBuffer |= blockBufferP[j];
                 }
                 dataBufferP[dataOffset++] = bitBuffer;
             }

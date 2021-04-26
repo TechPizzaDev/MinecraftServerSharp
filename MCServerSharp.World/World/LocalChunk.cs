@@ -9,7 +9,7 @@ using MCServerSharp.Maths;
 
 namespace MCServerSharp.World
 {
-    public unsafe partial class LocalChunk : ComponentEntity, IChunk
+    public partial class LocalChunk : ComponentEntity, IChunk
     {
         public const int Width = 16;
         public const int Height = 16;
@@ -17,7 +17,7 @@ namespace MCServerSharp.World
         public const int BlockCount = LevelBlockCount * Height;
 
         // TODO: compress based on palette
-        private uint[] _blocks;
+        private BitArray32 _blocks;
 
         public IChunkColumn Column { get; }
         public int Y { get; }
@@ -46,7 +46,9 @@ namespace MCServerSharp.World
             BlockPalette = blockPalette ?? throw new ArgumentNullException(nameof(blockPalette));
             AirBlock = airBlock;
 
-            _blocks = GC.AllocateUninitializedArray<uint>(BlockCount, false);
+            // BlockCount, false
+            _blocks = BitArray32.AllocateUninitialized(BlockCount, BlockPalette.BitsPerBlock);
+            _blocks.Clear();
             //_blocks = (uint*)Marshal.AllocHGlobal(BlockCount * sizeof(uint));
             //GC.AddMemoryPressure(BlockCount * sizeof(uint));
         }
@@ -80,6 +82,16 @@ namespace MCServerSharp.World
         {
             int blockIndex = GetBlockIndex(x, y, z);
             return GetBlock(blockIndex);
+        }
+
+        /// <summary>
+        /// </summary>
+        /// <param name="startIndex">The block index to start copying from.</param>
+        /// <param name="destination">The block IDs from this <see cref="BlockPalette"/>.</returns>
+        /// <returns>The amount of block IDs copied from the chunk.</returns>
+        public int GetBlockId(int startIndex, Span<uint> destination)
+        {
+            return _blocks.Get((uint)startIndex, destination);
         }
 
         /// <summary>
@@ -137,15 +149,9 @@ namespace MCServerSharp.World
             SetBlock(paletteId, index);
         }
 
-        internal Span<uint> GetBlockSpan()
-        {
-            return _blocks;
-            //return new Span<uint>(_blocks, BlockCount);
-        }
-
         public void FillBlock(BlockState block)
         {
-            GetBlockSpan().Fill(BlockPalette.IdForBlock(block));
+            _blocks.Fill(BlockPalette.IdForBlock(block));
 
             if (block == AirBlock)
                 IsEmpty = true;
@@ -155,7 +161,7 @@ namespace MCServerSharp.World
 
         public void FillBlockLevel(BlockState block, int y)
         {
-            GetBlockSpan().Slice(y * LevelBlockCount, LevelBlockCount).Fill(BlockPalette.IdForBlock(block));
+            _blocks.Slice(y * LevelBlockCount, LevelBlockCount).Fill(BlockPalette.IdForBlock(block));
             IsEmpty = false;
         }
 

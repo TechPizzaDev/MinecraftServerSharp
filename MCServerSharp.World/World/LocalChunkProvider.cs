@@ -117,7 +117,8 @@ namespace MCServerSharp.World
             return await GenerateChunk(column, chunkPosition.Y).Unchain();
         }
 
-        private static void SetBlocksFromData(LocalChunk destination, IndirectBlockPalette palette, ReadOnlySpan<ulong> blockStateData)
+        private static void SetBlocksFromData(
+            LocalChunk destination, IndirectBlockPalette palette, ReadOnlySpan<ulong> blockStateData)
         {
             int bitsPerBlock = Math.Max(4, palette.BitsPerBlock);
 
@@ -132,7 +133,7 @@ namespace MCServerSharp.World
                 ulong data = blockStateData[startLong];
                 if (BitConverter.IsLittleEndian)
                     data = BinaryPrimitives.ReverseEndianness(data);
-
+                
                 for (int i = 0; i < blocksPerLong; i++, blockNumber++)
                 {
                     int startOffset = i * bitsPerBlock;

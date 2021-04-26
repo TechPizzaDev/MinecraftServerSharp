@@ -10,6 +10,7 @@
     <ProjectReference Include="..\MCServerSharp.AnvilStorage\MCServerSharp.AnvilStorage.csproj" />
     <ProjectReference Include="..\MCServerSharp.Base\MCServerSharp.Base.csproj" />
     <ProjectReference Include="..\MCServerSharp.NBT\MCServerSharp.NBT.csproj" />
+    <ProjectReference Include="..\MCServerSharp.World\MCServerSharp.World.csproj" />
   </ItemGroup>
 
 </Project>

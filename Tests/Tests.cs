@@ -13,6 +13,7 @@ using MCServerSharp.Data.IO;
 using MCServerSharp.IO.Compression;
 using MCServerSharp.NBT;
 using MCServerSharp.Utility;
+using MCServerSharp.World;
 
 namespace Tests
 {
@@ -20,6 +21,10 @@ namespace Tests
     {
         private static void Main(string[] args)
         {
+            TestBitArray32();
+            Console.WriteLine(nameof(TestBitArray32) + " passed");
+            return;
+
             TestVarInt();
             Console.WriteLine(nameof(TestVarInt) + " passed");
 
@@ -31,6 +36,30 @@ namespace Tests
 
             TestNbtRegionFileRead();
             Console.WriteLine(nameof(TestNbtRegionFileRead) + " passed");
+        }
+
+        private static void TestBitArray32()
+        {
+            Span<uint> tmp = new uint[4096];
+
+            var array = BitArray32.Allocate(4096, 4);
+            array.Set(8, 3);
+            array.Set(9, 3);
+            array.Set(10, 3);
+            uint e = array.Get(9);
+
+            array.Set(32 + 6, 3);
+            array.Set(510, 2);
+
+            ulong sum = 0;
+            sum = (uint)array.Get(0, tmp.Slice(0, 511));
+
+            for (int i = 0; i < 1024 * 1024; i++)
+            {
+                sum += (uint)array.Get(0, tmp);
+            }
+
+            Console.WriteLine(array + " " + sum);
         }
 
         private static void TestUtf8String()

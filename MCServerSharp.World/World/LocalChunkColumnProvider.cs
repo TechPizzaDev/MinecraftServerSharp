@@ -305,7 +305,7 @@ namespace MCServerSharp.World
             return Task.Run(() =>
             {
                 string fileName = $"r.{regionPosition.X}.{regionPosition.Z}.mca";
-                string root = Directory.Exists("region") ? "region" : @"..\..\..\..\MCJarServer\1.16.5\world\region";
+                string root = Directory.Exists(@"world\region") ? @"world\region" : @"..\..\..\..\MCJarServer\1.16.5\world\region";
                 string filePath = Path.Combine(root, fileName);
 
                 if (File.Exists(filePath))
