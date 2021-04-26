@@ -14,10 +14,10 @@ namespace MCServerSharp.Data.IO
         public long Position { get => BaseStream.Position; set => BaseStream.Position = value; }
         public long Length { get => BaseStream.Length; set => BaseStream.SetLength(value); }
 
-        public NetBinaryWriter(Stream stream, NetBinaryOptions? options = default)
+        public NetBinaryWriter(Stream stream, NetBinaryOptions options)
         {
             BaseStream = stream ?? throw new ArgumentNullException(nameof(stream));
-            Options = options ?? NetBinaryOptions.JavaDefault;
+            Options = options;
         }
 
         public long Seek(int offset, SeekOrigin origin)

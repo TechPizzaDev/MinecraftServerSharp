@@ -83,8 +83,6 @@ namespace MCServerSharp.Net.Packets
             //{
             //    WriteCompoundTag(data, tag);
             //}
-
-            //Console.WriteLine(BitArray32.dic);
         }
 
         public static int GetChunkColumnDataLength(LocalChunkColumn chunkColumn, int includeMask)
@@ -186,16 +184,6 @@ namespace MCServerSharp.Net.Packets
             Span<uint> fullBlockBuffer = new Span<uint>(blockBufferP, blocksPerLong * 8);
             Span<uint> quarterBlockBuffer = new Span<uint>(blockBufferP, blocksPerLong * 2);
 
-            Vector256<int> vBufferIndices = Vector256.Create(
-                blocksPerLong * 0,
-                blocksPerLong * 1,
-                blocksPerLong * 2,
-                blocksPerLong * 3,
-                blocksPerLong * 4,
-                blocksPerLong * 5,
-                blocksPerLong * 6,
-                blocksPerLong * 7);
-
             int dataBufferLength = 256;
             ulong* dataBufferP = stackalloc ulong[dataBufferLength];
             Span<ulong> dataBuffer = new Span<ulong>(dataBufferP, dataBufferLength);
@@ -227,25 +215,22 @@ namespace MCServerSharp.Net.Packets
                     dataOffset = 0;
                 }
 
-                if (false && Avx2.IsSupported)
+                if (writer.Options.UseAvx2Hint && Avx2.IsSupported)
                 {
                     Vector256<ulong> vBitBuffer0 = Vector256<ulong>.Zero;
                     Vector256<ulong> vBitBuffer1 = Vector256<ulong>.Zero;
-                
+
                     for (int j = 0; j < blocksPerLong; j++)
                     {
                         vBitBuffer0 = Avx2.ShiftRightLogical(vBitBuffer0, vBitsPerBlock);
                         vBitBuffer1 = Avx2.ShiftRightLogical(vBitBuffer1, vBitsPerBlock);
-                
-                        Vector256<int> vBaseIndices = Vector256.Create(j);
-                        Vector256<int> vIndices = Avx2.Add(vBaseIndices, vBufferIndices);
-                        Vector256<uint> vGather = Avx2.GatherVector256(blockBufferP, vIndices, 4);
-                
-                        Vector128<uint> vLower = vGather.GetLower();
-                        Vector128<uint> vUpper = vGather.GetUpper();
-                        Vector256<ulong> vBits0 = Avx2.ConvertToVector256Int64(vLower).AsUInt64();
-                        Vector256<ulong> vBits1 = Avx2.ConvertToVector256Int64(vUpper).AsUInt64();
+
+                        Vector256<ulong> vBits0 = Vector256.Create(
+                            blockBufferP0[j], blockBufferP1[j], blockBufferP2[j], blockBufferP3[j]).AsUInt64();
                         
+                        Vector256<ulong> vBits1 = Vector256.Create(
+                            blockBufferP4[j], blockBufferP5[j], blockBufferP6[j], blockBufferP7[j]).AsUInt64();
+
                         vBitBuffer0 = Avx2.Or(vBitBuffer0, Avx2.ShiftLeftLogical(vBits0, vValueShift));
                         vBitBuffer1 = Avx2.Or(vBitBuffer1, Avx2.ShiftLeftLogical(vBits1, vValueShift));
                     }

@@ -121,7 +121,7 @@ namespace MCServerSharp.Net
             // TODO: hold packets and data while closing, 
             //  in case of the client being able to somehow reconnect in the future
 
-            var orchestrator = connection.Orchestrator;
+            NetOrchestrator orchestrator = connection.Orchestrator;
             if (!orchestrator.Codec.Encoder.TryGetPacketIdDefinition(
                 holder.State, holder.PacketType, out var idDefinition))
             {
@@ -130,7 +130,7 @@ namespace MCServerSharp.Net
                     "Failed to get server packet ID defintion.", holder.State, holder.PacketType);
             }
 
-            var packetWriter = new NetBinaryWriter(packetBuffer)
+            var packetWriter = new NetBinaryWriter(packetBuffer, orchestrator.GetBinaryWriterOptions())
             {
                 Length = 0,
                 Position = 0
@@ -139,7 +139,7 @@ namespace MCServerSharp.Net
             holder.Writer.Invoke(packetWriter, holder.Packet);
             int dataLength = (int)packetWriter.Length;
 
-            var resultWriter = new NetBinaryWriter(connection.SendBuffer);
+            var resultWriter = new NetBinaryWriter(connection.SendBuffer, packetWriter.Options);
             long initialResultPosition = resultWriter.Position;
             int? compressedLength = null;
 

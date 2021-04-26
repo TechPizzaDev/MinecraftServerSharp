@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO.Compression;
+using MCServerSharp.Data.IO;
 using MCServerSharp.Net.Packets;
 using MCServerSharp.Utility;
 
@@ -35,6 +36,14 @@ namespace MCServerSharp.Net
         public ConcurrentDictionary<NetConnection, NetPacketSendQueue> PacketSendQueues { get; } = new();
 
         public CompressionLevel PacketCompressionLevel { get; set; } = CompressionLevel.Fastest;
+
+        /// <summary>
+        /// Suggest to use AVX2 even if it may not greatly improve performance.
+        /// </summary>
+        /// <remarks>
+        /// AVX2 can be slow on older AMD CPUs.
+        /// </remarks>
+        public bool UseAvx2Hint { get; set; } = true;
 
         public NetOrchestrator(RecyclableMemoryManager memoryManager, NetPacketCodec codec)
         {
@@ -177,6 +186,13 @@ namespace MCServerSharp.Net
         {
             var packetHolder = RentPacketHolder(target, packet);
             EnqueuePacket(packetHolder);
+        }
+
+        public NetBinaryOptions GetBinaryWriterOptions()
+        {
+            NetBinaryOptions options = NetBinaryOptions.JavaDefault;
+            options.UseAvx2Hint = UseAvx2Hint;
+            return options;
         }
 
         private static bool StorePacketPredicate(

@@ -47,6 +47,8 @@ namespace MCServerSharp.Net
 
             _connections = new HashSet<NetConnection>();
             Connections = _connections.AsReadOnly();
+
+            Orchestrator.UseAvx2Hint = false;
         }
 
         public NetManager(int blockSize, int blockMultiple, int maxBufferSize) :

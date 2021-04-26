@@ -1,16 +1,13 @@
 ﻿using System;
-using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
 namespace MCServerSharp.World
 {
-    public struct BitArray32
+    public readonly partial struct BitArray32
     {
         private const int LongBits = 64;
-        private uint _elementsPerLong;
-        private uint _bitsPerLong;
-        private uint _elementMask;
+        private readonly uint _elementsPerLong;
+        private readonly uint _elementMask;
 
         public ulong[] Store { get; }
         public uint ElementOffset { get; }
@@ -44,7 +41,6 @@ namespace MCServerSharp.World
             BitsPerElement = bitsPerElement;
 
             _elementsPerLong = LongBits / BitsPerElement;
-            _bitsPerLong = _elementsPerLong * BitsPerElement;
 
             if (BitsPerElement == 32)
                 _elementMask = uint.MaxValue;
@@ -178,23 +174,21 @@ namespace MCServerSharp.World
             if (srcElementsLeft > ElementCapacity)
                 throw new ArgumentOutOfRangeException(nameof(startIndex));
 
-            startIndex += ElementOffset;
-
             int dstIndex = 0;
             uint dstLength = (uint)destination.Length;
-            uint srcOffset = startIndex / _elementsPerLong;
+            uint toCopy = Math.Min(dstLength, srcElementsLeft);
+            uint actualStartIndex = startIndex + ElementOffset;
+            uint srcOffset = actualStartIndex / _elementsPerLong;
             uint mask = _elementMask;
 
             ref ulong src = ref Store[srcOffset];
             ref uint dst = ref destination[0];
 
-            uint startIndexRemainder = startIndex % _elementsPerLong;
+            uint startIndexRemainder = actualStartIndex % _elementsPerLong;
             if (startIndexRemainder != 0)
             {
                 ulong firstData = src;
-                uint firstCount = Math.Min(
-                     _elementsPerLong - startIndexRemainder,
-                    Math.Min(dstLength, srcElementsLeft));
+                uint firstCount = Math.Min(toCopy, _elementsPerLong - startIndexRemainder);
 
                 for (; dstIndex < firstCount; dstIndex++)
                 {
@@ -204,65 +198,32 @@ namespace MCServerSharp.World
                 }
 
                 src = ref Unsafe.Add(ref src, 1);
-                dstLength -= firstCount;
-                srcElementsLeft -= firstCount;
+                toCopy -= firstCount;
             }
 
-            uint iterations = Math.Min(dstLength, srcElementsLeft) / _elementsPerLong;
+            uint iterations = toCopy / _elementsPerLong;
             int bitsPerLong = (int)(_elementsPerLong * BitsPerElement);
             int bitsPerElement = (int)BitsPerElement;
 
-            //object bro = dic.GetOrAdd(bitsPerElement, (object)0);
-            //ref int xd = ref Unsafe.Unbox<int>(bro);
-            //System.Threading.Interlocked.Increment(ref xd);
-
-            if (bitsPerElement == 4)
+            if (bitsPerElement == 1)
             {
-                const uint mask4 = ~(uint.MaxValue << 4);
-            
-                for (uint j = 0; j < iterations; j++)
-                {
-                    ulong data = Unsafe.Add(ref src, (int)j);
-                    uint sdata0 = (uint)data;
-                    uint sdata1 = (uint)(data >> 32);
-                    ref uint d = ref Unsafe.Add(ref dst, dstIndex);
-            
-                    uint element0 = (sdata0 >> (0 * 4)) & mask4;
-                    uint element1 = (sdata0 >> (1 * 4)) & mask4;
-                    Unsafe.Add(ref d, 0) = element0;
-                    Unsafe.Add(ref d, 1) = element1;
-                    uint element2 = (sdata0 >> (2 * 4)) & mask4;
-                    uint element3 = (sdata0 >> (3 * 4)) & mask4;
-                    Unsafe.Add(ref d, 2) = element2;
-                    Unsafe.Add(ref d, 3) = element3;
-                    uint element4 = (sdata0 >> (4 * 4)) & mask4;
-                    uint element5 = (sdata0 >> (5 * 4)) & mask4;
-                    Unsafe.Add(ref d, 4) = element4;
-                    Unsafe.Add(ref d, 5) = element5;
-                    uint element6 = (sdata0 >> (6 * 4)) & mask4;
-                    uint element7 = (sdata0 >> (7 * 4)) & mask4;
-                    Unsafe.Add(ref d, 6) = element6;
-                    Unsafe.Add(ref d, 7) = element7;
-            
-                    uint element8 = (sdata1 >> (0 * 4)) & mask4;
-                    uint element9 = (sdata1 >> (1 * 4)) & mask4;
-                    Unsafe.Add(ref d, 8) = element8;
-                    Unsafe.Add(ref d, 9) = element9;
-                    uint element10 = (sdata1 >> (2 * 4)) & mask4;
-                    uint element11 = (sdata1 >> (3 * 4)) & mask4;
-                    Unsafe.Add(ref d, 10) = element10;
-                    Unsafe.Add(ref d, 11) = element11;
-                    uint element12 = (sdata1 >> (4 * 4)) & mask4;
-                    uint element13 = (sdata1 >> (5 * 4)) & mask4;
-                    Unsafe.Add(ref d, 12) = element12;
-                    Unsafe.Add(ref d, 13) = element13;
-                    uint element14 = (sdata1 >> (6 * 4)) & mask4;
-                    uint element15 = (sdata1 >> (7 * 4)) & mask4;
-                    Unsafe.Add(ref d, 14) = element14;
-                    Unsafe.Add(ref d, 15) = element15;
-            
-                    dstIndex += 16;
-                }
+                BatchCopy1(iterations, ref src, ref dst, ref dstIndex);
+            }
+            else if (bitsPerElement == 2)
+            {
+                BatchCopy2(iterations, ref src, ref dst, ref dstIndex);
+            }
+            else if (bitsPerElement == 3)
+            {
+                BatchCopy3(iterations, ref src, ref dst, ref dstIndex);
+            }
+            else if (bitsPerElement == 4)
+            {
+                BatchCopy4(iterations, ref src, ref dst, ref dstIndex);
+            }
+            else if (bitsPerElement == 5)
+            {
+                BatchCopy5(iterations, ref src, ref dst, ref dstIndex);
             }
             else
             {
@@ -277,14 +238,12 @@ namespace MCServerSharp.World
                 }
             }
 
-            dstLength -= _elementsPerLong * iterations;
-            srcElementsLeft -= _elementsPerLong * iterations;
+            toCopy -= _elementsPerLong * iterations;
 
             // Try to copy the remaining elements that were not copied by batch.
             ulong lastData = Unsafe.Add(ref src, (int)iterations);
-            uint lastCount = Math.Min(dstLength, srcElementsLeft);
-
-            for (uint i = 0; i < lastCount; i++, dstIndex++)
+            
+            for (uint i = 0; i < toCopy; i++, dstIndex++)
             {
                 uint startOffset = i * BitsPerElement;
                 uint element = (uint)(lastData >> (int)startOffset) & mask;
@@ -293,7 +252,5 @@ namespace MCServerSharp.World
 
             return dstIndex;
         }
-
-        public static ConcurrentDictionary<int, object> dic = new();
     }
 }
