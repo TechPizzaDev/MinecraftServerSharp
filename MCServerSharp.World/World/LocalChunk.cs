@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using MCServerSharp.Blocks;
 using MCServerSharp.Components;
@@ -16,7 +15,6 @@ namespace MCServerSharp.World
         public const int LevelBlockCount = Width * Width;
         public const int BlockCount = LevelBlockCount * Height;
 
-        // TODO: compress based on palette
         private BitArray32 _blocks;
 
         public IChunkColumn Column { get; }
@@ -46,11 +44,8 @@ namespace MCServerSharp.World
             BlockPalette = blockPalette ?? throw new ArgumentNullException(nameof(blockPalette));
             AirBlock = airBlock;
 
-            // BlockCount, false
+            // TODO: pool storage arrays
             _blocks = BitArray32.AllocateUninitialized(BlockCount, BlockPalette.BitsPerBlock);
-            _blocks.Clear();
-            //_blocks = (uint*)Marshal.AllocHGlobal(BlockCount * sizeof(uint));
-            //GC.AddMemoryPressure(BlockCount * sizeof(uint));
         }
 
         public BlockEnumerator EnumerateBlocks()
@@ -184,12 +179,5 @@ namespace MCServerSharp.World
         {
             throw new NotImplementedException();
         }
-
-        //~LocalChunk()
-        //{
-        //    Marshal.FreeHGlobal((IntPtr)_blocks);
-        //    _blocks = null;
-        //    GC.RemoveMemoryPressure(BlockCount * sizeof(uint));
-        //}
     }
 }

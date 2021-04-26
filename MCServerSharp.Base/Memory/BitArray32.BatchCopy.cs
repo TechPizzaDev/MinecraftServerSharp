@@ -1,6 +1,6 @@
 ﻿using System.Runtime.CompilerServices;
 
-namespace MCServerSharp.World
+namespace MCServerSharp
 {
     public readonly partial struct BitArray32
     {

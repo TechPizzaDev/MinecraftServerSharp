@@ -9,6 +9,8 @@ using MCServerSharp.Collections;
 
 namespace MCServerSharp.NBT
 {
+    // TODO: PARSE ENDIANNESS CORRECTLY
+
     public sealed partial class NbtDocument
     {
         [SkipLocalsInit]
