@@ -112,6 +112,46 @@ namespace MCServerSharp.NBT
         }
 
         public static NbtDocument Parse(
+            Stream data, NbtOptions? options, ArrayPool<byte>? pool)
+        {
+            pool ??= ArrayPool<byte>.Shared;
+
+            int initialBufferLength = 1024 * 64;
+            if (data.CanSeek)
+                initialBufferLength = (int)(data.Length - data.Position);
+
+            byte[] bufferArray = pool.Rent(initialBufferLength);
+            try
+            {
+                int totalRead = 0;
+                int read = 0;
+                do
+                {
+                    Memory<byte> buffer = bufferArray.AsMemory(totalRead);
+                    if (buffer.Length == 0)
+                    {
+                        byte[] oldBufferArray = bufferArray;
+                        bufferArray = pool.Rent(bufferArray.Length * 2);
+                        Buffer.BlockCopy(oldBufferArray, 0, bufferArray, 0, totalRead);
+                        pool.Return(oldBufferArray);
+                        continue;
+                    }
+
+                    read = data.Read(buffer.Span);
+                    totalRead += read;
+                }
+                while (read > 0);
+
+                return Parse(bufferArray.AsMemory(0, totalRead), options, bufferArray, pool, out _);
+            }
+            catch
+            {
+                pool.Return(bufferArray, true);
+                throw;
+            }
+        }
+
+        public static NbtDocument Parse(
             ReadOnlyMemory<byte> data, out int bytesConsumed, NbtOptions? options = default, ArrayPool<byte>? pool = null)
         {
             return Parse(data, options, null, pool, out bytesConsumed);

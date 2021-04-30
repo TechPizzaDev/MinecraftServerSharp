@@ -15,7 +15,7 @@ namespace MCServerSharp.Net
 
     public class NetConnectionComponent : Component<NetConnection>, ITickable
     {
-        public int SendRate = 10;
+        public int SendRate = 12;
 
         private bool _firstSend = true;
         private Task _sendTask = Task.CompletedTask;

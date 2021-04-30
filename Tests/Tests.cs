@@ -23,8 +23,7 @@ namespace Tests
         {
             TestBitArray32();
             Console.WriteLine(nameof(TestBitArray32) + " passed");
-            return;
-
+            
             TestVarInt();
             Console.WriteLine(nameof(TestVarInt) + " passed");
 
@@ -54,7 +53,7 @@ namespace Tests
             ulong sum = 0;
             sum = (uint)array.Get(0, tmp.Slice(0, 511));
 
-            for (int i = 0; i < 1024 * 1024; i++)
+            for (int i = 0; i < 1024; i++)
             {
                 sum += (uint)array.Get(0, tmp);
             }
@@ -199,7 +198,7 @@ namespace Tests
 
                 var reader = new NetBinaryReader(stream, NetBinaryOptions.JavaDefault);
 
-                var regionReaderStatus = AnvilRegionReader.Create(reader, out var regionReader);
+                var regionReaderStatus = AnvilRegionReader.Create(reader, ArrayPool<byte>.Shared, out var regionReader);
 
                 Stopwatch watch = Stopwatch.StartNew();
                 regionReader.CompleteFullLoad(default).AsTask().Wait();

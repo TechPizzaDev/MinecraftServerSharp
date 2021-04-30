@@ -41,11 +41,15 @@ namespace MCServerSharp
             BitsPerElement = bitsPerElement;
 
             _elementsPerLong = LongBits / BitsPerElement;
+            _elementMask = GetElementMask(bitsPerElement);
+        }
 
-            if (BitsPerElement == 32)
-                _elementMask = uint.MaxValue;
+        public static uint GetElementMask(uint bitsPerElement)
+        {
+            if (bitsPerElement == 32)
+                return uint.MaxValue;
             else
-                _elementMask = ~(uint.MaxValue << (int)BitsPerElement);
+                return ~(uint.MaxValue << (int)bitsPerElement);
         }
 
         public static int GetLongCount(int elementCapacity, int bitsPerElement)
@@ -73,8 +77,9 @@ namespace MCServerSharp
 
         public void Set(uint elementIndex, uint value)
         {
-            uint startLong = (ElementOffset + elementIndex) / _elementsPerLong;
-            int bitOffset = (int)(elementIndex % _elementsPerLong * BitsPerElement);
+            uint actualIndex = ElementOffset + elementIndex;
+            uint startLong = actualIndex / _elementsPerLong;
+            int bitOffset = (int)(actualIndex % _elementsPerLong * BitsPerElement);
             ref ulong data = ref Store[startLong];
             data &= ~((ulong)_elementMask << bitOffset);
             data |= (ulong)(value & _elementMask) << bitOffset;
@@ -82,10 +87,10 @@ namespace MCServerSharp
 
         public uint Get(uint elementIndex)
         {
-            uint startLong = (ElementOffset + elementIndex) / _elementsPerLong;
-            ulong data = Store[startLong];
-            int bitOffset = (int)(elementIndex % _elementsPerLong * BitsPerElement);
-            uint element = (uint)(data >> bitOffset) & _elementMask;
+            uint actualIndex = ElementOffset + elementIndex;
+            uint startLong = actualIndex / _elementsPerLong;
+            int bitOffset = (int)(actualIndex % _elementsPerLong * BitsPerElement);
+            uint element = (uint)(Store[startLong] >> bitOffset) & _elementMask;
             return element;
         }
 
@@ -167,32 +172,49 @@ namespace MCServerSharp
             throw new NotImplementedException();
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-        public unsafe int Get(uint startIndex, Span<uint> destination)
+        public int Get(uint startIndex, Span<uint> destination)
         {
-            uint srcElementsLeft = ElementCapacity - startIndex;
-            if (srcElementsLeft > ElementCapacity)
-                throw new ArgumentOutOfRangeException(nameof(startIndex));
+            return Get(Store, ElementOffset, ElementCapacity, BitsPerElement, startIndex, destination);
+        }
+
+        //public static int Get(ReadOnlySpan<ulong> source, uint bitsPerElement, Span<uint>)
+
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+        public unsafe static int Get(
+            ReadOnlySpan<ulong> source,
+            uint elementOffset,
+            uint elementCapacity,
+            uint bitsPerElement,
+            uint sourceIndex,
+            Span<uint> destination)
+        {
+            uint srcElementsLeft = elementCapacity - sourceIndex;
+            if (srcElementsLeft == 0)
+                return 0;
+            if (srcElementsLeft > elementCapacity)
+                throw new ArgumentOutOfRangeException(nameof(sourceIndex));
+
+            uint elementsPerLong = LongBits / bitsPerElement;
 
             int dstIndex = 0;
             uint dstLength = (uint)destination.Length;
             uint toCopy = Math.Min(dstLength, srcElementsLeft);
-            uint actualStartIndex = startIndex + ElementOffset;
-            uint srcOffset = actualStartIndex / _elementsPerLong;
-            uint mask = _elementMask;
+            uint actualStartIndex = sourceIndex + elementOffset;
+            uint srcOffset = actualStartIndex / elementsPerLong;
+            uint mask = GetElementMask(bitsPerElement);
 
-            ref ulong src = ref Store[srcOffset];
+            ref ulong src = ref Unsafe.AsRef(source[(int)srcOffset]);
             ref uint dst = ref destination[0];
 
-            uint startIndexRemainder = actualStartIndex % _elementsPerLong;
+            uint startIndexRemainder = actualStartIndex % elementsPerLong;
             if (startIndexRemainder != 0)
             {
                 ulong firstData = src;
-                uint firstCount = Math.Min(toCopy, _elementsPerLong - startIndexRemainder);
+                uint firstCount = Math.Min(toCopy, elementsPerLong - startIndexRemainder);
 
                 for (; dstIndex < firstCount; dstIndex++)
                 {
-                    uint startOffset = ((uint)dstIndex + startIndexRemainder) * BitsPerElement;
+                    uint startOffset = ((uint)dstIndex + startIndexRemainder) * bitsPerElement;
                     uint element = (uint)(firstData >> (int)startOffset) & mask;
                     Unsafe.Add(ref dst, dstIndex) = element;
                 }
@@ -201,9 +223,8 @@ namespace MCServerSharp
                 toCopy -= firstCount;
             }
 
-            uint iterations = toCopy / _elementsPerLong;
-            int bitsPerLong = (int)(_elementsPerLong * BitsPerElement);
-            int bitsPerElement = (int)BitsPerElement;
+            uint iterations = toCopy / elementsPerLong;
+            int bitsPerLong = (int)(elementsPerLong * bitsPerElement);
 
             if (bitsPerElement == 1)
             {
@@ -227,10 +248,11 @@ namespace MCServerSharp
             }
             else
             {
+                int bpe = (int)bitsPerElement;
                 for (uint j = 0; j < iterations; j++)
                 {
                     ulong data = Unsafe.Add(ref src, (int)j);
-                    for (int i = 0; i < bitsPerLong; i += bitsPerElement, dstIndex++)
+                    for (int i = 0; i < bitsPerLong; i += bpe, dstIndex++)
                     {
                         uint element = (uint)(data >> i) & mask;
                         Unsafe.Add(ref dst, dstIndex) = element;
@@ -238,19 +260,65 @@ namespace MCServerSharp
                 }
             }
 
-            toCopy -= _elementsPerLong * iterations;
+            toCopy -= elementsPerLong * iterations;
 
             // Try to copy the remaining elements that were not copied by batch.
             ulong lastData = Unsafe.Add(ref src, (int)iterations);
-            
+
             for (uint i = 0; i < toCopy; i++, dstIndex++)
             {
-                uint startOffset = i * BitsPerElement;
+                uint startOffset = i * bitsPerElement;
                 uint element = (uint)(lastData >> (int)startOffset) & mask;
                 Unsafe.Add(ref dst, dstIndex) = element;
             }
 
             return dstIndex;
+        }
+
+        // TODO: optimize/specialize cases
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+        public void Set(uint startIndex, Span<uint> values)
+        {
+            if (values.IsEmpty)
+                return;
+
+            uint actualStartIndex = startIndex + ElementOffset;
+            uint startLong = actualStartIndex / _elementsPerLong;
+            int bpe = (int)BitsPerElement;
+
+            uint i = 0;
+            uint startIndexRemainder = actualStartIndex % _elementsPerLong;
+            if (startIndexRemainder != 0)
+            {
+                uint firstCount = _elementsPerLong - startIndexRemainder;
+                for (uint j = 0; j < firstCount; j++)
+                {
+                    Set(startIndex + j, values[(int)j]);
+                }
+
+                startLong++;
+                i += firstCount;
+            }
+
+            while (values.Length - i >= _elementsPerLong)
+            {
+                ulong packed = 0;
+
+                ref uint src = ref values[(int)i];
+                for (int j = 0; j < _elementsPerLong; j++)
+                {
+                    packed |= (ulong)Unsafe.Add(ref src, j) << (j * bpe);
+                }
+
+                Store[(int)(startLong++)] = packed;
+
+                i += _elementsPerLong;
+            }
+
+            for (; i < values.Length; i++)
+            {
+                Set(startIndex + i, values[(int)i]);
+            }
         }
     }
 }

@@ -2,9 +2,11 @@
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics.X86;
 using System.Text.Unicode;
@@ -44,8 +46,6 @@ namespace MCServerSharp.World
             //_noise.SetFrequency(0.01f);
         }
 
-        private static Dictionary<int, List<BlockState[]>> hhehh = new Dictionary<int, List<BlockState[]>>();
-
         public async ValueTask<IChunk> GetOrAddChunk(ChunkColumnManager columnManager, ChunkPosition chunkPosition)
         {
             IChunkColumn column = await ColumnProvider.GetOrAddChunkColumn(columnManager, chunkPosition.Column).Unchain();
@@ -57,7 +57,7 @@ namespace MCServerSharp.World
             if (column is not LocalChunkColumn localColumn)
                 throw new InvalidOperationException();
 
-            var chunksToDecode = localColumn._chunksToDecode;
+            Dictionary<int, NbtElement>? chunksToDecode = localColumn._chunksToDecode;
             if (chunksToDecode != null)
             {
                 NbtElement chunkElement;
@@ -114,44 +114,102 @@ namespace MCServerSharp.World
                     return chunk;
                 }
             }
+
             return await GenerateChunk(column, chunkPosition.Y).Unchain();
         }
 
-        private static void SetBlocksFromData(
+        [SkipLocalsInit]
+        private static unsafe void SetBlocksFromData(
             LocalChunk destination, IndirectBlockPalette palette, ReadOnlySpan<ulong> blockStateData)
         {
-            int bitsPerBlock = Math.Max(4, palette.BitsPerBlock);
+            uint bitsPerBlock = (uint)Math.Max(4, palette.BitsPerBlock);
+            uint blocksPerLong = 64 / bitsPerBlock;
+            uint bitsPerLong = blocksPerLong * bitsPerBlock;
+            uint mask = ~(uint.MaxValue << (int)bitsPerBlock);
 
-            int blocksPerLong = 64 / bitsPerBlock;
-            int bitsPerLong = blocksPerLong * bitsPerBlock;
-            uint mask = ~(uint.MaxValue << bitsPerBlock);
+            const int longBufferLength = 64;
+            ulong* longBuffer = stackalloc ulong[longBufferLength];
+            Span<ulong> longBufferSpan = new(longBuffer, longBufferLength);
 
-            int blockNumber = 0;
+            const int blockBufferLength = 512;
+            uint* blockBuffer = stackalloc uint[blockBufferLength];
+            Span<uint> blockBufferSpan = new(blockBuffer, blockBufferLength);
+
+            ReadOnlySpan<ulong> blockData = blockStateData;
+            uint blockNumber = 0;
+
+            while (blockData.Length >= longBufferLength)
+            {
+                if (BitConverter.IsLittleEndian)
+                {
+                    ref ulong oSrc = ref Unsafe.AsRef(blockData[0]);
+                    for (int i = 0; i < longBufferLength; i += 8)
+                    {
+                        ref ulong s = ref Unsafe.Add(ref oSrc, i);
+                        ulong* d = longBuffer + i;
+                        d[0] = BinaryPrimitives.ReverseEndianness(Unsafe.Add(ref s, 0));
+                        d[1] = BinaryPrimitives.ReverseEndianness(Unsafe.Add(ref s, 1));
+                        d[2] = BinaryPrimitives.ReverseEndianness(Unsafe.Add(ref s, 2));
+                        d[3] = BinaryPrimitives.ReverseEndianness(Unsafe.Add(ref s, 3));
+                        d[4] = BinaryPrimitives.ReverseEndianness(Unsafe.Add(ref s, 4));
+                        d[5] = BinaryPrimitives.ReverseEndianness(Unsafe.Add(ref s, 5));
+                        d[6] = BinaryPrimitives.ReverseEndianness(Unsafe.Add(ref s, 6));
+                        d[7] = BinaryPrimitives.ReverseEndianness(Unsafe.Add(ref s, 7));
+                    }
+                }
+                else
+                {
+                    blockData.Slice(0, longBufferSpan.Length).CopyTo(longBufferSpan);
+                }
+
+                uint getOffset = 0;
+                int get;
+                do
+                {
+                    get = BitArray32.Get(
+                     longBufferSpan,
+                     0,
+                     blocksPerLong * longBufferLength,
+                     bitsPerBlock,
+                     getOffset,
+                     blockBufferSpan);
+
+                    destination.SetBlocks(blockBufferSpan.Slice(0, get), (int)blockNumber);
+                    getOffset += (uint)get;
+                    blockNumber += (uint)get;
+                }
+                while (get > 0);
+
+                blockData = blockData.Slice(longBufferLength);
+            }
+
             for (; blockNumber + blocksPerLong <= 4096;)
             {
-                int startLong = blockNumber / blocksPerLong;
-                ulong data = blockStateData[startLong];
+                uint startLong = blockNumber / blocksPerLong;
+
+                ulong data = blockStateData[(int)startLong];
                 if (BitConverter.IsLittleEndian)
                     data = BinaryPrimitives.ReverseEndianness(data);
-                
-                for (int i = 0; i < blocksPerLong; i++, blockNumber++)
-                {
-                    int startOffset = i * bitsPerBlock;
-                    uint block = (uint)(data >> startOffset) & mask;
 
-                    destination.SetBlock(block, blockNumber);
+                for (uint i = 0; i < blocksPerLong; i++, blockNumber++)
+                {
+                    uint startOffset = i * bitsPerBlock;
+                    uint block = (uint)(data >> (int)startOffset) & mask;
+
+                    destination.SetBlock(block, (int)blockNumber);
                 }
             }
 
+            ref ulong src = ref Unsafe.AsRef(blockStateData[0]);
             for (; blockNumber < 4096; blockNumber++)
             {
-                int startLong = blockNumber / blocksPerLong;
-                ulong data = BinaryPrimitives.ReverseEndianness(blockStateData[startLong]);
+                uint startLong = blockNumber / blocksPerLong;
+                ulong data = BinaryPrimitives.ReverseEndianness(Unsafe.Add(ref src, (int)startLong));
 
-                int startOffset = (blockNumber * bitsPerBlock) % bitsPerLong;
-                uint block = (uint)(data >> startOffset) & mask;
+                uint startOffset = (blockNumber * bitsPerBlock) % bitsPerLong;
+                uint block = (uint)(data >> (int)startOffset) & mask;
 
-                destination.SetBlock(block, blockNumber);
+                destination.SetBlock(block, (int)blockNumber);
             }
         }
 

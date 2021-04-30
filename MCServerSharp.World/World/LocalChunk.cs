@@ -144,6 +144,16 @@ namespace MCServerSharp.World
             SetBlock(paletteId, index);
         }
 
+        /// <summary>
+        /// </summary>
+        /// <param name="paletteIds">The block IDs from this <see cref="BlockPalette"/>.</param>
+        /// <param name="startIndex">The block index to start writing to.</param>
+        public void SetBlocks(Span<uint> paletteIds, int startIndex)
+        {
+            _blocks.Set((uint)startIndex, paletteIds);
+            IsEmpty = false;
+        }
+
         public void FillBlock(BlockState block)
         {
             _blocks.Fill(BlockPalette.IdForBlock(block));

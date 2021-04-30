@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
@@ -15,6 +16,8 @@ namespace MCServerSharp.World
         private Dictionary<ChunkColumnPosition, IChunkColumn> _columns = new();
         private Dictionary<ChunkColumnPosition, Task<IChunkColumn>> _loadingColumns = new();
         private Dictionary<ChunkColumnPosition, Task<IChunkColumn?>> _unloadingColumns = new();
+
+        private ArrayPool<byte> _chunkPool = ArrayPool<byte>.Create(1024 * 1024, 2048);
 
         public event Action<IChunkColumnProvider, IChunkColumn>? ChunkAdded;
         public event Action<IChunkColumnProvider, IChunkColumn>? ChunkRemoved;
@@ -316,7 +319,7 @@ namespace MCServerSharp.World
                         filePath, FileMode.Open, FileAccess.Read, FileShare.None, bufferSize);
 
                     Console.WriteLine("Loading existing region \"" + fileName + "\"");
-                    return new LocalChunkRegion(chunkStream);
+                    return new LocalChunkRegion(chunkStream, _chunkPool);
                 }
                 else
                 {

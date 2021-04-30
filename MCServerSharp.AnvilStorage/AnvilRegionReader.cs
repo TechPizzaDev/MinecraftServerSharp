@@ -12,6 +12,7 @@ using MCServerSharp.Data.IO;
 using MCServerSharp.IO.Compression;
 using MCServerSharp.Maths;
 using MCServerSharp.NBT;
+using MCServerSharp.Utility;
 
 namespace MCServerSharp.AnvilStorage
 {
@@ -29,19 +30,22 @@ namespace MCServerSharp.AnvilStorage
         public int FirstValidLocation;
 
         public NetBinaryReader Stream { get; }
+        public ArrayPool<byte> Pool { get; }
 
         public int ChunkCount => 1024 - FirstValidLocation;
 
-        public AnvilRegionReader(NetBinaryReader stream)
+        public AnvilRegionReader(NetBinaryReader stream, ArrayPool<byte> pool)
         {
             if (stream.BaseStream == null)
                 throw new ArgumentNullException(nameof(stream));
             Stream = stream;
+            Pool = pool ?? throw new ArgumentNullException(nameof(pool));
         }
 
-        public static OperationStatus Create(NetBinaryReader stream, out AnvilRegionReader regionReader)
+        public static OperationStatus Create(
+            NetBinaryReader stream, ArrayPool<byte> pool, out AnvilRegionReader regionReader)
         {
-            regionReader = new AnvilRegionReader(stream);
+            regionReader = new AnvilRegionReader(stream, pool);
 
             ChunkLocation[] locations = regionReader.Locations;
             var locationsStatus = stream.Read(MemoryMarshal.AsBytes(locations.AsSpan()));
@@ -73,8 +77,9 @@ namespace MCServerSharp.AnvilStorage
 
         private async Task LoadFullAsync(CancellationToken cancellationToken)
         {
-            var compressedData = new MemoryStream();
-            
+            using var compressedData = RecyclableMemoryManager.Default.GetStream();
+            using var decompressedData = RecyclableMemoryManager.Default.GetStream();
+
             for (int i = 0; i < ChunkCount; i++)
             {
                 int locationIndex = FirstValidLocation + i;
@@ -103,7 +108,8 @@ namespace MCServerSharp.AnvilStorage
                 int remainingByteCount = location.SectorCount * 4096 - sizeof(int) - sizeof(byte);
 
                 compressedData.Position = 0;
-                var compressedDataStatus = await Stream.WriteToAsync(compressedData, remainingByteCount, cancellationToken).Unchain();
+                var compressedDataStatus = await Stream.WriteToAsync(
+                    compressedData, remainingByteCount, cancellationToken).Unchain();
                 if (compressedDataStatus != OperationStatus.Done)
                     throw new EndOfStreamException();
 
@@ -111,46 +117,43 @@ namespace MCServerSharp.AnvilStorage
                 compressedData.SetLength(actualDataLength - 1);
                 compressedData.Position = 0;
 
-                bool closeDataStream;
+                decompressedData.SetLength(0);
                 Stream dataStream;
                 switch (compressionType)
                 {
                     case 1:
-                        dataStream = new GZipStream(compressedData, CompressionMode.Decompress, leaveOpen: true);
-                        closeDataStream = true;
+                        using (var decompStream = new GZipStream(compressedData, CompressionMode.Decompress, leaveOpen: true))
+                        {
+                            await decompStream.CopyToAsync(decompressedData, cancellationToken);
+                        }
+                        dataStream = decompressedData;
                         break;
 
                     case 2:
-                        dataStream = new ZlibStream(compressedData, CompressionMode.Decompress, leaveOpen: true);
-                        closeDataStream = true;
+                        using (var decompStream = new ZlibStream(compressedData, CompressionMode.Decompress, leaveOpen: true))
+                        {
+                            await decompStream.CopyToAsync(decompressedData, cancellationToken);
+                        }
+                        dataStream = decompressedData;
                         break;
 
                     case 3:
                         dataStream = compressedData;
-                        closeDataStream = false;
                         break;
 
                     default:
                         throw new InvalidDataException("Unknown compression type.");
                 };
+                decompressedData.Position = 0;
 
-                NbtDocument chunkDocument;
-                try
-                {
-                    chunkDocument = await NbtDocument.ParseAsync(
-                        dataStream,
-                        NbtOptions.JavaDefault, 
-                        null,
-                        cancellationToken).Unchain();
-                }
-                finally
-                {
-                    if (closeDataStream)
-                        await dataStream.DisposeAsync();
-                }
+                // Seekable streams allow Parse to know how much it needs to allocate.
+                NbtDocument chunkDocument = NbtDocument.Parse(
+                    dataStream,
+                    NbtOptions.JavaDefault,
+                    Pool);
 
                 //int chunkIndex = LocationIndices[locationIndex];
-                
+
                 // TODO: add some kind of NbtDocument-to-(generic)object helper and NbtSerializer
 
                 ChunkColumnPosition columnPosition = GetColumnPosition(chunkDocument.RootTag);

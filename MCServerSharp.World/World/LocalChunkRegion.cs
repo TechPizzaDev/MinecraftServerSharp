@@ -16,6 +16,8 @@ namespace MCServerSharp.World
         // TODO: improve
 
         private Stream _stream;
+        private ArrayPool<byte> _pool;
+
         private AnvilRegionReader? _regionReader;
 
         // change document management
@@ -25,11 +27,12 @@ namespace MCServerSharp.World
         {
         }
 
-        public LocalChunkRegion(Stream stream)
+        public LocalChunkRegion(Stream stream, ArrayPool<byte>? pool)
         {
             _stream = stream ?? throw new ArgumentNullException(nameof(stream));
+            _pool = pool ?? ArrayPool<byte>.Shared;
 
-            var regionReaderStatus = AnvilRegionReader.Create(CreateReader(), out _regionReader);
+            var regionReaderStatus = AnvilRegionReader.Create(CreateReader(), _pool, out _regionReader);
             if (regionReaderStatus != OperationStatus.Done)
                 throw new InvalidDataException();
         }
