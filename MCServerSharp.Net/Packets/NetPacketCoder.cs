@@ -8,7 +8,7 @@ using MCServerSharp.Utility;
 namespace MCServerSharp.Net.Packets
 {
     public abstract partial class NetPacketCoder<TPacketId>
-        where TPacketId : Enum
+        where TPacketId : unmanaged, Enum
     {
         protected Dictionary<DataTypeKey, MethodInfo> DataTypeHandlers { get; }
         protected Dictionary<Type, Delegate> DataObjectActions { get; }

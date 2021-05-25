@@ -1,54 +1,55 @@
 ﻿using System;
-using System.Linq.Expressions;
+using System.Runtime.CompilerServices;
+using static System.Runtime.CompilerServices.Unsafe;
 
 namespace MCServerSharp
 {
     public static class EnumConverter
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static long ToInt64<TEnum>(TEnum value)
-            where TEnum : Enum
+            where TEnum : unmanaged, Enum
         {
-            return Helper<TEnum>.ConvertFrom(value);
+            if (SizeOf<TEnum>() == 1)
+                return As<TEnum, sbyte>(ref value);
+            else if (SizeOf<TEnum>() == 2)
+                return As<TEnum, short>(ref value);
+            else if (SizeOf<TEnum>() == 4)
+                return As<TEnum, int>(ref value);
+            else if (SizeOf<TEnum>() == 8)
+                return As<TEnum, long>(ref value);
+            else
+                throw new InvalidCastException();
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ulong ToUInt64<TEnum>(TEnum value)
-            where TEnum : Enum
+            where TEnum : unmanaged, Enum
         {
-            return (ulong)ToInt64(value);
+            if (SizeOf<TEnum>() == 1)
+                return As<TEnum, byte>(ref value);
+            else if (SizeOf<TEnum>() == 2)
+                return As<TEnum, ushort>(ref value);
+            else if (SizeOf<TEnum>() == 4)
+                return As<TEnum, uint>(ref value);
+            else if (SizeOf<TEnum>() == 8)
+                return As<TEnum, ulong>(ref value);
+            else
+                throw new InvalidCastException();
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static TEnum ToEnum<TEnum>(long value)
-            where TEnum : Enum
+            where TEnum : unmanaged, Enum
         {
-            return Helper<TEnum>.ConvertTo(value);
+            return As<long, TEnum>(ref value);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static TEnum ToEnum<TEnum>(ulong value)
-            where TEnum : Enum
+            where TEnum : unmanaged, Enum
         {
-            return ToEnum<TEnum>((long)value);
-        }
-
-        private static class Helper<TEnum>
-        {
-            public static Func<TEnum, long> ConvertFrom { get; } = GenerateFromConverter();
-            public static Func<long, TEnum> ConvertTo { get; } = GenerateToConverter();
-
-            private static Func<TEnum, long> GenerateFromConverter()
-            {
-                var parameter = Expression.Parameter(typeof(TEnum));
-                var conversion = Expression.Convert(parameter, typeof(long));
-                var method = Expression.Lambda<Func<TEnum, long>>(conversion, parameter);
-                return method.Compile();
-            }
-
-            private static Func<long, TEnum> GenerateToConverter()
-            {
-                var parameter = Expression.Parameter(typeof(long));
-                var conversion = Expression.Convert(parameter, typeof(TEnum));
-                var method = Expression.Lambda<Func<long, TEnum>>(conversion, parameter);
-                return method.Compile();
-            }
+            return As<ulong, TEnum>(ref value);
         }
     }
 }
