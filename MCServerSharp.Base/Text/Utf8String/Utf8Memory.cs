@@ -31,7 +31,7 @@ namespace MCServerSharp
             return new Utf8RuneEnumerator(Span);
         }
 
-        public Utf8Memory Substring(int start, int count)
+        public Utf8Memory Slice(int start, int count)
         {
             if (count == 0)
                 return default;
@@ -46,10 +46,10 @@ namespace MCServerSharp
             return new Utf8Memory(slice);
         }
 
-        public Utf8Memory Substring(Range range)
+        public Utf8Memory Slice(Range range)
         {
             (int offset, int length) = range.GetOffsetAndLength(Length);
-            return Substring(offset, length);
+            return Slice(offset, length);
         }
 
         public int CompareTo(Utf8Memory other)

@@ -243,6 +243,7 @@ namespace MCServerSharp.Server
                 tagContainerBuilders.Add("items", new());
 
                 List<VarInt> tagEntryBuilder = new List<VarInt>();
+                int totalTagEntryCount = 0;
 
                 string basePath = "GameData/data/minecraft/tags";
                 foreach ((string containerKey, List<Tag> containerTags) in tagContainerBuilders)
@@ -273,6 +274,7 @@ namespace MCServerSharp.Server
                                 string? entryName = valueElement.ToString();
                                 tagEntries[entryIndex++] = entryName;
                             }
+                            totalTagEntryCount += entryIndex;
 
                             tagLists.Add(new Identifier("minecraft", tagName).ToString().AsMemory(), tagEntries);
                         }
@@ -329,7 +331,8 @@ namespace MCServerSharp.Server
                     _tagContainers.Add(containerKey, new TagContainer(containerTags.ToArray()));
                 }
 
-                Console.WriteLine($"Loaded {_tagContainers.Values.Sum(x => x.Tags.Length)} tags");
+                int tagTypeCount = _tagContainers.Values.Sum(x => x.Tags.Length);
+                Console.WriteLine($"Loaded {tagTypeCount} tags, {totalTagEntryCount} entries");
             }
         }
 

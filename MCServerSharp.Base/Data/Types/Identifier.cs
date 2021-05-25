@@ -14,10 +14,13 @@ namespace MCServerSharp
         public static string DefaultNamespace { get; } = string.Intern("minecraft");
         public static string Separator { get; } = ":";
 
-        public ReadOnlyMemory<char> Value { get; }
-        public ReadOnlyMemory<char> Namespace { get; }
-        public ReadOnlyMemory<char> Location { get; }
+        private readonly int _namespaceEnd;
 
+        public ReadOnlyMemory<char> Value { get; }
+        public ReadOnlyMemory<char> Namespace => Value[0.._namespaceEnd];
+        public ReadOnlyMemory<char> Location => Value[(_namespaceEnd + Separator.Length)..];
+
+        public int Length => Value.Length;
         public bool IsValid => !Value.IsEmpty;
 
         #region Constructors
@@ -36,28 +39,30 @@ namespace MCServerSharp
             ValidNamespaceCharacters = ValidLocationCharacters[2..];
         }
 
+        private Identifier(ReadOnlyMemory<char> value, int namespaceEnd)
+        {
+            Value = value;
+            _namespaceEnd = namespaceEnd;
+        }
+
         public Identifier(ReadOnlyMemory<char> value)
         {
             Value = value;
 
-            var parts = Value.EnumerateSplit(Separator, StringSplitOptions.None);
+            Utf16Splitter parts = Value.EnumerateSplit(Separator, StringSplitOptions.None);
 
-            bool move1 = parts.MoveNext();
-            Range part1 = parts.Current;
+            bool namespaceMove = parts.MoveNext();
+            _namespaceEnd = parts.Current.End.GetOffset(value.Length);
 
-            bool move2 = parts.MoveNext();
-            Range part2 = parts.Current;
+            bool locationMove = parts.MoveNext();
 
-            if (!(move1 && move2) || parts.MoveNext())
+            if (!(namespaceMove && locationMove) || parts.MoveNext())
             {
                 throw new ArgumentException(
                     $"Could not separate identifier \"{value}\" into a namespace and location.", nameof(value));
             }
 
-            Namespace = value[part1];
             ValidateNamespace(Namespace);
-
-            Location = value[part2];
             ValidateLocation(Location);
         }
 
@@ -76,9 +81,9 @@ namespace MCServerSharp
 
             if (@namespace.IsEmpty)
                 @namespace = DefaultNamespace.AsMemory();
-            Namespace = @namespace;
-            Location = location;
-            Value = string.Concat(Namespace + Separator + Location).AsMemory();
+
+            Value = string.Concat(@namespace.Span, Separator.AsSpan(), location.Span).AsMemory();
+            _namespaceEnd = @namespace.Length;
         }
 
         public Identifier(ReadOnlySpan<char> @namespace, ReadOnlySpan<char> location) :
@@ -95,30 +100,21 @@ namespace MCServerSharp
 
         public static bool TryParse(ReadOnlyMemory<char> value, out Identifier identifier)
         {
-            var parts = value.EnumerateSplit(Separator, StringSplitOptions.None);
+            Utf16Splitter parts = value.EnumerateSplit(Separator, StringSplitOptions.None);
 
-            bool move1 = parts.MoveNext();
-            if (!move1)
+            bool namespaceMove = parts.MoveNext();
+            if (!namespaceMove)
                 goto Fail;
-            Range part1 = parts.Current;
+            int namespaceEnd = parts.Current.End.GetOffset(value.Length);
 
-            bool move2 = parts.MoveNext();
-            if (!move2)
+            bool locationMove = parts.MoveNext();
+            if (!locationMove)
                 goto Fail;
-            Range part2 = parts.Current;
 
             if (parts.MoveNext())
                 goto Fail;
 
-            ReadOnlyMemory<char> @namespace = value[part1];
-            if (!IsValidNamespace(@namespace, out _))
-                goto Fail;
-
-            ReadOnlyMemory<char> location = value[part2];
-            if (!IsValidLocation(location, out _))
-                goto Fail;
-
-            identifier = new Identifier(@namespace, location);
+            identifier = new Identifier(value, namespaceEnd);
             return true;
 
             Fail:

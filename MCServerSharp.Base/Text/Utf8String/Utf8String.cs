@@ -120,7 +120,7 @@ namespace MCServerSharp
             return new Utf8RuneEnumerator(Bytes);
         }
 
-        public Utf8String Substring(int start, int count)
+        public Utf8String Slice(int start, int count)
         {
             if (count == 0)
                 return Empty;
@@ -135,10 +135,10 @@ namespace MCServerSharp
             return new Utf8String(slice);
         }
 
-        public Utf8String Substring(Range range)
+        public Utf8String Slice(Range range)
         {
             (int offset, int length) = range.GetOffsetAndLength(Length);
-            return Substring(offset, length);
+            return Slice(offset, length);
         }
 
         public static bool IsValidUtf8Slice(ReadOnlySpan<byte> span, int start, int count)

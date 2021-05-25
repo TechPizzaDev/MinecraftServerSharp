@@ -56,7 +56,7 @@ namespace MCServerSharp.Utility
         /// <summary>
         /// All of these blocks must be the same size
         /// </summary>
-        private readonly List<byte[]> _blocks = new List<byte[]>(1);
+        private readonly List<byte[]> _blocks = new(1);
 
         private readonly Guid _id;
         private readonly RecyclableMemoryManager _memoryManager;
@@ -72,8 +72,7 @@ namespace MCServerSharp.Utility
         /// </summary>
         private List<byte[]>? _dirtyBuffers;
 
-        // long to allow Interlocked.Read (for .NET Standard 1.4 compat)
-        private long _disposedState;
+        private bool _disposed;
 
         /// <summary>
         /// This is only set by GetBuffer() if the necessary buffer is larger than a single block size, or on
@@ -256,7 +255,7 @@ namespace MCServerSharp.Utility
             Justification = "We have different disposal semantics, so SuppressFinalize is in a different spot.")]
         protected override void Dispose(bool disposing)
         {
-            if (Interlocked.CompareExchange(ref _disposedState, 1, 0) != 0)
+            if (_disposed)
             {
                 string? doubleDisposeStack = null;
                 if (_memoryManager.GenerateCallStacks)
@@ -266,6 +265,8 @@ namespace MCServerSharp.Utility
                     _id, _tag, AllocationStack, DisposeStack, doubleDisposeStack);
                 return;
             }
+
+            _disposed = true;
 
             RecyclableMemoryManager.Events.Writer.MemoryStreamDisposed(_id, _tag);
 
@@ -786,7 +787,7 @@ namespace MCServerSharp.Utility
 
         #region Helper Methods
 
-        public bool IsDisposed => Interlocked.Read(ref _disposedState) != 0;
+        public bool IsDisposed => _disposed;
 
         private void AssertNotDisposed()
         {

@@ -9,32 +9,36 @@ namespace MCServerSharp
         public static Utf8String DefaultNamespace { get; } = Identifier.DefaultNamespace.ToUtf8String();
         public static Utf8String Separator { get; } = Identifier.Separator.ToUtf8String();
 
+        private readonly int _namespaceEnd;
+
         public Utf8Memory Value { get; }
-        public Utf8Memory Namespace { get; }
-        public Utf8Memory Location { get; }
+        public Utf8Memory Namespace => Value[0.._namespaceEnd];
+        public Utf8Memory Location => Value[(_namespaceEnd + Identifier.Separator.Length)..];
+        
+        private Utf8Identifier(Utf8Memory value, int namespaceEnd)
+        {
+            Value = value;
+            _namespaceEnd = namespaceEnd;
+        }
 
         public Utf8Identifier(Utf8Memory value)
         {
             Value = value;
 
-            var parts = Value.EnumerateSplit(Separator, StringSplitOptions.None);
+            Utf8Splitter parts = Value.EnumerateSplit(Separator, StringSplitOptions.None);
 
-            bool move1 = parts.MoveNext();
-            Range part1 = parts.Current;
-
-            bool move2 = parts.MoveNext();
-            Range part2 = parts.Current;
-
-            if (!(move1 && move2) || parts.MoveNext())
+            bool namespaceMove = parts.MoveNext();
+            _namespaceEnd = parts.Current.End.GetOffset(value.Length);
+            
+            bool locationMove = parts.MoveNext();
+            
+            if (!(namespaceMove && locationMove) || parts.MoveNext())
             {
                 throw new ArgumentException(
                     $"Could not separate identifier \"{value}\" into a namespace and location.", nameof(value));
             }
 
-            Namespace = value.Substring(part1);
             Identifier.ValidateNamespace(Namespace);
-
-            Location = value.Substring(part2);
             Identifier.ValidateLocation(Location);
         }
 
@@ -49,42 +53,33 @@ namespace MCServerSharp
 
             if (@namespace.IsEmpty)
                 @namespace = DefaultNamespace;
-            Namespace = @namespace;
-            Location = location;
-            Value = Utf8String.Concat(Namespace, Separator, Location);
+
+            Value = Utf8String.Concat(@namespace, Separator, location);
+            _namespaceEnd = @namespace.Length;
         }
 
-        public Utf8Identifier(ReadOnlySpan<char> @namespace, ReadOnlySpan<char> value) : 
+        public Utf8Identifier(ReadOnlySpan<char> @namespace, ReadOnlySpan<char> value) :
             this(Utf8String.Create(@namespace), Utf8String.Create(value))
         {
         }
 
         public static bool TryParse(Utf8Memory value, out Utf8Identifier identifier)
         {
-            var parts = value.EnumerateSplit(Separator, StringSplitOptions.None);
+            Utf8Splitter parts = value.EnumerateSplit(Separator, StringSplitOptions.None);
 
-            bool move1 = parts.MoveNext();
-            if (!move1)
+            bool namespaceMove = parts.MoveNext();
+            if (!namespaceMove)
                 goto Fail;
-            Range part1 = parts.Current;
+            int namespaceEnd = parts.Current.End.GetOffset(value.Length);
 
-            bool move2 = parts.MoveNext();
-            if (!move2)
+            bool locationMove = parts.MoveNext();
+            if (!locationMove)
                 goto Fail;
-            Range part2 = parts.Current;
 
             if (parts.MoveNext())
                 goto Fail;
 
-            Utf8Memory @namespace = value.Substring(part1);
-            if (!Identifier.IsValidNamespace(@namespace, out _))
-                goto Fail;
-
-            Utf8Memory location = value.Substring(part2);
-            if (!Identifier.IsValidLocation(location, out _))
-                goto Fail;
-
-            identifier = new Utf8Identifier(@namespace, location);
+            identifier = new Utf8Identifier(value, namespaceEnd);
             return true;
 
             Fail:
