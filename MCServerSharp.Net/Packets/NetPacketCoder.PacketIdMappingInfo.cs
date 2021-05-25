@@ -4,7 +4,6 @@ using System.Reflection;
 namespace MCServerSharp.Net.Packets
 {
     public abstract partial class NetPacketCoder<TPacketId>
-        where TPacketId : Enum
     {
         private class PacketIdMappingInfo
         {
