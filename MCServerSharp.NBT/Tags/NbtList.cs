@@ -44,7 +44,7 @@ namespace MCServerSharp.NBT
             foreach (TTag item in Items)
             {
                 if (item != null)
-                    item.WritePayload(writer, flags & NbtFlags.Endianness);
+                    item.WritePayload(writer, NbtFlags.None);
             }
         }
 

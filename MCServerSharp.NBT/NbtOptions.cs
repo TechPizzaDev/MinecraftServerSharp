@@ -8,12 +8,14 @@ namespace MCServerSharp.NBT
         public static NbtOptions JavaDefault { get; } = new NbtOptions
         {
             IsBigEndian = true,
-            IsVarInt = false,
+            IsVarArrayLength = false,
+            IsVarStringLength = false,
             MaxDepth = DefaultMaxDepth
         };
 
         public bool IsBigEndian { get; set; }
-        public bool IsVarInt { get; set; }
+        public bool IsVarArrayLength { get; set; }
+        public bool IsVarStringLength { get; set; }
         public int MaxDepth { get; set; }
     }
 }

@@ -172,8 +172,10 @@ namespace MCServerSharp.NBT
             ref ByteStack<ContainerFrame> stack)
         {
             int rowCount = 0;
+            MetadataDb.Accessor accessor = new(ref database);
 
-            while (reader.Read())
+            NbtReadStatus status;
+            while ((status = reader.TryRead()) == NbtReadStatus.Done)
             {
                 int location = reader.TagLocation;
                 NbtType type = reader.TagType;
@@ -188,7 +190,7 @@ namespace MCServerSharp.NBT
                         stack.TryPop();
 
                         int totalRowCount = rowCount - frame.InitialRowCount;
-                        database.SetRowCount(frame.ContainerRow, totalRowCount);
+                        accessor.GetRow(frame.ContainerRow).RowCount = totalRowCount;
                         goto PeekStack;
                     }
                     else if (frame.ListEntriesRemaining != -1)
@@ -211,16 +213,18 @@ namespace MCServerSharp.NBT
                             int totalRowCount = rowCount - compoundFrame.InitialRowCount;
                             int compoundLength = compoundFrame.CompoundEntryCounter - 1; // -1 to exclude End
 
-                            database.SetRowCount(compoundFrame.ContainerRow, totalRowCount);
-                            database.SetLength(compoundFrame.ContainerRow, compoundLength);
+                            ref DbRow row = ref accessor.GetRow(compoundFrame.ContainerRow);
+                            row.RowCount = totalRowCount;
+                            row.CollectionLength = compoundLength;
                         }
                         continue; // Continue to not increment row count
                     }
 
                     case NbtType.Compound:
                     {
-                        int containerRow = database.Append(
-                            location, collectionLength: 0, rowCount: 1, type, flags);
+                        int nameLength = reader.RawNameSpan.Length;
+                        accessor.Append(out int containerRow) = new DbRow(
+                            location, collectionLength: 0, rowCount: 1, nameLength, type, flags);
 
                         stack.Push(new ContainerFrame(containerRow, rowCount)
                         {
@@ -232,8 +236,9 @@ namespace MCServerSharp.NBT
                     case NbtType.List:
                     {
                         int listLength = reader.TagCollectionLength;
-                        int containerRow = database.Append(
-                            location, listLength, rowCount: 1, type, flags);
+                        int nameLength = reader.RawNameSpan.Length;
+                        accessor.Append(out int containerRow) = new DbRow( 
+                            location, listLength, rowCount: 1, nameLength, type, flags);
 
                         stack.Push(new ContainerFrame(containerRow, rowCount)
                         {
@@ -243,11 +248,23 @@ namespace MCServerSharp.NBT
                     }
 
                     default:
-                        database.Append(location, reader.TagCollectionLength, rowCount: 1, type, flags);
+                    {
+                        int nameLength = reader.RawNameSpan.Length;
+                        accessor.Append(out _) = new DbRow(
+                            location, reader.TagCollectionLength, rowCount: 1, nameLength, type, flags);
                         break;
+                    }
                 }
 
                 rowCount++;
+            }
+
+            if (status != NbtReadStatus.Done)
+            {
+                if (status != NbtReadStatus.EndOfDocument)
+                {
+                    throw new InvalidDataException(status.ToString());
+                }
             }
 
             database.TrimExcess();

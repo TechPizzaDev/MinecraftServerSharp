@@ -1,6 +1,6 @@
 ﻿using System;
+using System.Buffers;
 using System.Buffers.Binary;
-using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -50,14 +50,20 @@ namespace MCServerSharp.NBT
         public ReadOnlySpan<byte> TagSpan { get; private set; }
 
         /// <summary>
-        /// Gets the raw name of the last processed element as a slice of the input.
+        /// Gets the raw name data of the last processed element as a slice of the input.
         /// </summary>
-        public ReadOnlySpan<byte> NameSpan { get; private set; }
+        public ReadOnlySpan<byte> RawNameSpan { get; private set; }
 
         /// <summary>
-        /// Gets the raw value of the last processed element as a slice of the input.
+        /// Gets the raw value data of the last processed element as a slice of the input.
         /// </summary>
         public ReadOnlySpan<byte> ValueSpan { get; private set; }
+
+        /// <summary>
+        /// Gets the amount of bytes at the head of <see cref="RawNameSpan"/> that
+        /// defines the <see cref="NameSpan"/> length.
+        /// </summary>
+        public int NameLengthBytes { get; private set; }
 
         /// <summary>
         /// Gets the prefixed length of an array type.
@@ -72,19 +78,19 @@ namespace MCServerSharp.NBT
         /// Gets the current <see cref="NbtReader"/> state to pass to a <see cref="NbtReader"/>
         /// constructor with more data.
         /// </summary>
-        public NbtReaderState CurrentState => _state;
+        public readonly NbtReaderState CurrentState => _state;
 
-        public NbtOptions Options => _state.Options;
+        public readonly NbtOptions Options => _state.Options;
 
         /// <summary>
         /// Gets the total number of bytes consumed so far by this instance.
         /// </summary>
-        public long BytesConsumed => _consumed;
+        public readonly long BytesConsumed => _consumed;
 
         /// <summary>
         /// Gets the depth of the current element.
         /// </summary>
-        public int CurrentDepth
+        public readonly int CurrentDepth
         {
             get
             {
@@ -95,7 +101,18 @@ namespace MCServerSharp.NBT
             }
         }
 
-        public Utf8String NameString => new Utf8String(NameSpan);
+        public readonly int NameLength
+        {
+            get
+            {
+                TryReadStringLength(RawNameSpan, Options, out _, out int length);
+                return length;
+            }
+        }
+
+        public readonly ReadOnlySpan<byte> NameSpan => RawNameSpan[NameLengthBytes..NameLength];
+
+        public readonly Utf8String NameString => new(NameSpan);
 
         #region Cosntructors
 
@@ -142,19 +159,18 @@ namespace MCServerSharp.NBT
         /// <exception cref="NbtDepthException">
         /// The current depth exceeds <see cref="NbtOptions.MaxDepth"/>.
         /// </exception>
-        /// <exception cref="NbtReadException">
-        /// An invalid NBT element is encountered.
-        /// </exception>
-        public bool Read()
+        public NbtReadStatus TryRead()
         {
-            TagSpan = default;
-            NameSpan = default;
-            ValueSpan = default;
-            TagFlags = default;
+            RawNameSpan = default;
             TagCollectionLength = default;
 
+            NbtReadStatus status;
+
             if (!HasMoreData())
-                return false;
+            {
+                status = NbtReadStatus.EndOfDocument;
+                goto ClearReturn;
+            }
 
             // TODO: respect max depth setting and IsFinalBlock
 
@@ -180,8 +196,6 @@ namespace MCServerSharp.NBT
                 }
             }
 
-            TagFlags |= Options.IsBigEndian ? NbtFlags.BigEndian : NbtFlags.LittleEndian;
-
             if (inList)
             {
                 TagType = frame.ElementType;
@@ -197,11 +211,22 @@ namespace MCServerSharp.NBT
                 {
                     TagFlags |= NbtFlags.Named;
 
-                    int nameLength = ReadStringLength(slice[read..], Options, out int nameLengthBytes);
-                    read += nameLengthBytes;
+                    status = TryReadStringLength(
+                        slice[read..],
+                        Options,
+                        out int nameLengthBytes,
+                        out int nameLength);
 
-                    NameSpan = slice.Slice(read, nameLength);
-                    read += nameLength;
+                    if (status != NbtReadStatus.Done)
+                        goto ClearReturn;
+                    if (nameLength < 0)
+                    {
+                        status = NbtReadStatus.InvalidNameLength;
+                        goto ClearReturn;
+                    }
+
+                    RawNameSpan = slice.Slice(read, nameLength);
+                    read += nameLength + nameLengthBytes;
                 }
             }
 
@@ -212,6 +237,8 @@ namespace MCServerSharp.NBT
                     {
                         ListEntriesRemaining = -1
                     });
+
+                    ValueSpan = default;
                     break;
 
                 case NbtType.End:
@@ -220,21 +247,29 @@ namespace MCServerSharp.NBT
 
                     if (_state._containerInfoStack.ByteCount == 0)
                         EndOfDocument = true;
+
+                    ValueSpan = default;
                     break;
 
                 case NbtType.List:
                 {
                     var listType = (NbtType)slice[read];
 
-                    TagCollectionLength = ReadListLength(
-                        slice[(sizeof(byte) + read)..], Options, out int listLengthBytes);
+                    status = TryReadListLength(
+                        slice[(sizeof(byte) + read)..],
+                        Options,
+                        out int listLengthBytes,
+                        out int listLength);
 
-                    if (TagCollectionLength <= 0 && listType != NbtType.End)
+                    if (status != NbtReadStatus.Done)
+                        goto ClearReturn;
+                    if (listLength <= 0 && listType != NbtType.End)
                     {
-                        throw new NbtReadException(
-                            $"{NbtType.List} length was less than or equal to zero " +
-                            $"but the type was not {NbtType.End}.");
+                        status = NbtReadStatus.InvalidListLength;
+                        goto ClearReturn;
                     }
+
+                    TagCollectionLength = listLength;
 
                     _state._containerInfoStack.Push(new ContainerFrame
                     {
@@ -243,13 +278,23 @@ namespace MCServerSharp.NBT
                         // Clamp length in case of negative length
                         ListEntriesRemaining = Math.Max(TagCollectionLength, 0)
                     });
+
                     ValueSpan = slice.Slice(read, sizeof(byte) + listLengthBytes);
                     break;
                 }
 
                 case NbtType.ByteArray:
                 {
-                    TagCollectionLength = ReadArrayLength(slice[read..], Options, out int arrayLengthBytes);
+                    status = TryReadArrayLength(
+                        slice[read..],
+                        Options,
+                        out int arrayLengthBytes,
+                        out int arrayLength);
+
+                    if (status != NbtReadStatus.Done)
+                        goto ClearReturn;
+
+                    TagCollectionLength = arrayLength;
                     read += arrayLengthBytes;
 
                     ValueSpan = slice.Slice(read, TagCollectionLength * sizeof(sbyte));
@@ -258,7 +303,16 @@ namespace MCServerSharp.NBT
 
                 case NbtType.IntArray:
                 {
-                    TagCollectionLength = ReadArrayLength(slice[read..], Options, out int arrayLengthBytes);
+                    status = TryReadArrayLength(
+                        slice[read..],
+                        Options,
+                        out int arrayLengthBytes,
+                        out int arrayLength);
+
+                    if (status != NbtReadStatus.Done)
+                        goto ClearReturn;
+
+                    TagCollectionLength = arrayLength;
                     read += arrayLengthBytes;
 
                     ValueSpan = slice.Slice(read, TagCollectionLength * sizeof(int));
@@ -267,7 +321,16 @@ namespace MCServerSharp.NBT
 
                 case NbtType.LongArray:
                 {
-                    TagCollectionLength = ReadArrayLength(slice[read..], Options, out int arrayLengthBytes);
+                    status = TryReadArrayLength(
+                        slice[read..],
+                        Options,
+                        out int arrayLengthBytes,
+                        out int arrayLength);
+
+                    if (status != NbtReadStatus.Done)
+                        goto ClearReturn;
+
+                    TagCollectionLength = arrayLength;
                     read += arrayLengthBytes;
 
                     ValueSpan = slice.Slice(read, TagCollectionLength * sizeof(long));
@@ -275,11 +338,22 @@ namespace MCServerSharp.NBT
                 }
 
                 case NbtType.String:
-                    TagCollectionLength = ReadStringLength(slice[read..], Options, out int stringLengthBytes);
+                {
+                    status = TryReadStringLength(
+                        slice[read..],
+                        Options,
+                        out int stringLengthBytes,
+                        out int stringLength);
+
+                    if (status != NbtReadStatus.Done)
+                        goto ClearReturn;
+
+                    TagCollectionLength = stringLength;
                     read += stringLengthBytes;
 
                     ValueSpan = slice.Slice(read, TagCollectionLength);
                     break;
+                }
 
                 case NbtType.Byte:
                     ValueSpan = slice.Slice(read, sizeof(sbyte));
@@ -306,14 +380,23 @@ namespace MCServerSharp.NBT
                     break;
 
                 default:
-                    throw new InvalidDataException($"Unexpected tag type \"{TagType}\".");
+                    status = NbtReadStatus.UnknownTag;
+                    goto ClearReturn;
             }
             read += ValueSpan.Length;
 
             TagLocation = _consumed;
             TagSpan = slice.Slice(0, read);
             _consumed += read;
-            return true;
+            return NbtReadStatus.Done;
+
+            ClearReturn:
+            TagSpan = default;
+            ValueSpan = default;
+            TagFlags = default;
+            RawNameSpan = default;
+            TagCollectionLength = default;
+            return status;
         }
 
         // Summary:
@@ -420,67 +503,157 @@ namespace MCServerSharp.NBT
 
         #region Read Helpers
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static ReadOnlyMemory<byte> SkipTagName(
-            ReadOnlyMemory<byte> source, NbtOptions options)
+        internal static NbtReadStatus TrySkipTagName(
+            ReadOnlyMemory<byte> source, in NbtOptions options, out ReadOnlyMemory<byte> result)
         {
-            int nameLength = ReadStringLength(source.Span, options, out int lengthBytes);
-            return source[(lengthBytes + nameLength)..];
-        }
+            var status = TryReadStringLength(
+                source.Span, options, out int lengthBytes, out int nameLength);
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static ReadOnlyMemory<byte> SkipTagType(ReadOnlyMemory<byte> source)
-        {
-            return source[sizeof(byte)..];
-        }
-
-        public static int ReadStringLength(
-            ReadOnlySpan<byte> source, NbtOptions options, out int bytesConsumed)
-        {
-            int result;
-            if (options.IsVarInt)
+            if (status == NbtReadStatus.Done)
             {
-                var status = VarInt.TryDecode(source, out var value, out bytesConsumed);
-                if (status != System.Buffers.OperationStatus.Done)
-                    throw new Exception(status.ToString());
-                result = value;
+                result = source[(lengthBytes + nameLength)..];
+                return NbtReadStatus.Done;
+            }
+            result = default;
+            return status;
+        }
+
+
+        internal static NbtReadStatus TrySkipTagName(
+            ReadOnlySpan<byte> source, in NbtOptions options, out ReadOnlySpan<byte> result)
+        {
+            var status = TryReadStringLength(
+                source, options, out int lengthBytes, out int nameLength);
+
+            if (status == NbtReadStatus.Done)
+            {
+                result = source[(lengthBytes + nameLength)..];
+                return NbtReadStatus.Done;
+            }
+            result = default;
+            return status;
+        }
+
+        internal static NbtReadStatus TrySkipTagType(
+            ReadOnlyMemory<byte> source, out ReadOnlyMemory<byte> result)
+        {
+            if (source.IsEmpty)
+            {
+                result = default;
+                return NbtReadStatus.NeedMoreData;
+            }
+            result = source[sizeof(byte)..];
+            return NbtReadStatus.Done;
+        }
+
+        internal static NbtReadStatus TrySkipTagType(
+            ReadOnlySpan<byte> source, out ReadOnlySpan<byte> result)
+        {
+            if (source.IsEmpty)
+            {
+                result = default;
+                return NbtReadStatus.NeedMoreData;
+            }
+            result = source[sizeof(byte)..];
+            return NbtReadStatus.Done;
+        }
+
+        /// <summary>
+        /// Reads a string length without extra validation for invalid data.
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="options"></param>
+        /// <param name="bytesConsumed"></param>
+        /// <returns>
+        /// The length of the string.
+        /// May be less than zero which indicates unexpected data.
+        /// </returns>
+        public static NbtReadStatus TryReadStringLength(
+            ReadOnlySpan<byte> source, in NbtOptions options,
+            out int bytesConsumed, out int value)
+        {
+            if (options.IsVarStringLength)
+            {
+                var status = VarInt.TryDecode(source, out VarInt decoded, out bytesConsumed);
+                if (status != OperationStatus.Done)
+                {
+                    value = default;
+                    bytesConsumed = 0;
+                    return (NbtReadStatus)status;
+                }
+                value = decoded;
             }
             else
             {
-                result = ReadShort(source, options.IsBigEndian);
+                if (!TryReadInt16(source, options.IsBigEndian, out short decoded))
+                {
+                    value = default;
+                    bytesConsumed = 0;
+                    return NbtReadStatus.NeedMoreData;
+                }
+                value = decoded;
                 bytesConsumed = sizeof(short);
-
-                if (result > short.MaxValue)
-                    throw new Exception("Name length exceeds maximum.");
             }
 
-            if (result < 0)
-                throw new Exception("Negative tag name length.");
-            return result;
+            if (value < 0)
+                return NbtReadStatus.InvalidStringLength;
+            return NbtReadStatus.Done;
         }
 
-        public static int ReadArrayLength(
-            ReadOnlySpan<byte> source, NbtOptions options, out int bytesConsumed)
+        private static NbtReadStatus TryReadArrayOrListLength(
+            ReadOnlySpan<byte> source, in NbtOptions options,
+            out int bytesConsumed, out int value)
         {
-            if (options.IsVarInt)
+            if (options.IsVarArrayLength)
             {
-                var status = VarInt.TryDecode(source, out var value, out bytesConsumed);
-                if (status != System.Buffers.OperationStatus.Done)
-                    throw new Exception(status.ToString());
-                return value;
+                var status = VarInt.TryDecode(source, out VarInt decoded, out bytesConsumed);
+                if (status != OperationStatus.Done)
+                {
+                    value = default;
+                    bytesConsumed = 0;
+                    return (NbtReadStatus)status;
+                }
+                value = decoded;
             }
             else
             {
-                int result = ReadInt(source, options.IsBigEndian);
+                if (!TryReadInt32(source, options.IsBigEndian, out int decoded))
+                {
+                    value = default;
+                    bytesConsumed = 0;
+                    return NbtReadStatus.NeedMoreData;
+                }
+                value = decoded;
                 bytesConsumed = sizeof(int);
-                return result;
             }
+            return NbtReadStatus.Done;
         }
 
-        public static int ReadListLength(
-            ReadOnlySpan<byte> source, NbtOptions options, out int bytesConsumed)
+        public static NbtReadStatus TryReadArrayLength(
+            ReadOnlySpan<byte> source, in NbtOptions options,
+            out int bytesConsumed, out int value)
         {
-            return ReadArrayLength(source, options, out bytesConsumed);
+            var status = TryReadArrayOrListLength(
+                source, options, out bytesConsumed, out value);
+
+            if (status == NbtReadStatus.Done && value < 0)
+                return NbtReadStatus.InvalidArrayLength;
+            return status;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static NbtReadStatus TryReadListLength(
+            ReadOnlySpan<byte> source, in NbtOptions options,
+            out int bytesConsumed, out int value)
+        {
+            return TryReadArrayOrListLength(
+                source, options, out bytesConsumed, out value);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool TryReadByte(ReadOnlySpan<byte> source, out sbyte value)
+        {
+            return MemoryMarshal.TryRead(source, out value);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -489,8 +662,15 @@ namespace MCServerSharp.NBT
             return MemoryMarshal.Read<sbyte>(source);
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static short ReadShort(ReadOnlySpan<byte> source, bool isBigEndian)
+        public static bool TryReadInt16(ReadOnlySpan<byte> source, bool isBigEndian, out short value)
+        {
+            if (isBigEndian)
+                return BinaryPrimitives.TryReadInt16BigEndian(source, out value);
+            else
+                return BinaryPrimitives.TryReadInt16LittleEndian(source, out value);
+        }
+
+        public static short ReadInt16(ReadOnlySpan<byte> source, bool isBigEndian)
         {
             if (isBigEndian)
                 return BinaryPrimitives.ReadInt16BigEndian(source);
@@ -498,8 +678,15 @@ namespace MCServerSharp.NBT
                 return BinaryPrimitives.ReadInt16LittleEndian(source);
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static ushort ReadUShort(ReadOnlySpan<byte> source, bool isBigEndian)
+        public static bool TryReadUInt16(ReadOnlySpan<byte> source, bool isBigEndian, out ushort value)
+        {
+            if (isBigEndian)
+                return BinaryPrimitives.TryReadUInt16BigEndian(source, out value);
+            else
+                return BinaryPrimitives.TryReadUInt16LittleEndian(source, out value);
+        }
+
+        public static ushort ReadUInt16(ReadOnlySpan<byte> source, bool isBigEndian)
         {
             if (isBigEndian)
                 return BinaryPrimitives.ReadUInt16BigEndian(source);
@@ -507,8 +694,16 @@ namespace MCServerSharp.NBT
                 return BinaryPrimitives.ReadUInt16LittleEndian(source);
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static int ReadInt(ReadOnlySpan<byte> source, bool isBigEndian)
+        public static bool TryReadInt32(
+            ReadOnlySpan<byte> source, bool isBigEndian, out int value)
+        {
+            if (isBigEndian)
+                return BinaryPrimitives.TryReadInt32BigEndian(source, out value);
+            else
+                return BinaryPrimitives.TryReadInt32LittleEndian(source, out value);
+        }
+
+        public static int ReadInt32(ReadOnlySpan<byte> source, bool isBigEndian)
         {
             if (isBigEndian)
                 return BinaryPrimitives.ReadInt32BigEndian(source);
@@ -516,8 +711,16 @@ namespace MCServerSharp.NBT
                 return BinaryPrimitives.ReadInt32LittleEndian(source);
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static long ReadLong(ReadOnlySpan<byte> source, bool isBigEndian)
+        public static bool TryReadInt64(
+            ReadOnlySpan<byte> source, bool isBigEndian, out long value)
+        {
+            if (isBigEndian)
+                return BinaryPrimitives.TryReadInt64BigEndian(source, out value);
+            else
+                return BinaryPrimitives.TryReadInt64LittleEndian(source, out value);
+        }
+
+        public static long ReadInt64(ReadOnlySpan<byte> source, bool isBigEndian)
         {
             if (isBigEndian)
                 return BinaryPrimitives.ReadInt64BigEndian(source);
@@ -525,18 +728,42 @@ namespace MCServerSharp.NBT
                 return BinaryPrimitives.ReadInt64LittleEndian(source);
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static float ReadFloat(ReadOnlySpan<byte> source, bool isBigEndian)
+        public static bool TryReadFloat(
+            ReadOnlySpan<byte> source, bool isBigEndian, out float value)
         {
-            int intValue = ReadInt(source, isBigEndian);
-            return BitConverter.Int32BitsToSingle(intValue);
+            if (TryReadInt32(source, isBigEndian, out int intValue))
+            {
+                value = BitConverter.Int32BitsToSingle(intValue);
+                return true;
+            }
+            value = default;
+            return false;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static float ReadFloat(ReadOnlySpan<byte> source, bool isBigEndian)
+        {
+            int intValue = ReadInt32(source, isBigEndian);
+            float value = BitConverter.Int32BitsToSingle(intValue);
+            return value;
+        }
+
+        public static bool TryReadDouble(
+            ReadOnlySpan<byte> source, bool isBigEndian, out double value)
+        {
+            if (TryReadInt64(source, isBigEndian, out long intValue))
+            {
+                value = BitConverter.Int64BitsToDouble(intValue);
+                return true;
+            }
+            value = default;
+            return false;
+        }
+
         public static double ReadDouble(ReadOnlySpan<byte> source, bool isBigEndian)
         {
-            long intValue = ReadLong(source, isBigEndian);
-            return BitConverter.Int64BitsToDouble(intValue);
+            long intValue = ReadInt64(source, isBigEndian);
+            double value = BitConverter.Int64BitsToDouble(intValue);
+            return value;
         }
 
         #endregion

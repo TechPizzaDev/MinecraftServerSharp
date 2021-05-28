@@ -33,14 +33,14 @@ namespace MCServerSharp.NBT
 
                     if (typeof(T) == typeof(int))
                     {
-                        if (_array.Flags.HasAnyFlag(NbtFlags.BigEndian))
+                        if (_array.Options.IsBigEndian)
                             return UnsafeR.As<int, T>(BinaryPrimitives.ReadInt32BigEndian(slice));
                         else
                             return UnsafeR.As<int, T>(BinaryPrimitives.ReadInt32LittleEndian(slice));
                     }
                     else if (typeof(T) == typeof(long))
                     {
-                        if (_array.Flags.HasAnyFlag(NbtFlags.BigEndian))
+                        if (_array.Options.IsBigEndian)
                             return UnsafeR.As<long, T>(BinaryPrimitives.ReadInt64BigEndian(slice));
                         else
                             return UnsafeR.As<long, T>(BinaryPrimitives.ReadInt64LittleEndian(slice));

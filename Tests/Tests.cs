@@ -23,7 +23,7 @@ namespace Tests
         {
             TestBitArray32();
             Console.WriteLine(nameof(TestBitArray32) + " passed");
-            
+
             TestVarInt();
             Console.WriteLine(nameof(TestVarInt) + " passed");
 
@@ -186,6 +186,9 @@ namespace Tests
                 files = Directory.GetFiles($@"..\..\..\..\MCJarServer\1.16.5\world\region");
             }
 
+            var compressedData = new MemoryStream();
+            var decompressedData = new MemoryStream();
+
             foreach (string file in files)
             {
                 //using var stream = File.OpenRead(
@@ -193,8 +196,13 @@ namespace Tests
 
                 using var stream = File.OpenRead(file);
 
-                int regionX = chunkX / 32;
-                int regionZ = chunkZ / 32;
+                compressedData.Position = 0;
+                compressedData.SetLength(0);
+                decompressedData.Position = 0;
+                decompressedData.SetLength(0);
+
+                //int regionX = chunkX / 32;
+                //int regionZ = chunkZ / 32;
 
                 var reader = new NetBinaryReader(stream, NetBinaryOptions.JavaDefault);
 
@@ -205,9 +213,12 @@ namespace Tests
                 watch.Stop();
                 Console.WriteLine($"Loaded {regionReader.ChunkCount} chunks for region " + " in " + watch.ElapsedMilliseconds + "ms");
 
-                var compressedData = new MemoryStream();
-                var decompressedData = new MemoryStream();
+                string dirname = "chunksnbt";
+                Directory.CreateDirectory(dirname);
+                using var filwriter = new FileStream($"{dirname}/{Path.GetFileName(file)}.chunksnbt", FileMode.Create);
+                using var binwriter = new BinaryWriter(filwriter);
 
+                binwriter.Write(regionReader.ChunkCount);
 
                 for (int i = 0; i < regionReader.ChunkCount; i++)
                 {
@@ -220,7 +231,12 @@ namespace Tests
                     Debug.Assert(chunkDocument != null);
 
                     NbtElement rootCompound = chunkDocument.RootTag;
-                    NbtElement rootClone = rootCompound.Clone();
+                   
+                    //continue;
+                    //NbtElement rootClone = rootCompound.Clone();
+
+                    binwriter.Write(chunkDocument.Bytes.Length);
+                    binwriter.Write(chunkDocument.Bytes.Span);
 
                     // TODO: add some kind of NbtDocument-to-(generic)object helper and NbtSerializer
 
@@ -255,8 +271,8 @@ namespace Tests
 
                             if (move)
                             {
-                                var span1 = enum1.Current.GetRawData().Span;
-                                var span2 = enum2.Current.GetRawData().Span;
+                                var span1 = enum1.Current.GetRawDataSpan(out _);
+                                var span2 = enum2.Current.GetRawDataSpan(out _);
                                 if (!span1.SequenceEqual(span2))
                                     throw new Exception("Not equal element");
                             }
@@ -264,7 +280,7 @@ namespace Tests
                         while (move);
                     }
 
-                    CompareContainers(rootCompound, rootClone);
+                    //CompareContainers(rootCompound, rootClone);
 
                     //PrintContainer(root, 1);
                     //

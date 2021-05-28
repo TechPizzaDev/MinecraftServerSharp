@@ -28,20 +28,30 @@ namespace MCServerSharp.NBT
 
         public NbtElement this[string name] => this[name.AsSpan()];
 
-        public bool IsValid => _parent != null && _parent.ByteLength != 0;
+        public NbtOptions Options => _parent.Options;
 
-        public NbtType Type => _parent?.GetTagType(_index) ?? NbtType.Undefined;
+        public bool IsValid => _parent != null && _parent.Bytes.Length != 0;
 
-        public NbtFlags Flags => _parent?.GetFlags(_index) ?? NbtFlags.None;
+        public NbtType Type => _parent != null 
+            ? _parent.GetTagType(_index)
+            : NbtType.Undefined;
+
+        public NbtFlags Flags => _parent != null 
+            ? _parent.GetFlags(_index) 
+            : NbtFlags.None;
 
         public Utf8Memory Name => _parent != null
             ? _parent.GetTagName(_index)
             : Utf8Memory.Empty;
 
+        public ReadOnlySpan<byte> NameSpan => _parent != null
+            ? _parent.GetTagNameSpan(_index)
+            : ReadOnlySpan<byte>.Empty;
+
         /// <summary>
         /// Creates a <see cref="Utf8String"/> from <see cref="Name"/>.
         /// </summary>
-        public Utf8String NameString => Utf8String.Create(Name);
+        public Utf8String NameString => Utf8String.Create(NameSpan);
 
 #pragma warning disable IDE0051 // Remove unused private members
         // These are useful for debugging.
@@ -55,8 +65,8 @@ namespace MCServerSharp.NBT
             }
         }
 
-        private byte[] RawData => GetRawData().ToArray();
-        private byte[] ArrayData => GetArrayData().ToArray();
+        private byte[] RawData => GetRawData(out _).ToArray();
+        private byte[] ArrayData => GetArrayData(out _).ToArray();
 #pragma warning restore IDE0051
 
         // TODO: add debug tree view
@@ -105,7 +115,7 @@ namespace MCServerSharp.NBT
 
             foreach (NbtElement item in EnumerateContainer())
             {
-                if (Utf8String.Equals(utf8Name, item.Name.Span, comparison))
+                if (Utf8String.Equals(utf8Name, item.NameSpan, comparison))
                 {
                     element = item;
                     return true;
@@ -152,7 +162,7 @@ namespace MCServerSharp.NBT
 
             foreach (NbtElement item in EnumerateContainer())
             {
-                if (Utf8String.Equals(name, item.Name.Span, comparison))
+                if (Utf8String.Equals(name, item.NameSpan, comparison))
                 {
                     element = item;
                     return true;
@@ -172,10 +182,16 @@ namespace MCServerSharp.NBT
             throw new KeyNotFoundException();
         }
 
-        public ReadOnlyMemory<byte> GetRawData()
+        public ReadOnlyMemory<byte> GetRawData(out NbtType tagType)
         {
             AssertValidInstance();
-            return _parent.GetRawData(_index);
+            return _parent.GetRawData(_index, out tagType);
+        }
+
+        public ReadOnlySpan<byte> GetRawDataSpan(out NbtType tagType)
+        {
+            AssertValidInstance();
+            return _parent.GetRawDataSpan(_index, out tagType);
         }
 
         public ReadOnlyMemory<byte> GetArrayData(out NbtType tagType)
@@ -184,9 +200,10 @@ namespace MCServerSharp.NBT
             return _parent.GetArrayData(_index, out tagType);
         }
 
-        public ReadOnlyMemory<byte> GetArrayData()
+        public ReadOnlySpan<byte> GetArrayDataSpan(out NbtType tagType)
         {
-            return GetArrayData(out _);
+            AssertValidInstance();
+            return _parent.GetArrayDataSpan(_index, out tagType);
         }
 
         public int GetArrayElementSize()
@@ -302,14 +319,14 @@ namespace MCServerSharp.NBT
         ///     this method results in no additional memory allocation.
         ///   </para>
         /// </remarks>
-        public NbtElement Clone()
+        public NbtElement Clone(ArrayPool<byte>? pool = null)
         {
             AssertValidInstance();
 
             if (!_parent.IsDisposable)
                 return this;
 
-            return _parent.CloneTag(_index);
+            return _parent.CloneTag(_index, pool);
         }
 
         /// <summary>
@@ -392,7 +409,7 @@ namespace MCServerSharp.NBT
             if (Flags.HasFlag(NbtFlags.Named))
             {
                 writer.Write('"');
-                writer.Write(StringHelper.Utf8.GetString(Name.Span));
+                writer.Write(StringHelper.Utf8.GetString(NameSpan));
                 writer.Write("\": ");
             }
 
@@ -471,7 +488,9 @@ namespace MCServerSharp.NBT
 
         public string ToString(IFormatProvider? formatProvider)
         {
-            var builder = new StringBuilder(StringHelper.Utf8.GetMaxCharCount(Name.Length) + 20);
+            var builder = new StringBuilder(
+                StringHelper.Utf8.GetMaxCharCount(NameSpan.Length) + 20);
+
             var writer = new StringWriter(builder, formatProvider);
             ToString(writer);
             return writer.ToString();

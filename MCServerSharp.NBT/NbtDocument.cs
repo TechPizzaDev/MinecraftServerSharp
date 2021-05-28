@@ -14,8 +14,7 @@ namespace MCServerSharp.NBT
     /// </summary>
     public sealed partial class NbtDocument : IDisposable
     {
-        private ReadOnlyMemory<byte> _data;
-        public MetadataDb _metaDb;
+        private MetadataDb _metaDb;
         private byte[]? _extraRentedBytes;
         private ArrayPool<byte>? _pool;
         private (int, string?) _lastIndexAndString = (-1, null);
@@ -25,12 +24,14 @@ namespace MCServerSharp.NBT
 
         public NbtOptions Options { get; }
 
-        public int ByteLength => _data.Length;
+        public ReadOnlyMemory<byte> Bytes { get; private set; }
+
+        public bool IsDisposed => Bytes.IsEmpty;
 
         /// <summary>
         /// The <see cref="NbtElement"/> representing the value of the document.
         /// </summary>
-        public NbtElement RootTag => new NbtElement(this, 0);
+        public NbtElement RootTag => new(this, 0);
 
         private NbtDocument(
             ReadOnlyMemory<byte> data,
@@ -41,24 +42,24 @@ namespace MCServerSharp.NBT
         {
             Debug.Assert(!data.IsEmpty);
 
-            _data = data;
+            Bytes = data;
             _metaDb = parsedData;
             _extraRentedBytes = extraRentedBytes;
             _pool = pool;
             Options = options;
-            
+
             // extraRentedBytes better be null if we're not disposable.
             Debug.Assert(IsDisposable || extraRentedBytes == null);
         }
 
         public void Dispose()
         {
-            int length = _data.Length;
+            int length = Bytes.Length;
             if (length == 0 || !IsDisposable)
                 return;
 
             _metaDb.Dispose();
-            _data = ReadOnlyMemory<byte>.Empty;
+            Bytes = ReadOnlyMemory<byte>.Empty;
 
             // When "extra rented bytes exist" they contain the document,
             // and thus need to be cleared before being returned.
@@ -70,15 +71,19 @@ namespace MCServerSharp.NBT
             }
         }
 
+        internal ref DbRow GetRow(int index)
+        {
+            // No need to check if document is disposed, database should check that.
+            return ref _metaDb.GetRow(index);
+        }
+
         internal NbtType GetTagType(int index)
         {
-            AssertNotDisposed();
-            return _metaDb.GetTagType(index);
+            return _metaDb.GetRow(index).Type;
         }
 
         internal int GetLength(int index)
         {
-            AssertNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
             if (!row.Type.IsCollection())
@@ -89,25 +94,22 @@ namespace MCServerSharp.NBT
 
         internal NbtType GetListType(int index)
         {
-            AssertNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
             if (row.Type != NbtType.List)
-                throw new Exception("The tag is not a list.");
+                return NbtType.Undefined;
 
-            ReadOnlyMemory<byte> payload = GetTagPayload(row);
-            return (NbtType)payload.Span[0];
+            TryGetTagPayloadSpan(row, out ReadOnlySpan<byte> payload);
+            return (NbtType)ReadByte(payload);
         }
 
         internal NbtFlags GetFlags(int index)
         {
-            AssertNotDisposed();
-            return _metaDb.GetFlags(index);
+            return _metaDb.GetRow(index).Flags;
         }
 
         internal NbtElement GetContainerElement(int index, int arrayIndex)
         {
-            AssertNotDisposed();
             ref readonly DbRow containerRow = ref _metaDb.GetRow(index);
 
             if (!containerRow.IsContainerType)
@@ -125,7 +127,7 @@ namespace MCServerSharp.NBT
                 if (arrayIndex == elementCount)
                     return new NbtElement(this, objectOffset);
 
-                objectOffset += _metaDb.GetRowCount(objectOffset) * DbRow.Size;
+                objectOffset += _metaDb.GetRow(objectOffset).RowCount * DbRow.Size;
                 elementCount++;
             }
 
@@ -144,73 +146,140 @@ namespace MCServerSharp.NBT
 
         internal int GetEndIndex(int index)
         {
-            AssertNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
             int endIndex = GetEndIndex(index, row);
             return endIndex;
         }
 
-        internal ReadOnlyMemory<byte> GetRawData(int index)
+        internal ReadOnlyMemory<byte> GetRawData(int index, out NbtType tagType)
         {
-            AssertNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
+            tagType = row.Type;
             int start = row.Location;
             int endIndex = GetEndIndex(index, row);
             if (endIndex == _metaDb.ByteLength)
-                return _data[start..];
+                return Bytes[start..];
 
-            int end = _metaDb.GetLocation(endIndex);
-            return _data[start..end];
+            int end = _metaDb.GetRow(endIndex).Location;
+            return Bytes[start..end];
+        }
+
+        internal ReadOnlySpan<byte> GetRawDataSpan(int index, out NbtType tagType)
+        {
+            ref readonly DbRow row = ref _metaDb.GetRow(index);
+
+            tagType = row.Type;
+            int start = row.Location;
+            int endIndex = GetEndIndex(index, row);
+            if (endIndex == _metaDb.ByteLength)
+                return Bytes.Span[start..];
+
+            int end = _metaDb.GetRow(endIndex).Location;
+            return Bytes.Span[start..end];
         }
 
         internal Utf8Memory GetTagName(in DbRow row)
         {
-            if (!row.Flags.HasFlag(NbtFlags.Named))
-                return Utf8Memory.Empty;
-
-            ReadOnlyMemory<byte> segment = _data[row.Location..];
-
-            if (row.Flags.HasFlag(NbtFlags.Typed))
-                segment = SkipTagType(segment);
-
-            int nameLength = ReadStringLength(segment.Span, Options, out int lengthBytes);
-            return Utf8Memory.CreateUnsafe(segment.Slice(lengthBytes, nameLength));
+            ReadOnlyMemory<byte> segment = Bytes[row.Location..];
+            TrySkipTagType(segment, out segment);
+            TryReadStringLength(segment.Span, Options, out int consumed, out int length);
+            ReadOnlyMemory<byte> slice = segment.Slice(consumed, length);
+            return Utf8Memory.CreateUnsafe(slice);
         }
 
         internal Utf8Memory GetTagName(int index)
         {
-            AssertNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
-
             return GetTagName(row);
         }
 
-        internal ReadOnlyMemory<byte> GetTagPayload(in DbRow row)
+        internal ReadOnlySpan<byte> GetTagNameSpan(in DbRow row)
         {
-            ReadOnlyMemory<byte> segment = _data[row.Location..];
+            ReadOnlySpan<byte> segment = Bytes.Span[row.Location..];
+            TrySkipTagType(segment, out segment);
+            TryReadStringLength(segment, Options, out int consumed, out int length);
+            ReadOnlySpan<byte> slice = segment.Slice(consumed, length);
+            return slice;
+        }
+
+        internal ReadOnlySpan<byte> GetTagNameSpan(int index)
+        {
+            ref readonly DbRow row = ref _metaDb.GetRow(index);
+            return GetTagNameSpan(row);
+        }
+
+        internal NbtReadStatus TryGetTagPayload(in DbRow row, out ReadOnlyMemory<byte> result)
+        {
+            ReadOnlyMemory<byte> segment = Bytes[row.Location..];
 
             if (row.Flags.HasFlag(NbtFlags.Typed))
-                segment = SkipTagType(segment);
+            {
+                var status = TrySkipTagType(segment, out segment);
+                if (status != NbtReadStatus.Done)
+                {
+                    result = default;
+                    return status;
+                }
+            }
 
             if (row.Flags.HasFlag(NbtFlags.Named))
-                segment = SkipTagName(segment, Options);
+            {
+                var status = TrySkipTagName(segment, Options, out segment);
+                if (status != NbtReadStatus.Done)
+                {
+                    result = default;
+                    return status;
+                }
+            }
 
-            return segment;
+            result = segment;
+            return NbtReadStatus.Done;
+        }
+
+        internal NbtReadStatus TryGetTagPayloadSpan(in DbRow row, out ReadOnlySpan<byte> result)
+        {
+            ReadOnlySpan<byte> segment = Bytes.Span[row.Location..];
+
+            if (row.Flags.HasFlag(NbtFlags.Typed))
+            {
+                var status = TrySkipTagType(segment, out segment);
+                if (status != NbtReadStatus.Done)
+                {
+                    result = default;
+                    return status;
+                }
+            }
+
+            if (row.Flags.HasFlag(NbtFlags.Named))
+            {
+                var status = TrySkipTagName(segment, Options, out segment);
+                if (status != NbtReadStatus.Done)
+                {
+                    result = default;
+                    return status;
+                }
+            }
+
+            result = segment;
+            return NbtReadStatus.Done;
+        }
+
+        internal ReadOnlySpan<byte> GetTagPayloadSpan(in DbRow row)
+        {
+            TryGetTagPayloadSpan(row, out ReadOnlySpan<byte> payload);
+            return payload;
         }
 
         internal ReadOnlyMemory<byte> GetUtf8Memory(int index)
         {
-            AssertNotDisposed();
-
             ref readonly DbRow row = ref _metaDb.GetRow(index);
             CheckExpectedType(NbtType.String, row.Type);
 
-            ReadOnlyMemory<byte> payload = GetTagPayload(row);
-            ReadOnlySpan<byte> payloadSpan = payload.Span;
+            TryGetTagPayload(row, out ReadOnlyMemory<byte> payload);
 
-            int stringLength = ReadStringLength(payload.Span, Options, out int lengthBytes);
+            TryReadStringLength(payload.Span, Options, out int lengthBytes, out int stringLength);
             return payload.Slice(lengthBytes, stringLength);
         }
 
@@ -285,7 +354,6 @@ namespace MCServerSharp.NBT
 
         internal int GetArrayElementSize(int index)
         {
-            AssertNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
             return GetArrayElementSize(row);
@@ -293,16 +361,25 @@ namespace MCServerSharp.NBT
 
         internal ReadOnlyMemory<byte> GetArrayData(int index, out NbtType tagType)
         {
-            AssertNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
             tagType = row.Type;
             int elementSize = GetArrayElementSize(row);
-            ReadOnlyMemory<byte> payload = GetTagPayload(row);
-            var segment = payload.Slice(sizeof(int), row.CollectionLength * elementSize);
+            TryGetTagPayload(row, out ReadOnlyMemory<byte> payload);
+            ReadOnlyMemory<byte> segment = payload.Slice(sizeof(int), row.CollectionLength * elementSize);
             return segment;
         }
 
+        internal ReadOnlySpan<byte> GetArrayDataSpan(int index, out NbtType tagType)
+        {
+            ref readonly DbRow row = ref _metaDb.GetRow(index);
+
+            tagType = row.Type;
+            int elementSize = GetArrayElementSize(row);
+            TryGetTagPayloadSpan(row, out ReadOnlySpan<byte> payload);
+            ReadOnlySpan<byte> segment = payload.Slice(sizeof(int), row.CollectionLength * elementSize);
+            return segment;
+        }
 
         internal bool ArraySequenceEqual(int index, ReadOnlySpan<byte> other)
         {
@@ -323,118 +400,106 @@ namespace MCServerSharp.NBT
 
         internal sbyte GetByte(int index)
         {
-            AssertNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
             CheckExpectedType(NbtType.Byte, row.Type);
 
-            ReadOnlySpan<byte> payload = GetTagPayload(row).Span;
+            TryGetTagPayloadSpan(row, out ReadOnlySpan<byte> payload);
             return ReadByte(payload);
         }
 
         internal short GetShort(int index)
         {
-            AssertNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
-            ReadOnlySpan<byte> payload = GetTagPayload(row).Span;
-            var type = row.Type;
-            return type switch
+            ReadOnlySpan<byte> payload = GetTagPayloadSpan(row);
+            return row.Type switch
             {
-                NbtType.Short => ReadShort(payload, Options.IsBigEndian),
+                NbtType.Short => ReadInt16(payload, Options.IsBigEndian),
                 NbtType.Byte => ReadByte(payload),
-                _ => throw GetWrongTagTypeException(type),
+                _ => throw GetWrongTagTypeException(row.Type),
             };
         }
 
         internal int GetInt(int index)
         {
-            AssertNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
-            ReadOnlySpan<byte> payload = GetTagPayload(row).Span;
-            var type = row.Type;
-            return type switch
+            ReadOnlySpan<byte> payload = GetTagPayloadSpan(row);
+            return row.Type switch
             {
-                NbtType.Int => ReadInt(payload, Options.IsBigEndian),
-                NbtType.Short => ReadShort(payload, Options.IsBigEndian),
+                NbtType.Int => ReadInt32(payload, Options.IsBigEndian),
+                NbtType.Short => ReadInt16(payload, Options.IsBigEndian),
                 NbtType.Byte => ReadByte(payload),
-                _ => throw GetWrongTagTypeException(type),
+                _ => throw GetWrongTagTypeException(row.Type),
             };
         }
 
         internal long GetLong(int index)
         {
-            AssertNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
-            ReadOnlySpan<byte> payload = GetTagPayload(row).Span;
-            var type = row.Type;
-            return type switch
+            ReadOnlySpan<byte> payload = GetTagPayloadSpan(row);
+            return row.Type switch
             {
-                NbtType.Long => ReadLong(payload, Options.IsBigEndian),
-                NbtType.Int => ReadInt(payload, Options.IsBigEndian),
-                NbtType.Short => ReadShort(payload, Options.IsBigEndian),
+                NbtType.Long => ReadInt64(payload, Options.IsBigEndian),
+                NbtType.Int => ReadInt32(payload, Options.IsBigEndian),
+                NbtType.Short => ReadInt16(payload, Options.IsBigEndian),
                 NbtType.Byte => ReadByte(payload),
-                _ => throw GetWrongTagTypeException(type),
+                _ => throw GetWrongTagTypeException(row.Type),
             };
         }
 
         internal float GetFloat(int index)
         {
-            AssertNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
-            ReadOnlySpan<byte> payload = GetTagPayload(row).Span;
-            var type = row.Type;
-            return type switch
+            ReadOnlySpan<byte> payload = GetTagPayloadSpan(row);
+            return row.Type switch
             {
                 NbtType.Float => ReadFloat(payload, Options.IsBigEndian),
                 NbtType.Double => (float)ReadDouble(payload, Options.IsBigEndian),
-                NbtType.Long => ReadLong(payload, Options.IsBigEndian),
-                NbtType.Int => ReadInt(payload, Options.IsBigEndian),
-                NbtType.Short => ReadShort(payload, Options.IsBigEndian),
+                NbtType.Long => ReadInt64(payload, Options.IsBigEndian),
+                NbtType.Int => ReadInt32(payload, Options.IsBigEndian),
+                NbtType.Short => ReadInt16(payload, Options.IsBigEndian),
                 NbtType.Byte => ReadByte(payload),
-                _ => throw GetWrongTagTypeException(type),
+                _ => throw GetWrongTagTypeException(row.Type),
             };
         }
 
         internal double GetDouble(int index)
         {
-            AssertNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
-            ReadOnlySpan<byte> payload = GetTagPayload(row).Span;
-            var type = row.Type;
-            return type switch
+            ReadOnlySpan<byte> payload = GetTagPayloadSpan(row);
+            return row.Type switch
             {
                 NbtType.Double => ReadDouble(payload, Options.IsBigEndian),
                 NbtType.Float => ReadFloat(payload, Options.IsBigEndian),
-                NbtType.Long => ReadLong(payload, Options.IsBigEndian),
-                NbtType.Int => ReadInt(payload, Options.IsBigEndian),
-                NbtType.Short => ReadShort(payload, Options.IsBigEndian),
+                NbtType.Long => ReadInt64(payload, Options.IsBigEndian),
+                NbtType.Int => ReadInt32(payload, Options.IsBigEndian),
+                NbtType.Short => ReadInt16(payload, Options.IsBigEndian),
                 NbtType.Byte => ReadByte(payload),
-                _ => throw GetWrongTagTypeException(type),
+                _ => throw GetWrongTagTypeException(row.Type),
             };
         }
 
-        internal NbtElement CloneTag(int index)
+        internal NbtElement CloneTag(int index, ArrayPool<byte>? pool)
         {
             int endIndex = GetEndIndex(index);
             MetadataDb newDb = _metaDb.CopySegment(index, endIndex, _pool);
 
-            var segment = GetRawData(index);
-            var segmentCopy = new byte[segment.Length];
+            ReadOnlySpan<byte> segment = GetRawDataSpan(index, out _);
+            byte[] segmentCopy = pool != null ? pool.Rent(segment.Length) : new byte[segment.Length];
             segment.CopyTo(segmentCopy);
 
             var newDocument = new NbtDocument(
-                segmentCopy, Options, newDb, null, null);
+                segmentCopy, Options, newDb, segmentCopy, pool);
 
             return newDocument.RootTag;
         }
 
         internal void WriteTagTo(int index, NbtWriter writer)
         {
-            AssertNotDisposed();
             ref readonly DbRow row = ref _metaDb.GetRow(index);
 
             throw new NotImplementedException();
@@ -461,7 +526,7 @@ namespace MCServerSharp.NBT
         {
             int endIndex = GetEndIndex(index);
 
-            ReadOnlySpan<byte> data = _data.Span;
+            ReadOnlySpan<byte> data = Bytes.Span;
             for (int i = index + DbRow.Size; i < endIndex; i += DbRow.Size)
             {
                 ref readonly DbRow row = ref _metaDb.GetRow(index);
@@ -472,12 +537,6 @@ namespace MCServerSharp.NBT
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void AssertNotDisposed()
-        {
-            if (_data.IsEmpty)
-                throw new ObjectDisposedException(nameof(NbtDocument));
-        }
-
         private static void CheckExpectedType(NbtType expected, NbtType actual)
         {
             if (expected != actual)
@@ -486,7 +545,7 @@ namespace MCServerSharp.NBT
 
         private static InvalidOperationException GetWrongTagTypeException(NbtType type)
         {
-            throw new InvalidOperationException($"Unexpected tag type \"{type}\".");
+            return new InvalidOperationException($"Unexpected tag type \"{type}\".");
         }
 
         private static void CheckSupportedOptions(NbtOptions readerOptions, string paramName)

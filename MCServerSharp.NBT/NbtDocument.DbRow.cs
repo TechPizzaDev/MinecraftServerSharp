@@ -11,32 +11,30 @@ namespace MCServerSharp.NBT
         /// excluding <see cref="NbtType.End"/> tags.
         /// </summary>
         [StructLayout(LayoutKind.Sequential)]
-        public readonly struct DbRow
+        public struct DbRow
         {
             public static int Size => Unsafe.SizeOf<DbRow>();
 
-            public const int LocationOffset = 0;
-            public const int LengthOffset = LocationOffset + sizeof(int);
-            public const int RowCountOffset = LengthOffset + sizeof(int);
-            public const int FlagsOffset = RowCountOffset + sizeof(int);
-            public const int TagTypeOffset = FlagsOffset + sizeof(NbtFlags);
-
-            public int Location { get; }
+            public readonly int Location;
 
             /// <summary>
             /// The amount of elements in a container tag.
             /// </summary>
-            public int CollectionLength { get; }
+            public int CollectionLength;
 
-            public int RowCount { get; }
+            public int RowCount;
 
-            public NbtFlags Flags { get; }
-            public NbtType Type { get; }
+            public readonly int RawNameLength;
+
+            public readonly NbtFlags Flags;
+            public readonly NbtType Type;
 
             public bool IsContainerType => Type.IsContainer();
             public bool IsPrimitiveType => Type.IsPrimitive();
 
-            public DbRow(int location, int collectionLength, int rowCount, NbtType type, NbtFlags flags)
+            public DbRow(
+                int location, int collectionLength, int rowCount, int nameLength,
+                NbtType type, NbtFlags flags)
             {
                 Debug.Assert(location >= 0);
                 Debug.Assert(type >= NbtType.End && type <= NbtType.LongArray);
@@ -44,6 +42,7 @@ namespace MCServerSharp.NBT
                 Location = location;
                 CollectionLength = collectionLength;
                 RowCount = rowCount;
+                RawNameLength = nameLength;
                 Type = type;
                 Flags = flags;
             }
