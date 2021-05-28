@@ -18,7 +18,7 @@ namespace MCServerSharp
             where TEnum : unmanaged, Enum
         {
             long num = EnumConverter.ToInt64(value);
-            return (VarLong)num;
+            return num;
         }
     }
 }

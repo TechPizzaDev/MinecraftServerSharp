@@ -52,31 +52,25 @@ namespace MCServerSharp
         public static OperationStatus TryDecode(
             ReadOnlySpan<byte> source, out VarInt result, out int bytesConsumed)
         {
+            result = 0;
             bytesConsumed = 0;
-            int value = 0;
-            int b;
+            uint value = 0;
+            uint b;
             do
             {
                 if (bytesConsumed == MaxEncodedSize)
-                {
-                    result = default;
                     return OperationStatus.InvalidData;
-                }
-
-                if (source.Length - bytesConsumed <= 0)
-                {
-                    result = default;
+                else if (source.Length - bytesConsumed <= 0)
                     return OperationStatus.NeedMoreData;
-                }
+
                 b = source[bytesConsumed];
 
                 value |= (b & 0x7F) << (bytesConsumed * 7);
                 bytesConsumed++;
-
-            } 
+            }
             while ((b & 0x80) != 0);
 
-            result = value;
+            result = (int)value;
             return OperationStatus.Done;
         }
 
@@ -86,22 +80,21 @@ namespace MCServerSharp
             if (stream == null)
                 throw new ArgumentNullException(nameof(stream));
 
+            result = default;
             bytesConsumed = 0;
-            int value = 0;
-            int b;
+            uint value = 0;
+            uint b;
             do
             {
                 if (bytesConsumed == MaxEncodedSize)
                 {
-                    result = default;
                     return OperationStatus.InvalidData;
                 }
-
-                b = stream.ReadByte();
-                if (b == -1)
+                else
                 {
-                    result = default;
-                    return OperationStatus.NeedMoreData;
+                    b = (uint)stream.ReadByte();
+                    if (b == uint.MaxValue)
+                        return OperationStatus.NeedMoreData;
                 }
 
                 value |= (b & 0x7F) << (bytesConsumed * 7);
@@ -109,7 +102,7 @@ namespace MCServerSharp
 
             } while ((b & 0x80) != 0);
 
-            result = value;
+            result = (int)value;
             return OperationStatus.Done;
         }
 
@@ -124,6 +117,7 @@ namespace MCServerSharp
         }
 
         public static implicit operator int(VarInt value) => value.Value;
-        public static implicit operator VarInt(int value) => new VarInt(value);
+        public static implicit operator VarLong(VarInt value) => new(value.Value);
+        public static implicit operator VarInt(int value) => new(value);
     }
 }

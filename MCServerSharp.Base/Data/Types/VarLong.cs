@@ -49,32 +49,55 @@ namespace MCServerSharp
             return index;
         }
 
-        public static OperationStatus TryDecode(Stream stream, out VarLong result, out int bytes)
+        public static OperationStatus TryDecode(
+            ReadOnlySpan<byte> source, out VarLong result, out int bytesConsumed)
+        {
+            result = 0;
+            bytesConsumed = 0;
+            ulong value = 0;
+            ulong b;
+            do
+            {
+                if (bytesConsumed == MaxEncodedSize)
+                    return OperationStatus.InvalidData;
+                else if (source.Length - bytesConsumed <= 0)
+                    return OperationStatus.NeedMoreData;
+
+                b = source[bytesConsumed];
+
+                value |= (b & 0x7F) << (bytesConsumed * 7);
+                bytesConsumed++;
+            }
+            while ((b & 0x80) != 0);
+
+            result = (VarLong)value;
+            return OperationStatus.Done;
+        }
+
+        public static OperationStatus TryDecode(Stream stream, out VarLong result, out int bytesConsumed)
         {
             if (stream == null)
                 throw new ArgumentNullException(nameof(stream));
 
-            bytes = 0;
-            long count = 0;
-            long b;
+            result = default;
+            bytesConsumed = 0;
+            ulong count = 0;
+            ulong b;
             do
             {
-                if (bytes == MaxEncodedSize)
+                if (bytesConsumed == MaxEncodedSize)
                 {
-                    result = default;
                     return OperationStatus.InvalidData;
                 }
-
-                b = stream.ReadByte();
-                if (b == -1)
+                else
                 {
-                    result = default;
-                    return OperationStatus.NeedMoreData;
+                    b = (ulong)stream.ReadByte();
+                    if (b == ulong.MaxValue)
+                        return OperationStatus.NeedMoreData;
                 }
 
-                count |= (b & 0x7F) << (bytes * 7);
-                bytes++;
-
+                count |= (b & 0x7F) << (bytesConsumed * 7);
+                bytesConsumed++;
             }
             while ((b & 0x80) != 0);
 
@@ -92,7 +115,9 @@ namespace MCServerSharp
             return ToString(CultureInfo.CurrentCulture);
         }
 
+        public static explicit operator VarLong(ulong value) => new((long)value);
+
         public static implicit operator long(VarLong value) => value.Value;
-        public static explicit operator VarLong(long value) => new VarLong(value);
+        public static implicit operator VarLong(long value) => new(value);
     }
 }
