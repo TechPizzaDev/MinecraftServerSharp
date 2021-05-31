@@ -1,17 +1,19 @@
 ﻿using System.Runtime.CompilerServices;
+using System.Runtime.Intrinsics;
+using System.Runtime.Intrinsics.X86;
 
 namespace MCServerSharp
 {
     public readonly partial struct BitArray32
     {
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-        private static void BatchCopy1(uint iterations, ref ulong src, ref uint dst, ref int dstIndex)
+        private static void BatchCopy1(nint iterations, ref ulong src, ref uint dst, ref nint dstIndex)
         {
             const uint mask = ~(uint.MaxValue << 1);
 
-            for (uint j = 0; j < iterations; j++)
+            for (nint j = 0; j < iterations; j++)
             {
-                ulong data = Unsafe.Add(ref src, (int)j);
+                ulong data = Unsafe.Add(ref src, j);
 
                 for (int i = 0; i < 2; i++)
                 {
@@ -104,13 +106,13 @@ namespace MCServerSharp
         }
 
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-        private static void BatchCopy2(uint iterations, ref ulong src, ref uint dst, ref int dstIndex)
+        private static void BatchCopy2(nint iterations, ref ulong src, ref uint dst, ref nint dstIndex)
         {
             const uint mask = ~(uint.MaxValue << 2);
 
-            for (uint j = 0; j < iterations; j++)
+            for (nint j = 0; j < iterations; j++)
             {
-                ulong data = Unsafe.Add(ref src, (int)j);
+                ulong data = Unsafe.Add(ref src, j);
 
                 for (int i = 0; i < 2; i++)
                 {
@@ -163,13 +165,13 @@ namespace MCServerSharp
         }
 
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-        private static void BatchCopy3(uint iterations, ref ulong src, ref uint dst, ref int dstIndex)
+        private static void BatchCopy3(nint iterations, ref ulong src, ref uint dst, ref nint dstIndex)
         {
             const uint mask = ~(uint.MaxValue << 3);
 
-            for (uint j = 0; j < iterations; j++)
+            for (nint j = 0; j < iterations; j++)
             {
-                ulong data = Unsafe.Add(ref src, (int)j);
+                ulong data = Unsafe.Add(ref src, j);
                 ref uint d = ref Unsafe.Add(ref dst, dstIndex);
 
                 uint element0 = (uint)(data >> (0 * 3)) & mask;
@@ -230,73 +232,106 @@ namespace MCServerSharp
         }
 
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-        private static void BatchCopy4(uint iterations, ref ulong src, ref uint dst, ref int dstIndex)
+        private static void BatchCopy4(nint iterations, ref ulong src, ref uint dst, ref nint dstIndex)
         {
             const uint mask = ~(uint.MaxValue << 4);
 
-            for (uint j = 0; j < iterations; j++)
+            if (Avx2.IsSupported)
             {
-                ulong data = Unsafe.Add(ref src, (int)j);
-                uint sdata0 = (uint)data;
-                uint sdata1 = (uint)(data >> 32);
-                ref uint d = ref Unsafe.Add(ref dst, dstIndex);
+                Vector256<uint> dataMask = Vector256.Create(mask);
 
+                Vector256<uint> dataShift = Vector256.Create(
+                    0u * 4, 1 * 4, 2 * 4, 3 * 4,
+                    4u * 4, 5 * 4, 6 * 4, 7 * 4);
+
+                for (nint j = 0; j < iterations; j++)
                 {
-                    uint element0 = (sdata0 >> (0 * 4)) & mask;
-                    uint element1 = (sdata0 >> (1 * 4)) & mask;
-                    Unsafe.Add(ref d, 0) = element0;
-                    Unsafe.Add(ref d, 1) = element1;
+                    ulong data = Unsafe.Add(ref src, (int)j);
+                    Vector256<uint> sdata0 = Vector256.Create((uint)data);
+                    Vector256<uint> sdata1 = Vector256.Create((uint)(data >> 32));
 
-                    uint element2 = (sdata0 >> (2 * 4)) & mask;
-                    uint element3 = (sdata0 >> (3 * 4)) & mask;
-                    Unsafe.Add(ref d, 2) = element2;
-                    Unsafe.Add(ref d, 3) = element3;
+                    Vector256<uint> dvec0 = Avx2.And(
+                        Avx2.ShiftRightLogicalVariable(sdata0, dataShift),
+                        dataMask);
 
-                    uint element4 = (sdata0 >> (4 * 4)) & mask;
-                    uint element5 = (sdata0 >> (5 * 4)) & mask;
-                    Unsafe.Add(ref d, 4) = element4;
-                    Unsafe.Add(ref d, 5) = element5;
+                    Vector256<uint> dvec1 = Avx2.And(
+                        Avx2.ShiftRightLogicalVariable(sdata1, dataShift),
+                        dataMask);
 
-                    uint element6 = (sdata0 >> (6 * 4)) & mask;
-                    uint element7 = (sdata0 >> (7 * 4)) & mask;
-                    Unsafe.Add(ref d, 6) = element6;
-                    Unsafe.Add(ref d, 7) = element7;
+                    ref Vector256<uint> d = ref Unsafe.As<uint, Vector256<uint>>(
+                        ref Unsafe.Add(ref dst, dstIndex));
+
+                    Unsafe.Add(ref d, 0) = dvec0;
+                    Unsafe.Add(ref d, 1) = dvec1;
+                    dstIndex += 16;
                 }
-
+            }
+            else
+            {
+                for (nint j = 0; j < iterations; j++)
                 {
-                    uint element8 = (sdata1 >> (0 * 4)) & mask;
-                    uint element9 = (sdata1 >> (1 * 4)) & mask;
-                    Unsafe.Add(ref d, 8) = element8;
-                    Unsafe.Add(ref d, 9) = element9;
+                    ulong data = Unsafe.Add(ref src, j);
+                    uint sdata0 = (uint)data;
+                    uint sdata1 = (uint)(data >> 32);
+                    ref uint d = ref Unsafe.Add(ref dst, dstIndex);
 
-                    uint element10 = (sdata1 >> (2 * 4)) & mask;
-                    uint element11 = (sdata1 >> (3 * 4)) & mask;
-                    Unsafe.Add(ref d, 10) = element10;
-                    Unsafe.Add(ref d, 11) = element11;
+                    {
+                        uint element0 = (sdata0 >> (0 * 4)) & mask;
+                        uint element1 = (sdata0 >> (1 * 4)) & mask;
+                        Unsafe.Add(ref d, 0) = element0;
+                        Unsafe.Add(ref d, 1) = element1;
 
-                    uint element12 = (sdata1 >> (4 * 4)) & mask;
-                    uint element13 = (sdata1 >> (5 * 4)) & mask;
-                    Unsafe.Add(ref d, 12) = element12;
-                    Unsafe.Add(ref d, 13) = element13;
+                        uint element2 = (sdata0 >> (2 * 4)) & mask;
+                        uint element3 = (sdata0 >> (3 * 4)) & mask;
+                        Unsafe.Add(ref d, 2) = element2;
+                        Unsafe.Add(ref d, 3) = element3;
 
-                    uint element14 = (sdata1 >> (6 * 4)) & mask;
-                    uint element15 = (sdata1 >> (7 * 4)) & mask;
-                    Unsafe.Add(ref d, 14) = element14;
-                    Unsafe.Add(ref d, 15) = element15;
+                        uint element4 = (sdata0 >> (4 * 4)) & mask;
+                        uint element5 = (sdata0 >> (5 * 4)) & mask;
+                        Unsafe.Add(ref d, 4) = element4;
+                        Unsafe.Add(ref d, 5) = element5;
+
+                        uint element6 = (sdata0 >> (6 * 4)) & mask;
+                        uint element7 = (sdata0 >> (7 * 4)) & mask;
+                        Unsafe.Add(ref d, 6) = element6;
+                        Unsafe.Add(ref d, 7) = element7;
+                    }
+
+                    {
+                        uint element8 = (sdata1 >> (0 * 4)) & mask;
+                        uint element9 = (sdata1 >> (1 * 4)) & mask;
+                        Unsafe.Add(ref d, 8) = element8;
+                        Unsafe.Add(ref d, 9) = element9;
+
+                        uint element10 = (sdata1 >> (2 * 4)) & mask;
+                        uint element11 = (sdata1 >> (3 * 4)) & mask;
+                        Unsafe.Add(ref d, 10) = element10;
+                        Unsafe.Add(ref d, 11) = element11;
+
+                        uint element12 = (sdata1 >> (4 * 4)) & mask;
+                        uint element13 = (sdata1 >> (5 * 4)) & mask;
+                        Unsafe.Add(ref d, 12) = element12;
+                        Unsafe.Add(ref d, 13) = element13;
+
+                        uint element14 = (sdata1 >> (6 * 4)) & mask;
+                        uint element15 = (sdata1 >> (7 * 4)) & mask;
+                        Unsafe.Add(ref d, 14) = element14;
+                        Unsafe.Add(ref d, 15) = element15;
+                    }
+
+                    dstIndex += 16;
                 }
-
-                dstIndex += 16;
             }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-        private static void BatchCopy5(uint iterations, ref ulong src, ref uint dst, ref int dstIndex)
+        private static void BatchCopy5(nint iterations, ref ulong src, ref uint dst, ref nint dstIndex)
         {
             const uint mask = ~(uint.MaxValue << 5);
 
-            for (uint j = 0; j < iterations; j++)
+            for (nint j = 0; j < iterations; j++)
             {
-                ulong data = Unsafe.Add(ref src, (int)j);
+                ulong data = Unsafe.Add(ref src, j);
                 ref uint d = ref Unsafe.Add(ref dst, dstIndex);
 
                 uint element0 = (uint)(data >> (0 * 5)) & mask;

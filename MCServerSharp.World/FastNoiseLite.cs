@@ -49,6 +49,7 @@
 
 using System;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics.X86;
 
 // Switch between using floats or doubles for input position
@@ -1235,7 +1236,7 @@ public class FastNoiseLite
 
         float value = 0;
         float a = (0.6f - x0 * x0) - (y0 * y0 + z0 * z0);
-        ref float gradients = ref Gradients3D[0];
+        ref float gradients = ref MemoryMarshal.GetArrayDataReference(Gradients3D);
 
         for (int l = 0; ; l++)
         {

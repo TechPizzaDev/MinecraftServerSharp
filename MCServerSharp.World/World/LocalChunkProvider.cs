@@ -142,7 +142,7 @@ namespace MCServerSharp.World
             {
                 if (BitConverter.IsLittleEndian)
                 {
-                    ref ulong oSrc = ref Unsafe.AsRef(blockData[0]);
+                    ref ulong oSrc = ref MemoryMarshal.GetReference(blockData);
                     for (int i = 0; i < longBufferLength; i += 8)
                     {
                         ref ulong s = ref Unsafe.Add(ref oSrc, i);
@@ -159,7 +159,7 @@ namespace MCServerSharp.World
                 }
                 else
                 {
-                    blockData.Slice(0, longBufferSpan.Length).CopyTo(longBufferSpan);
+                    blockData.Slice(0, longBufferLength).CopyTo(longBufferSpan);
                 }
 
                 uint getOffset = 0;
@@ -167,12 +167,12 @@ namespace MCServerSharp.World
                 do
                 {
                     get = BitArray32.Get(
-                     longBufferSpan,
-                     0,
-                     blocksPerLong * longBufferLength,
-                     bitsPerBlock,
-                     getOffset,
-                     blockBufferSpan);
+                        longBufferSpan,
+                        0,
+                        blocksPerLong * longBufferLength,
+                        bitsPerBlock,
+                        getOffset,
+                        blockBufferSpan);
 
                     destination.SetBlocks(blockBufferSpan.Slice(0, get), (int)blockNumber);
                     getOffset += (uint)get;
@@ -200,7 +200,7 @@ namespace MCServerSharp.World
                 }
             }
 
-            ref ulong src = ref Unsafe.AsRef(blockStateData[0]);
+            ref ulong src = ref MemoryMarshal.GetReference(blockStateData);
             for (; blockNumber < 4096; blockNumber++)
             {
                 uint startLong = blockNumber / blocksPerLong;

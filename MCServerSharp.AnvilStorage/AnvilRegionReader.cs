@@ -150,7 +150,7 @@ namespace MCServerSharp.AnvilStorage
                 NbtDocument chunkDocument = NbtDocument.Parse(
                     dataStream,
                     NbtOptions.JavaDefault,
-                    Pool);
+                    null); // TODO: improve memory management
 
                 //int chunkIndex = LocationIndices[locationIndex];
 

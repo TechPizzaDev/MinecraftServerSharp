@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace MCServerSharp
 {
@@ -196,15 +197,15 @@ namespace MCServerSharp
 
             uint elementsPerLong = LongBits / bitsPerElement;
 
-            int dstIndex = 0;
+            nint dstIndex = 0;
             uint dstLength = (uint)destination.Length;
             uint toCopy = Math.Min(dstLength, srcElementsLeft);
             uint actualStartIndex = sourceIndex + elementOffset;
             uint srcOffset = actualStartIndex / elementsPerLong;
             uint mask = GetElementMask(bitsPerElement);
 
-            ref ulong src = ref Unsafe.AsRef(source[(int)srcOffset]);
-            ref uint dst = ref destination[0];
+            ref ulong src = ref Unsafe.Add(ref MemoryMarshal.GetReference(source), (nint)srcOffset);
+            ref uint dst = ref MemoryMarshal.GetReference(destination);
 
             uint startIndexRemainder = actualStartIndex % elementsPerLong;
             if (startIndexRemainder != 0)
@@ -223,7 +224,7 @@ namespace MCServerSharp
                 toCopy -= firstCount;
             }
 
-            uint iterations = toCopy / elementsPerLong;
+            nint iterations = (nint)(toCopy / elementsPerLong);
             int bitsPerLong = (int)(elementsPerLong * bitsPerElement);
 
             if (bitsPerElement == 1)
@@ -249,9 +250,9 @@ namespace MCServerSharp
             else
             {
                 int bpe = (int)bitsPerElement;
-                for (uint j = 0; j < iterations; j++)
+                for (nint j = 0; j < iterations; j++)
                 {
-                    ulong data = Unsafe.Add(ref src, (int)j);
+                    ulong data = Unsafe.Add(ref src, j);
                     for (int i = 0; i < bitsPerLong; i += bpe, dstIndex++)
                     {
                         uint element = (uint)(data >> i) & mask;
@@ -260,10 +261,10 @@ namespace MCServerSharp
                 }
             }
 
-            toCopy -= elementsPerLong * iterations;
+            toCopy -= elementsPerLong * (uint)iterations;
 
             // Try to copy the remaining elements that were not copied by batch.
-            ulong lastData = Unsafe.Add(ref src, (int)iterations);
+            ulong lastData = Unsafe.Add(ref src, iterations);
 
             for (uint i = 0; i < toCopy; i++, dstIndex++)
             {
@@ -272,7 +273,7 @@ namespace MCServerSharp
                 Unsafe.Add(ref dst, dstIndex) = element;
             }
 
-            return dstIndex;
+            return (int)dstIndex;
         }
 
         // TODO: optimize/specialize cases
@@ -283,10 +284,10 @@ namespace MCServerSharp
                 return;
 
             uint actualStartIndex = startIndex + ElementOffset;
-            uint startLong = actualStartIndex / _elementsPerLong;
+            nint startLong = (nint)(actualStartIndex / _elementsPerLong);
             int bpe = (int)BitsPerElement;
 
-            uint i = 0;
+            uint s = 0;
             uint startIndexRemainder = actualStartIndex % _elementsPerLong;
             if (startIndexRemainder != 0)
             {
@@ -297,27 +298,156 @@ namespace MCServerSharp
                 }
 
                 startLong++;
-                i += firstCount;
+                s += firstCount;
             }
 
-            while (values.Length - i >= _elementsPerLong)
-            {
-                ulong packed = 0;
+            nint iterations = (nint)(((uint)values.Length - s) / _elementsPerLong);
+            ref uint src = ref MemoryMarshal.GetReference(values);
+            ref uint offSrc = ref Unsafe.Add(ref src, (nint)s);
+            ref ulong dst = ref MemoryMarshal.GetArrayDataReference(Store);
 
-                ref uint src = ref values[(int)i];
-                for (int j = 0; j < _elementsPerLong; j++)
+            if (_elementsPerLong == 16)
+            {
+                BatchSet16(iterations, ref offSrc, ref dst, ref startLong);
+                s += (uint)iterations * _elementsPerLong;
+            }
+            else if (_elementsPerLong == 64)
+            {
+                BatchSet64(iterations, ref offSrc, ref dst, ref startLong);
+                s += (uint)iterations * _elementsPerLong;
+            }
+            else
+            {
+                for (int i = 0; i < iterations; i++)
                 {
-                    packed |= (ulong)Unsafe.Add(ref src, j) << (j * bpe);
+                    ulong packed = 0;
+
+                    ref uint data = ref Unsafe.Add(ref src, (int)s);
+                    for (int j = 0; j < _elementsPerLong; j++)
+                    {
+                        packed |= (ulong)Unsafe.Add(ref data, (nint)j) << (j * bpe);
+                    }
+
+                    Unsafe.Add(ref dst, startLong++) = packed;
+                    s += _elementsPerLong;
                 }
-
-                Store[(int)(startLong++)] = packed;
-
-                i += _elementsPerLong;
             }
 
-            for (; i < values.Length; i++)
+            for (; s < values.Length; s++)
             {
-                Set(startIndex + i, values[(int)i]);
+                Set(startIndex + s, values[(int)s]);
+            }
+        }
+
+        public static void BatchSet64(nint iterations, ref uint src, ref ulong dst, ref nint dstIndex)
+        {
+            for (nint i = 0; i < iterations; i++)
+            {
+                ref uint data = ref Unsafe.Add(ref src, i * 64);
+
+                uint low = 0;
+                uint high = 0;
+
+                low |= Unsafe.Add(ref data, 0) << 0;
+                low |= Unsafe.Add(ref data, 1) << 1;
+                low |= Unsafe.Add(ref data, 2) << 2;
+                low |= Unsafe.Add(ref data, 3) << 3;
+                low |= Unsafe.Add(ref data, 4) << 4;
+                low |= Unsafe.Add(ref data, 5) << 5;
+                low |= Unsafe.Add(ref data, 6) << 6;
+                low |= Unsafe.Add(ref data, 7) << 7;
+                low |= Unsafe.Add(ref data, 8) << 8;
+                low |= Unsafe.Add(ref data, 9) << 9;
+                low |= Unsafe.Add(ref data, 10) << 10;
+                low |= Unsafe.Add(ref data, 11) << 11;
+                low |= Unsafe.Add(ref data, 12) << 12;
+                low |= Unsafe.Add(ref data, 13) << 13;
+                low |= Unsafe.Add(ref data, 14) << 14;
+                low |= Unsafe.Add(ref data, 15) << 15;
+
+                low |= Unsafe.Add(ref data, 16) << 16;
+                low |= Unsafe.Add(ref data, 17) << 17;
+                low |= Unsafe.Add(ref data, 18) << 18;
+                low |= Unsafe.Add(ref data, 19) << 19;
+                low |= Unsafe.Add(ref data, 20) << 20;
+                low |= Unsafe.Add(ref data, 21) << 21;
+                low |= Unsafe.Add(ref data, 22) << 22;
+                low |= Unsafe.Add(ref data, 23) << 23;
+                low |= Unsafe.Add(ref data, 24) << 24;
+                low |= Unsafe.Add(ref data, 25) << 25;
+                low |= Unsafe.Add(ref data, 26) << 26;
+                low |= Unsafe.Add(ref data, 27) << 27;
+                low |= Unsafe.Add(ref data, 28) << 28;
+                low |= Unsafe.Add(ref data, 29) << 29;
+                low |= Unsafe.Add(ref data, 30) << 30;
+                low |= Unsafe.Add(ref data, 31) << 31;
+
+                high |= Unsafe.Add(ref data, 32) << 0;
+                high |= Unsafe.Add(ref data, 33) << 1;
+                high |= Unsafe.Add(ref data, 34) << 2;
+                high |= Unsafe.Add(ref data, 35) << 3;
+                high |= Unsafe.Add(ref data, 36) << 4;
+                high |= Unsafe.Add(ref data, 37) << 5;
+                high |= Unsafe.Add(ref data, 38) << 6;
+                high |= Unsafe.Add(ref data, 39) << 7;
+                high |= Unsafe.Add(ref data, 40) << 8;
+                high |= Unsafe.Add(ref data, 41) << 9;
+                high |= Unsafe.Add(ref data, 42) << 10;
+                high |= Unsafe.Add(ref data, 43) << 11;
+                high |= Unsafe.Add(ref data, 44) << 12;
+                high |= Unsafe.Add(ref data, 45) << 13;
+                high |= Unsafe.Add(ref data, 46) << 14;
+                high |= Unsafe.Add(ref data, 47) << 15;
+
+                high |= Unsafe.Add(ref data, 48) << 16;
+                high |= Unsafe.Add(ref data, 49) << 17;
+                high |= Unsafe.Add(ref data, 50) << 18;
+                high |= Unsafe.Add(ref data, 51) << 19;
+                high |= Unsafe.Add(ref data, 52) << 20;
+                high |= Unsafe.Add(ref data, 53) << 21;
+                high |= Unsafe.Add(ref data, 54) << 22;
+                high |= Unsafe.Add(ref data, 55) << 23;
+                high |= Unsafe.Add(ref data, 56) << 24;
+                high |= Unsafe.Add(ref data, 57) << 25;
+                high |= Unsafe.Add(ref data, 58) << 26;
+                high |= Unsafe.Add(ref data, 59) << 27;
+                high |= Unsafe.Add(ref data, 60) << 28;
+                high |= Unsafe.Add(ref data, 61) << 29;
+                high |= Unsafe.Add(ref data, 62) << 30;
+                high |= Unsafe.Add(ref data, 63) << 31;
+
+                Unsafe.Add(ref dst, dstIndex++) = low | ((ulong)high << 32);
+            }
+        }
+
+        public static void BatchSet16(nint iterations, ref uint src, ref ulong dst, ref nint dstIndex)
+        {
+            for (nint i = 0; i < iterations; i++)
+            {
+                ref uint data = ref Unsafe.Add(ref src, i * 16);
+
+                uint low = 0;
+                uint high = 0;
+
+                low |= Unsafe.Add(ref data, 0) << (0 * 4);
+                low |= Unsafe.Add(ref data, 1) << (1 * 4);
+                low |= Unsafe.Add(ref data, 2) << (2 * 4);
+                low |= Unsafe.Add(ref data, 3) << (3 * 4);
+                low |= Unsafe.Add(ref data, 4) << (4 * 4);
+                low |= Unsafe.Add(ref data, 5) << (5 * 4);
+                low |= Unsafe.Add(ref data, 6) << (6 * 4);
+                low |= Unsafe.Add(ref data, 7) << (7 * 4);
+
+                high |= Unsafe.Add(ref data, 8) << (0 * 4);
+                high |= Unsafe.Add(ref data, 9) << (1 * 4);
+                high |= Unsafe.Add(ref data, 10) << (2 * 4);
+                high |= Unsafe.Add(ref data, 11) << (3 * 4);
+                high |= Unsafe.Add(ref data, 12) << (4 * 4);
+                high |= Unsafe.Add(ref data, 13) << (5 * 4);
+                high |= Unsafe.Add(ref data, 14) << (6 * 4);
+                high |= Unsafe.Add(ref data, 15) << (7 * 4);
+
+                Unsafe.Add(ref dst, dstIndex++) = low | ((ulong)high << 32);
             }
         }
     }

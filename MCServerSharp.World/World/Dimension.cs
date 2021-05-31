@@ -61,6 +61,8 @@ namespace MCServerSharp.World
                     _infoRemoveQueue.Enqueue(removeColumn);
                     continue;
                 }
+
+                //Console.WriteLine("removed " + _chunkInfos[index].Column.Position + " - " + _chunkInfos.Count + " left");
                 _chunkInfos.RemoveAt(index);
             }
 
