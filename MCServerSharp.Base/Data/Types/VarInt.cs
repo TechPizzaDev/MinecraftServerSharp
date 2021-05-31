@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Runtime.CompilerServices;
 
 namespace MCServerSharp
 {
@@ -47,6 +48,17 @@ namespace MCServerSharp
             }
             destination[index++] = (byte)value;
             return index;
+        }
+
+        public void EncodeUnsafe(ref int index, ref byte destination)
+        {
+            uint value = (uint)Value;
+            while (value >= 0x80)
+            {
+                Unsafe.Add(ref destination, index++) = (byte)(value | 0x80);
+                value >>= 7;
+            }
+            Unsafe.Add(ref destination, index++) = (byte)value;
         }
 
         public static OperationStatus TryDecode(

@@ -188,22 +188,31 @@ namespace MCServerSharp.Data.IO
         [SkipLocalsInit]
         public static void WriteVar(this NetBinaryWriter writer, ReadOnlySpan<int> values)
         {
-            Span<byte> buffer = stackalloc byte[2048];
-            Span<byte> span = buffer;
+            const int MaxCount = 512;
+            Span<byte> buffer = stackalloc byte[VarInt.MaxEncodedSize * MaxCount];
+            ref byte destination = ref MemoryMarshal.GetReference(buffer);
+            int offset = 0;
+
+            while (values.Length >= MaxCount)
+            {
+                ReadOnlySpan<int> slice = values.Slice(0, MaxCount);
+                for (int i = 0; i < slice.Length; i++)
+                {
+                    new VarInt(slice[i]).EncodeUnsafe(ref offset, ref destination);
+                }
+
+                writer.Write(buffer.Slice(0, offset));
+                offset = 0;
+
+                values = values[MaxCount..];
+            }
 
             for (int i = 0; i < values.Length; i++)
             {
-                int written = new VarInt(values[i]).Encode(span);
-                span = span[written..];
-
-                if (span.Length < VarInt.MaxEncodedSize)
-                {
-                    writer.Write(buffer.Slice(0, buffer.Length - span.Length));
-                    span = buffer;
-                }
+                new VarInt(values[i]).EncodeUnsafe(ref offset, ref destination);
             }
 
-            writer.Write(buffer.Slice(0, buffer.Length - span.Length));
+            writer.Write(buffer.Slice(0, offset));
         }
 
         public static void WriteVar(this NetBinaryWriter writer, ReadOnlySpan<uint> values)
@@ -214,22 +223,31 @@ namespace MCServerSharp.Data.IO
         [SkipLocalsInit]
         public static void WriteVar(this NetBinaryWriter writer, ReadOnlySpan<long> values)
         {
-            Span<byte> buffer = stackalloc byte[2048];
-            Span<byte> span = buffer;
+            const int MaxCount = 256;
+            Span<byte> buffer = stackalloc byte[VarLong.MaxEncodedSize * MaxCount];
+            ref byte destination = ref MemoryMarshal.GetReference(buffer);
+            int offset = 0;
+
+            while (values.Length >= MaxCount)
+            {
+                ReadOnlySpan<long> slice = values.Slice(0, MaxCount);
+                for (int i = 0; i < slice.Length; i++)
+                {
+                    new VarLong(slice[i]).EncodeUnsafe(ref offset, ref destination);
+                }
+
+                writer.Write(buffer.Slice(0, offset));
+                offset = 0;
+
+                values = values[MaxCount..];
+            }
 
             for (int i = 0; i < values.Length; i++)
             {
-                int written = new VarLong(values[i]).Encode(span);
-                span = span[written..];
-
-                if (span.Length < VarLong.MaxEncodedSize)
-                {
-                    writer.Write(buffer.Slice(0, buffer.Length - span.Length));
-                    span = buffer;
-                }
+                new VarLong(values[i]).EncodeUnsafe(ref offset, ref destination);
             }
 
-            writer.Write(buffer.Slice(0, buffer.Length - span.Length));
+            writer.Write(buffer.Slice(0, offset));
         }
 
         public static void WriteVar(this NetBinaryWriter writer, ReadOnlySpan<ulong> values)
