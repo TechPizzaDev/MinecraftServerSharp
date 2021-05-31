@@ -3,7 +3,7 @@ using MCServerSharp.Text;
 
 namespace MCServerSharp
 {
-    public readonly struct Utf8Identifier : IIdentifier<Utf8Identifier>
+    public readonly struct Utf8Identifier : IIdentifier<Utf8Identifier>, IEquatable<Identifier>
     {
         // TODO: move this somewhere else?
         public static Utf8String DefaultNamespace { get; } = Identifier.DefaultNamespace.ToUtf8String();
@@ -14,7 +14,10 @@ namespace MCServerSharp
         public Utf8Memory Value { get; }
         public Utf8Memory Namespace => Value[0.._namespaceEnd];
         public Utf8Memory Location => Value[(_namespaceEnd + Identifier.Separator.Length)..];
-        
+
+        public int Length => Value.Length;
+        public bool IsValid => !Value.IsEmpty;
+
         private Utf8Identifier(Utf8Memory value, int namespaceEnd)
         {
             Value = value;
@@ -63,6 +66,11 @@ namespace MCServerSharp
         {
         }
 
+        public static Utf8Identifier CreateUnsafe(Utf8Memory value)
+        {
+            return new Utf8Identifier(value, value.Span.IndexOf(Separator.Bytes));
+        }
+
         public static bool TryParse(Utf8Memory value, out Utf8Identifier identifier)
         {
             Utf8Splitter parts = value.EnumerateSplit(Separator, StringSplitOptions.None);
@@ -91,12 +99,28 @@ namespace MCServerSharp
         public RuneEnumerator EnumerateNamespace() => Namespace;
         public RuneEnumerator EnumerateLocation() => Location;
 
+        public Identifier ToUtf16Identifier()
+        {
+            return new Identifier(Value.ToString());
+        }
+
         public bool Equals(Utf8Identifier other, StringComparison comparison)
         {
-            return Value.Equals(other.Value, comparison);
+            return _namespaceEnd == other._namespaceEnd 
+                && Value.Equals(other.Value, comparison);
         }
 
         public bool Equals(Utf8Identifier other)
+        {
+            return Equals(other, StringComparison.Ordinal);
+        }
+
+        public bool Equals(Identifier other, StringComparison comparison)
+        {
+            return Utf8String.Equals(other.Value.Span, Value.Span, comparison);
+        }
+
+        public bool Equals(Identifier other)
         {
             return Equals(other, StringComparison.Ordinal);
         }
@@ -122,6 +146,16 @@ namespace MCServerSharp
         }
 
         public static bool operator !=(Utf8Identifier left, Utf8Identifier right)
+        {
+            return !(left == right);
+        }
+
+        public static bool operator ==(Utf8Identifier left, Identifier right)
+        {
+            return left.Equals(right);
+        }
+
+        public static bool operator !=(Utf8Identifier left, Identifier right)
         {
             return !(left == right);
         }

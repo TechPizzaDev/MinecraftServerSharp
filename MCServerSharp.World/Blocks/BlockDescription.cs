@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
@@ -13,7 +12,8 @@ namespace MCServerSharp.Blocks
         private readonly IStateProperty[] _properties;
         private readonly int _defaultStateIndex;
 
-        public Identifier Identifier { get; }
+        public Utf8Identifier Identifier { get; }
+        public Identifier IdentifierUtf16 { get; }
         public uint BlockId { get; }
 
         public int StateCount => _states.Length;
@@ -22,9 +22,9 @@ namespace MCServerSharp.Blocks
         public ReadOnlyMemory<BlockState> States => _states;
         public ReadOnlyMemory<IStateProperty> Properties => _properties;
 
-        public BlockDescription(
+        private BlockDescription(
             BlockState[] states, IStateProperty[]? properties,
-            Identifier identifier, uint id, int defaultStateIndex)
+            Utf8Identifier identifier, Identifier identifierUtf16, uint id, int defaultStateIndex)
         {
             if (!identifier.IsValid)
                 throw new ArgumentException("The identifier is not valid.", nameof(identifier));
@@ -33,7 +33,26 @@ namespace MCServerSharp.Blocks
             _properties = properties ?? Array.Empty<IStateProperty>();
             _defaultStateIndex = defaultStateIndex;
             Identifier = identifier;
+            IdentifierUtf16 = identifierUtf16;
             BlockId = id;
+        }
+
+        public BlockDescription(
+            BlockState[] states, IStateProperty[]? properties,
+            Utf8Identifier identifier, uint id, int defaultStateIndex) : this(
+                states, properties, identifier, identifier.ToUtf16Identifier(), id, defaultStateIndex)
+        {
+        }
+
+        public static BlockDescription Create(
+            BlockState[] states, IStateProperty[]? properties,
+            Utf8Identifier identifier, Identifier identifierUtf16, uint id, int defaultStateIndex)
+        {
+            if (identifier != identifierUtf16)
+            {
+                throw new ArgumentException($"The identifiers do not match. \"{identifier}\" != \"{identifierUtf16}\"");
+            }
+            return new(states, properties, identifier, identifierUtf16, id, defaultStateIndex);
         }
 
         public IStateProperty GetProperty(Utf8Memory name)
@@ -83,7 +102,7 @@ namespace MCServerSharp.Blocks
 
         private string GetDebuggerDisplay()
         {
-            return Identifier.ToString();
+            return IdentifierUtf16.ToString();
         }
     }
 }

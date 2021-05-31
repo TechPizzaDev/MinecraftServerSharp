@@ -12,7 +12,8 @@ namespace MCServerSharp.Blocks
 
         public BlockState DefaultState => Description.DefaultState;
         public uint BlockId => Description.BlockId;
-        public Identifier BlockIdentifier => Description.Identifier;
+        public Identifier BlockIdentifierUtf16 => Description.IdentifierUtf16;
+        public Utf8Identifier BlockIdentifier => Description.Identifier;
 
         public ReadOnlyMemory<StatePropertyValue> Properties => _properties;
 
@@ -31,23 +32,23 @@ namespace MCServerSharp.Blocks
             if (_properties != null)
             {
                 var builder = _properties.ToListString();
-                builder.Insert(0, '[').Insert(0, Description.Identifier.ToString());
+                builder.Insert(0, '[').Insert(0, Description.IdentifierUtf16.ToString());
                 builder.Append(']');
                 return builder.ToString();
             }
-            return Description.Identifier.ToString();
+            return Description.IdentifierUtf16.ToString();
         }
 
         public int CompareTo(BlockState? other)
         {
-            if (other == null)
+            if (other is null)
                 return 1;
             return StateId.CompareTo(other.StateId);
         }
 
         public bool Equals(BlockState? other)
         {
-            if (other == null)
+            if (other is null)
                 return false;
             return StateId == other.StateId;
         }

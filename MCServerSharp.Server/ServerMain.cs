@@ -221,7 +221,7 @@ namespace MCServerSharp.Server
                 JsonDocument blocksDocument;
                 using (var blocksFile = File.OpenRead("GameData/reports/blocks.json"))
                     blocksDocument = JsonDocument.Parse(blocksFile);
-
+                
                 List<BlockDescription> blocks;
                 using (blocksDocument)
                     blocks = ParseBlocks(blocksDocument);
@@ -402,7 +402,8 @@ namespace MCServerSharp.Server
 
             foreach (JsonProperty blockProperty in blocksDocument.RootElement.EnumerateObject())
             {
-                Identifier blockName = new(blockProperty.Name);
+                Utf8Identifier blockName = new(blockProperty.Name);
+                Identifier blockNameUtf16 = new(blockProperty.Name);
                 JsonElement blockObject = blockProperty.Value;
 
                 JsonElement stateArray = blockObject.GetProperty("states");
@@ -451,9 +452,9 @@ namespace MCServerSharp.Server
 
                 BlockState[] blockStates = new BlockState[stateCount];
 
-                BlockDescription block = new(
+                BlockDescription block = BlockDescription.Create(
                     blockStates, blockProps,
-                    blockName, blockId, defaultStateIndex.GetValueOrDefault());
+                    blockName, blockNameUtf16, blockId, defaultStateIndex.GetValueOrDefault());
 
                 for (int i = 0; i < blockStates.Length; i++)
                 {

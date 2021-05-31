@@ -5,7 +5,7 @@ using MCServerSharp.Text;
 
 namespace MCServerSharp
 {
-    public readonly struct Identifier : IIdentifier<Identifier>
+    public readonly struct Identifier : IIdentifier<Identifier>, IEquatable<Utf8Identifier>
     {
         public static ReadOnlyMemory<Rune> ValidLocationCharacters { get; }
         public static ReadOnlyMemory<Rune> ValidNamespaceCharacters { get; }
@@ -98,6 +98,11 @@ namespace MCServerSharp
             return new Utf8Identifier(Value.Span);
         }
 
+        public static Identifier CreateUnsafe(ReadOnlyMemory<char> value)
+        {
+            return new Identifier(value, value.Span.IndexOf(Separator));
+        }
+
         public static bool TryParse(ReadOnlyMemory<char> value, out Identifier identifier)
         {
             Utf16Splitter parts = value.EnumerateSplit(Separator, StringSplitOptions.None);
@@ -188,10 +193,21 @@ namespace MCServerSharp
 
         public bool Equals(Identifier other, StringComparison comparison)
         {
-            return Value.Span.Equals(other.Value.Span, comparison);
+            return _namespaceEnd == other._namespaceEnd
+                && Value.Span.Equals(other.Value.Span, comparison);
         }
 
         public bool Equals(Identifier other)
+        {
+            return Equals(other, StringComparison.Ordinal);
+        }
+
+        public bool Equals(Utf8Identifier other, StringComparison comparison)
+        {
+            return Utf8String.Equals(Value.Span, other.Value.Span, comparison);
+        }
+
+        public bool Equals(Utf8Identifier other)
         {
             return Equals(other, StringComparison.Ordinal);
         }
@@ -217,6 +233,16 @@ namespace MCServerSharp
         }
 
         public static bool operator !=(Identifier left, Identifier right)
+        {
+            return !(left == right);
+        }
+
+        public static bool operator ==(Identifier left, Utf8Identifier right)
+        {
+            return left.Equals(right);
+        }
+
+        public static bool operator !=(Identifier left, Utf8Identifier right)
         {
             return !(left == right);
         }
