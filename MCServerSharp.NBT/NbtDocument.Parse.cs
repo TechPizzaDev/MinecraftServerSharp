@@ -222,9 +222,9 @@ namespace MCServerSharp.NBT
 
                     case NbtType.Compound:
                     {
-                        int nameLength = reader.RawNameSpan.Length;
+                        int rawNameLength = reader.RawNameSpan.Length;
                         accessor.Append(out int containerRow) = new DbRow(
-                            location, collectionLength: 0, rowCount: 1, nameLength, type, flags);
+                            location, collectionLength: 0, rowCount: 1, rawNameLength, type, flags);
 
                         stack.Push(new ContainerFrame(containerRow, rowCount)
                         {
@@ -236,9 +236,9 @@ namespace MCServerSharp.NBT
                     case NbtType.List:
                     {
                         int listLength = reader.TagCollectionLength;
-                        int nameLength = reader.RawNameSpan.Length;
+                        int rawNameLength = reader.RawNameSpan.Length;
                         accessor.Append(out int containerRow) = new DbRow( 
-                            location, listLength, rowCount: 1, nameLength, type, flags);
+                            location, listLength, rowCount: 1, rawNameLength, type, flags);
 
                         stack.Push(new ContainerFrame(containerRow, rowCount)
                         {
@@ -249,9 +249,9 @@ namespace MCServerSharp.NBT
 
                     default:
                     {
-                        int nameLength = reader.RawNameSpan.Length;
+                        int rawNameLength = reader.RawNameSpan.Length;
                         accessor.Append(out _) = new DbRow(
-                            location, reader.TagCollectionLength, rowCount: 1, nameLength, type, flags);
+                            location, reader.TagCollectionLength, rowCount: 1, rawNameLength, type, flags);
                         break;
                     }
                 }

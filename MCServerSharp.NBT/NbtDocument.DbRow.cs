@@ -33,7 +33,7 @@ namespace MCServerSharp.NBT
             public bool IsPrimitiveType => Type.IsPrimitive();
 
             public DbRow(
-                int location, int collectionLength, int rowCount, int nameLength,
+                int location, int collectionLength, int rowCount, int rawNameLength,
                 NbtType type, NbtFlags flags)
             {
                 Debug.Assert(location >= 0);
@@ -42,7 +42,7 @@ namespace MCServerSharp.NBT
                 Location = location;
                 CollectionLength = collectionLength;
                 RowCount = rowCount;
-                RawNameLength = nameLength;
+                RawNameLength = rawNameLength;
                 Type = type;
                 Flags = flags;
             }

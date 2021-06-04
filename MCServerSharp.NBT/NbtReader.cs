@@ -110,7 +110,7 @@ namespace MCServerSharp.NBT
             }
         }
 
-        public readonly ReadOnlySpan<byte> NameSpan => RawNameSpan[NameLengthBytes..NameLength];
+        public readonly ReadOnlySpan<byte> NameSpan => RawNameSpan.Slice(NameLengthBytes, NameLength);
 
         public readonly Utf8String NameString => new(NameSpan);
 
@@ -161,6 +161,7 @@ namespace MCServerSharp.NBT
         /// </exception>
         public NbtReadStatus TryRead()
         {
+            NameLengthBytes = 0;
             RawNameSpan = default;
             TagCollectionLength = default;
 
@@ -199,6 +200,7 @@ namespace MCServerSharp.NBT
             if (inList)
             {
                 TagType = frame.ElementType;
+                TagFlags = NbtFlags.None;
             }
             else
             {
@@ -224,9 +226,12 @@ namespace MCServerSharp.NBT
                         status = NbtReadStatus.InvalidNameLength;
                         goto ClearReturn;
                     }
+                     
+                    int rawNameLength = nameLengthBytes + nameLength;
 
-                    RawNameSpan = slice.Slice(read, nameLength);
-                    read += nameLength + nameLengthBytes;
+                    NameLengthBytes = nameLengthBytes;
+                    RawNameSpan = slice.Slice(read, rawNameLength);
+                    read += rawNameLength;
                 }
             }
 
