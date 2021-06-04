@@ -343,12 +343,19 @@ namespace MCServerSharp.Net
             {
                 if (chunkColumn.TryGetChunk(y - 1, out LocalChunk? chunk))
                 {
-                    skyLightMask |= 1 << y;
-                    var skyLight = new LightArray(pool);
-                    skyLight.Data.Fill(255);
-                    skyLights.Add(skyLight);
+                    if (chunk.SkyLight == null)
+                    {
+                        emptySkyLightMask |= 1 << y;
+                    }
+                    else
+                    {
+                        skyLightMask |= 1 << y;
+                        var skyLight = new LightArray(pool);
+                        chunk.SkyLight.CopyTo(skyLight.Data);
+                        skyLights.Add(skyLight);
+                    }
 
-                    if (chunk.IsEmpty)
+                    if (chunk.BlockLight == null)
                     {
                         emptyBlockLightMask |= 1 << y;
                     }
@@ -356,7 +363,7 @@ namespace MCServerSharp.Net
                     {
                         blockLightMask |= 1 << y;
                         var blockLight = new LightArray(pool);
-                        blockLight.Data.Clear();
+                        chunk.BlockLight.CopyTo(blockLight.Data);
                         blockLights.Add(blockLight);
                     }
                 }

@@ -33,6 +33,9 @@ namespace MCServerSharp.World
 
         public Dimension Dimension => this.GetComponent<DimensionComponent>().Dimension;
 
+        public byte[] SkyLight;
+        public byte[] BlockLight;
+
         // TODO: dont allow public constructor, use a chunk manager/provider instead
 
         public LocalChunk(IChunkColumn parent, int y, IBlockPalette blockPalette, BlockState airBlock)

@@ -76,7 +76,7 @@ namespace MCServerSharp.World
 
                     if (chunkElement.TryGetCompoundElement("BlockStates", out NbtElement blockStatesNbt) &&
                         chunkElement.TryGetCompoundElement("Palette", out NbtElement paletteNbt))
-                    {
+                    { 
                         IndirectBlockPalette palette = ParsePalette(columnManager.GlobalBlockPalette, paletteNbt);
                         chunk = new LocalChunk(column, chunkPosition.Y, palette, columnManager.Air);
 
@@ -87,17 +87,38 @@ namespace MCServerSharp.World
                         }
                         else
                         {
-                            ReadOnlyMemory<byte> blockStateRawData = blockStatesNbt.GetArrayData(out NbtType dataType);
-                            if (dataType != NbtType.LongArray)
+                            ReadOnlyMemory<byte> blockStateRawData = blockStatesNbt.GetArrayData(out NbtType blockStateDataType);
+                            if (blockStateDataType != NbtType.LongArray)
                                 throw new InvalidDataException();
 
                             SetBlocksFromData(chunk, palette, MemoryMarshal.Cast<byte, ulong>(blockStateRawData.Span));
+                        }
+
+                        if (chunkElement.TryGetCompoundElement("BlockLight", out NbtElement blockLightNbt))
+                        {
+                            ReadOnlyMemory<byte> blockLightData = blockLightNbt.GetArrayData(out NbtType blockLightDataType);
+                            if (blockLightDataType != NbtType.ByteArray)
+                                throw new InvalidDataException();
+
+                            chunk.BlockLight = blockLightData.ToArray();
+                        }
+
+                        if (chunkElement.TryGetCompoundElement("SkyLight", out NbtElement skyLightNbt))
+                        {
+                            ReadOnlyMemory<byte> skyLightData = skyLightNbt.GetArrayData(out NbtType skyLightDataType);
+                            if (skyLightDataType != NbtType.ByteArray)
+                                throw new InvalidDataException();
+
+                            chunk.SkyLight = skyLightData.ToArray();
                         }
                     }
                     else
                     {
                         chunk = new LocalChunk(column, chunkPosition.Y, columnManager.GlobalBlockPalette, columnManager.Air);
                         chunk.FillBlock(chunk.AirBlock);
+
+                        chunk.SkyLight = new byte[2048];
+                        chunk.SkyLight.AsSpan().Fill(255);
                     }
 
                     lock (chunksToDecode)
