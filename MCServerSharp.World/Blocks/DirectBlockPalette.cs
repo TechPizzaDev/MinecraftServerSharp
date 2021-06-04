@@ -37,7 +37,7 @@ namespace MCServerSharp.Blocks
                 _blockLookup.Add(block.Identifier, block);
 
                 stateCount += block.StateCount;
-                foreach (BlockState state in block.States.Span)
+                foreach (BlockState state in block.StateSpan)
                 {
                     stateLookup.Add(state.StateId, state);
                     maxStateId = Math.Max(maxStateId, state.StateId);

@@ -21,15 +21,15 @@ namespace MCServerSharp
             array = pool.Resize(array, newMinimumLength);
         }
 
-        public static T[] ReturnRent<T>(this ArrayPool<T> pool, T[] array, int newMinimumLength)
+        public static T[] ReturnAndRent<T>(this ArrayPool<T> pool, T[] array, int newMinimumLength)
         {
             pool.Return(array);
             return pool.Rent(newMinimumLength);
         }
 
-        public static void ReturnRent<T>(this ArrayPool<T> pool, ref T[] array, int newMinimumLength)
+        public static void ReturnAndRent<T>(this ArrayPool<T> pool, ref T[] array, int newMinimumLength)
         {
-            array = pool.ReturnRent(array, newMinimumLength);
+            array = pool.ReturnAndRent(array, newMinimumLength);
         }
     }
 }

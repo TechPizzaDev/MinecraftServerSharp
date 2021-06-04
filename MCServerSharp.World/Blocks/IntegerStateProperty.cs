@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers.Text;
 using System.Globalization;
 
 namespace MCServerSharp.Blocks
@@ -21,6 +22,12 @@ namespace MCServerSharp.Blocks
         public override int GetIndex(ReadOnlyMemory<char> value)
         {
             return GetIndex(int.Parse(value.Span, NumberStyles.Integer, CultureInfo.InvariantCulture));
+        }
+
+        public override int GetIndex(Utf8Memory value)
+        {
+            bool success = Utf8Parser.TryParse(value.Span, out int rawValue, out _);
+            return GetIndex(rawValue);
         }
 
         public override int GetIndex(int value)

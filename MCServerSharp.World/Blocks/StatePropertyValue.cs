@@ -8,8 +8,8 @@ namespace MCServerSharp.Blocks
         public IStateProperty Property { get; }
         public int Index { get; }
 
-        public string Name => Property.Name;
-        public Utf8String NameUtf8 => Property.NameUtf8;
+        public string NameUtf16 => Property.NameUtf16;
+        public Utf8String Name => Property.Name;
         public Type ElementType => Property.ElementType;
         public int Count => Property.Count;
 
@@ -24,6 +24,11 @@ namespace MCServerSharp.Blocks
             return Property.GetIndex(value);
         }
 
+        public int GetIndex(Utf8Memory value)
+        {
+            return Property.GetIndex(value);
+        }
+
         public StatePropertyValue GetPropertyValue(int index)
         {
             return Property.GetPropertyValue(index);
@@ -31,7 +36,7 @@ namespace MCServerSharp.Blocks
 
         public int CompareTo(StatePropertyValue other)
         {
-            return NameUtf8.CompareTo(other.NameUtf8);
+            return Name.CompareTo(other.Name);
         }
 
         public bool Equals(StatePropertyValue other)
@@ -52,7 +57,7 @@ namespace MCServerSharp.Blocks
 
         public override string ToString()
         {
-            return Name + "=" + Index;
+            return NameUtf16 + "=" + Index;
         }
 
         public static bool operator ==(StatePropertyValue left, StatePropertyValue right)

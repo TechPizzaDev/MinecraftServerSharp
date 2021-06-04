@@ -219,37 +219,12 @@ namespace MCServerSharp.World
         private IndirectBlockPalette ParsePalette(DirectBlockPalette globalPalette, NbtElement element)
         {
             ArrayPool<StatePropertyValue> propPool = ArrayPool<StatePropertyValue>.Shared;
-            ArrayPool<char> utf16Pool = ArrayPool<char>.Shared;
-
+            
             StatePropertyValue[] propertyBuffer = propPool.Rent(8);
-            char[] utf16Buffer = utf16Pool.Rent(32);
             try
             {
                 int blockStateIndex = 0;
                 BlockState[] blockStates = new BlockState[element.GetLength()];
-
-                ReadOnlyMemory<char> StoreUtf8(Utf8Memory memory)
-                {
-                    ReadOnlySpan<byte> utf8 = memory.Span;
-                    Span<char> utf16 = utf16Buffer;
-                    int totalWritten = 0;
-
-                    do
-                    {
-                        OperationStatus status = Utf8.ToUtf16(utf8, utf16, out int read, out int written);
-                        utf8 = utf8[read..];
-                        totalWritten += written;
-
-                        if (status == OperationStatus.DestinationTooSmall)
-                        {
-                            utf16Pool.Resize(ref utf16Buffer, utf16Buffer.Length * 2);
-                            utf16 = utf16Buffer.AsSpan()[totalWritten..];
-                        }
-                    }
-                    while (utf8.Length > 0);
-
-                    return utf16Buffer.AsMemory(0, totalWritten);
-                }
 
                 foreach (NbtElement blockStateNbt in element.EnumerateContainer())
                 {
@@ -259,22 +234,18 @@ namespace MCServerSharp.World
 
                     if (blockStateNbt.TryGetCompoundElement(_palettePropertiesKey, out NbtElement propertiesNbt))
                     {
-                        ReadOnlySpan<IStateProperty> blockProps = blockDescription.Properties.Span;
-
-                        if (propertyBuffer.Length < blockProps.Length)
+                        int propertyCount = blockDescription.PropertyCount;
+                        if (propertyBuffer.Length < propertyCount)
                         {
-                            int newLength = Math.Max(blockProps.Length, propertyBuffer.Length * 2);
-                            propPool.ReturnRent(ref propertyBuffer, newLength);
+                            int newLength = Math.Max(propertyCount, propertyBuffer.Length * 2);
+                            propPool.ReturnAndRent(ref propertyBuffer, newLength);
                         }
 
                         int propIndex = 0;
-                        foreach (IStateProperty prop in blockProps)
+                        foreach (NbtElement propNbt in propertiesNbt.EnumerateContainer())
                         {
-                            if (propertiesNbt.TryGetCompoundElement(prop.Name, out NbtElement propNbt))
-                            {
-                                ReadOnlyMemory<char> indexName = StoreUtf8(propNbt.GetUtf8Memory());
-                                propertyBuffer[propIndex++] = prop.GetPropertyValue(indexName);
-                            }
+                            IStateProperty prop = blockDescription.GetProperty(propNbt.Name);
+                            propertyBuffer[propIndex++] = prop.GetPropertyValue(propNbt.GetUtf8Memory());
                         }
                         state = blockDescription.GetMatchingState(propertyBuffer.AsSpan(0, propIndex));
                     }
@@ -287,7 +258,6 @@ namespace MCServerSharp.World
             finally
             {
                 propPool.Return(propertyBuffer);
-                utf16Pool.Return(utf16Buffer);
             }
         }
 

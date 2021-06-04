@@ -6,8 +6,8 @@ namespace MCServerSharp.Blocks
     [DebuggerDisplay("{" + nameof(GetDebuggerDisplay) + "(),nq}")]
     public abstract class StateProperty<T> : IStateProperty<T>
     {
-        public string Name { get; }
-        public Utf8String NameUtf8 { get; }
+        public string NameUtf16 { get; }
+        public Utf8String Name { get; }
 
         public abstract int Count { get; }
 
@@ -15,8 +15,8 @@ namespace MCServerSharp.Blocks
 
         public StateProperty(string name, Utf8String nameUtf8)
         {
-            Name = name ?? throw new ArgumentNullException(nameof(name));
-            NameUtf8 = nameUtf8 ?? throw new ArgumentNullException(nameof(nameUtf8));
+            NameUtf16 = name ?? throw new ArgumentNullException(nameof(name));
+            Name = nameUtf8 ?? throw new ArgumentNullException(nameof(nameUtf8));
         }
 
         public StateProperty(string name) : this(name, Utf8String.Create(name))
@@ -25,23 +25,15 @@ namespace MCServerSharp.Blocks
 
         public abstract int GetIndex(ReadOnlyMemory<char> value);
 
+        public abstract int GetIndex(Utf8Memory value);
+
         public abstract int GetIndex(T value);
 
         public abstract T GetValue(int index);
 
-        public StatePropertyValue<T> GetPropertyValue(int index)
-        {
-            return new StatePropertyValue<T>(this, index);
-        }
-
-        StatePropertyValue IStateProperty.GetPropertyValue(int index)
-        {
-            return new StatePropertyValue(this, index);
-        }
-
         public override string ToString()
         {
-            return Name + ": " + typeof(T).Name;
+            return NameUtf16 + ": " + typeof(T).Name;
         }
 
         private string GetDebuggerDisplay()

@@ -17,10 +17,14 @@ namespace MCServerSharp.Blocks
         public uint BlockId { get; }
 
         public int StateCount => _states.Length;
+        public int PropertyCount => _properties.Length;
         public BlockState DefaultState => _states[_defaultStateIndex];
 
         public ReadOnlyMemory<BlockState> States => _states;
         public ReadOnlyMemory<IStateProperty> Properties => _properties;
+
+        public ReadOnlySpan<BlockState> StateSpan => _states;
+        public ReadOnlySpan<IStateProperty> PropertySpan => _properties;
 
         private BlockDescription(
             BlockState[] states, IStateProperty[]? properties,
@@ -44,7 +48,7 @@ namespace MCServerSharp.Blocks
         {
         }
 
-        public static BlockDescription Create(
+        public static BlockDescription CreateUnsafe(
             BlockState[] states, IStateProperty[]? properties,
             Utf8Identifier identifier, Identifier identifierUtf16, uint id, int defaultStateIndex)
         {
@@ -66,7 +70,7 @@ namespace MCServerSharp.Blocks
         {
             foreach (IStateProperty prop in _properties)
             {
-                if (prop.NameUtf8 == name)
+                if (prop.Name == name)
                 {
                     property = prop;
                     return true;
@@ -78,15 +82,28 @@ namespace MCServerSharp.Blocks
 
         public BlockState GetMatchingState(ReadOnlySpan<StatePropertyValue> propertyValues)
         {
-            foreach (BlockState state in _states)
+            if (propertyValues.Length != PropertyCount)
             {
-                if (state.Properties.Span.SequenceEqual(propertyValues))
-                {
-                    return state;
-                }
+                return DefaultState;
             }
 
-            Debug.Assert(propertyValues.Length == _properties.Length);
+            foreach (BlockState state in _states)
+            {
+                ReadOnlySpan<StatePropertyValue> sourceValues = state.PropertySpan;
+
+                for (int i = 0; i < propertyValues.Length; i++)
+                {
+                    int index = sourceValues.IndexOf(propertyValues[i]);
+                    if (index == -1)
+                        goto Continue;
+                }
+
+                return state;
+
+                Continue:
+                continue;
+            }
+
             return DefaultState;
         }
 

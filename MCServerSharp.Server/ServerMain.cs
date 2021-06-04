@@ -221,7 +221,7 @@ namespace MCServerSharp.Server
                 JsonDocument blocksDocument;
                 using (var blocksFile = File.OpenRead("GameData/reports/blocks.json"))
                     blocksDocument = JsonDocument.Parse(blocksFile);
-                
+
                 List<BlockDescription> blocks;
                 using (blocksDocument)
                     blocks = ParseBlocks(blocksDocument);
@@ -394,9 +394,9 @@ namespace MCServerSharp.Server
         {
             // TODO: cleanup/make more readable
 
-            List<BlockDescription> blocks = new List<BlockDescription>();
+            List<BlockDescription> blocks = new();
             List<IStateProperty> blockStatePropBuilder = new();
-
+            
             // TODO: read block id from registry
             uint blockId = 0;
 
@@ -452,7 +452,10 @@ namespace MCServerSharp.Server
 
                 BlockState[] blockStates = new BlockState[stateCount];
 
-                BlockDescription block = BlockDescription.Create(
+                // TODO: somehow make this less clumsy by
+                //  not having a "cyclic reference" of BlockState depending on BlockDescription
+
+                BlockDescription block = BlockDescription.CreateUnsafe(
                     blockStates, blockProps,
                     blockName, blockNameUtf16, blockId, defaultStateIndex.GetValueOrDefault());
 
@@ -470,9 +473,10 @@ namespace MCServerSharp.Server
                         for (int propIndex = 0; propIndex < blockProps.Length; propIndex++)
                         {
                             IStateProperty blockProp = blockProps[propIndex];
-                            if (!statePropsObject.TryGetProperty(blockProp.Name, out JsonElement statePropProp))
+                            if (!statePropsObject.TryGetProperty(blockProp.NameUtf16, out JsonElement statePropProp))
+                            {
                                 throw new InvalidDataException("Failed to find matching block state property.");
-
+                            }
                             string propName = GetEnumString(statePropProp);
                             propValues[propIndex] = blockProp.GetPropertyValue(propName);
                         }

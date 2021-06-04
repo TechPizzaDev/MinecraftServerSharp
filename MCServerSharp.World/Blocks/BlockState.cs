@@ -16,6 +16,7 @@ namespace MCServerSharp.Blocks
         public Utf8Identifier BlockIdentifier => Description.Identifier;
 
         public ReadOnlyMemory<StatePropertyValue> Properties => _properties;
+        public ReadOnlySpan<StatePropertyValue> PropertySpan => _properties.AsSpan();
 
         public BlockState(BlockDescription block, StatePropertyValue[]? properties, uint id)
         {
@@ -68,7 +69,7 @@ namespace MCServerSharp.Blocks
             return HashCode.Combine(StateId);
         }
 
-        public static bool operator ==(BlockState left, BlockState right)
+        public static bool operator ==(BlockState? left, BlockState? right)
         {
             if (left is null)
             {
@@ -77,27 +78,27 @@ namespace MCServerSharp.Blocks
             return left.Equals(right);
         }
 
-        public static bool operator !=(BlockState left, BlockState right)
+        public static bool operator !=(BlockState? left, BlockState? right)
         {
             return !(left == right);
         }
 
-        public static bool operator <(BlockState left, BlockState right)
+        public static bool operator <(BlockState? left, BlockState? right)
         {
             return left is null ? right is not null : left.CompareTo(right) < 0;
         }
 
-        public static bool operator <=(BlockState left, BlockState right)
+        public static bool operator <=(BlockState? left, BlockState? right)
         {
             return left is null || left.CompareTo(right) <= 0;
         }
 
-        public static bool operator >(BlockState left, BlockState right)
+        public static bool operator >(BlockState? left, BlockState? right)
         {
             return left is not null && left.CompareTo(right) > 0;
         }
 
-        public static bool operator >=(BlockState left, BlockState right)
+        public static bool operator >=(BlockState? left, BlockState? right)
         {
             return left is null ? right is null : left.CompareTo(right) >= 0;
         }

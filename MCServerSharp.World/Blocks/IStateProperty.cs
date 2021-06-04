@@ -4,12 +4,12 @@ namespace MCServerSharp.Blocks
 {
     public interface IStateProperty
     {
-        string Name { get; }
-        Utf8String NameUtf8 { get; }
+        string NameUtf16 { get; }
+        Utf8String Name { get; }
         Type ElementType { get; }
         int Count { get; }
 
         int GetIndex(ReadOnlyMemory<char> value);
-        StatePropertyValue GetPropertyValue(int index);
+        int GetIndex(Utf8Memory value);
     }
 }
