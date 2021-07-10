@@ -58,7 +58,7 @@ namespace MCServerSharp.Blocks
                     throw new Exception("Missing state with Id " + stateId);
                 _blockStates[stateId] = state;
             }
-            BitsPerBlock = (int)Math.Ceiling(Math.Log2(Count));
+            BitsPerBlock = Math.Max(1, MathHelper.Log2Ceil(Count));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -93,7 +93,7 @@ namespace MCServerSharp.Blocks
 
         private void UpdateBitsPerBlock()
         {
-            BitsPerBlock = (int)Math.Max(1, Math.Ceiling(Math.Log2(Count)));
+            BitsPerBlock = Math.Max(1, MathHelper.Log2Ceil(Count));
         }
 
         public static IndirectBlockPalette CreateUnsafe(BlockState[] blocks)

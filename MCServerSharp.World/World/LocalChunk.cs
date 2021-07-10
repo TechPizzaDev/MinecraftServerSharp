@@ -31,6 +31,8 @@ namespace MCServerSharp.World
         public int Z => Column.Position.Z;
         public ChunkPosition Position => new ChunkPosition(X, Y, Z);
 
+        public int BitsPerBlock => (int)_blocks.BitsPerElement;
+
         public Dimension Dimension => this.GetComponent<DimensionComponent>().Dimension;
 
         public byte[] SkyLight;
@@ -154,6 +156,16 @@ namespace MCServerSharp.World
         public void SetBlocks(Span<uint> paletteIds, int startIndex)
         {
             _blocks.Set((uint)startIndex, paletteIds);
+            IsEmpty = false;
+        }
+
+        /// <summary>
+        /// </summary>
+        /// <param name="packedPaletteIds">The block IDs from this <see cref="BlockPalette"/>.</param>
+        /// <param name="startIndex">The packed long index to start writing to.</param>
+        public void SetBlocks(Span<ulong> packedPaletteIds, int startIndex)
+        {
+            packedPaletteIds.CopyTo(_blocks.Store.AsSpan(startIndex));
             IsEmpty = false;
         }
 

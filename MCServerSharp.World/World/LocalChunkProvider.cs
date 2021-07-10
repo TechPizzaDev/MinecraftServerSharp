@@ -76,7 +76,7 @@ namespace MCServerSharp.World
 
                     if (chunkElement.TryGetCompoundElement("BlockStates", out NbtElement blockStatesNbt) &&
                         chunkElement.TryGetCompoundElement("Palette", out NbtElement paletteNbt))
-                    { 
+                    {
                         IndirectBlockPalette palette = ParsePalette(columnManager.GlobalBlockPalette, paletteNbt);
                         chunk = new LocalChunk(column, chunkPosition.Y, palette, columnManager.Air);
 
@@ -143,7 +143,9 @@ namespace MCServerSharp.World
         private static unsafe void SetBlocksFromData(
             LocalChunk destination, IndirectBlockPalette palette, ReadOnlySpan<ulong> blockStateData)
         {
-            uint bitsPerBlock = (uint)Math.Max(4, palette.BitsPerBlock);
+            const uint blockLimit = 4096;
+
+            uint bitsPerBlock = (uint)blockStateData.Length * 64 / blockLimit;
             uint blocksPerLong = 64 / bitsPerBlock;
             uint bitsPerLong = blocksPerLong * bitsPerBlock;
             uint mask = ~(uint.MaxValue << (int)bitsPerBlock);
@@ -158,6 +160,7 @@ namespace MCServerSharp.World
 
             ReadOnlySpan<ulong> blockData = blockStateData;
             uint blockNumber = 0;
+            int longOffset = 0;
 
             while (blockData.Length >= longBufferLength)
             {
@@ -183,28 +186,39 @@ namespace MCServerSharp.World
                     blockData.Slice(0, longBufferLength).CopyTo(longBufferSpan);
                 }
 
-                uint getOffset = 0;
-                int get;
-                do
+                if (destination.BitsPerBlock == bitsPerBlock)
                 {
-                    get = BitArray32.Get(
-                        longBufferSpan,
-                        0,
-                        blocksPerLong * longBufferLength,
-                        bitsPerBlock,
-                        getOffset,
-                        blockBufferSpan);
-
-                    destination.SetBlocks(blockBufferSpan.Slice(0, get), (int)blockNumber);
-                    getOffset += (uint)get;
-                    blockNumber += (uint)get;
+                    destination.SetBlocks(longBufferSpan, longOffset);
+                    longOffset += longBufferLength;
+                    blockNumber += blocksPerLong * longBufferLength;
                 }
-                while (get > 0);
+                else
+                {
+                    uint getOffset = 0;
+                    int get;
+                    do
+                    {
+                        uint toCopy = Math.Min(blockLimit - blockNumber, (uint)blockBufferSpan.Length);
+
+                        get = BitArray32.Get(
+                            longBufferSpan,
+                            0,
+                            blocksPerLong * longBufferLength,
+                            bitsPerBlock,
+                            getOffset,
+                            blockBufferSpan.Slice(0, (int)toCopy));
+
+                        destination.SetBlocks(blockBufferSpan.Slice(0, get), (int)blockNumber);
+                        getOffset += (uint)get;
+                        blockNumber += (uint)get;
+                    }
+                    while (get > 0);
+                }
 
                 blockData = blockData.Slice(longBufferLength);
             }
 
-            for (; blockNumber + blocksPerLong <= 4096;)
+            for (; blockNumber + blocksPerLong <= blockLimit;)
             {
                 uint startLong = blockNumber / blocksPerLong;
 
@@ -240,7 +254,7 @@ namespace MCServerSharp.World
         private IndirectBlockPalette ParsePalette(DirectBlockPalette globalPalette, NbtElement element)
         {
             ArrayPool<StatePropertyValue> propPool = ArrayPool<StatePropertyValue>.Shared;
-            
+
             StatePropertyValue[] propertyBuffer = propPool.Rent(8);
             try
             {
