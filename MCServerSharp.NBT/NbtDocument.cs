@@ -182,8 +182,14 @@ namespace MCServerSharp.NBT
 
         internal Utf8Memory GetTagName(in DbRow row)
         {
+            if (!row.Flags.HasFlag(NbtFlags.Named))
+                return Utf8Memory.Empty;
+
             ReadOnlyMemory<byte> segment = Bytes[row.Location..];
-            TrySkipTagType(segment, out segment);
+
+            if (row.Flags.HasFlag(NbtFlags.Typed))
+                TrySkipTagType(segment, out segment);
+
             TryReadStringLength(segment.Span, Options, out int consumed, out int length);
             ReadOnlyMemory<byte> slice = segment.Slice(consumed, length);
             return Utf8Memory.CreateUnsafe(slice);
@@ -197,8 +203,14 @@ namespace MCServerSharp.NBT
 
         internal ReadOnlySpan<byte> GetTagNameSpan(in DbRow row)
         {
+            if (!row.Flags.HasFlag(NbtFlags.Named))
+                return ReadOnlySpan<byte>.Empty;
+
             ReadOnlySpan<byte> segment = Bytes.Span[row.Location..];
-            TrySkipTagType(segment, out segment);
+
+            if (row.Flags.HasFlag(NbtFlags.Typed))
+                TrySkipTagType(segment, out segment);
+
             TryReadStringLength(segment, Options, out int consumed, out int length);
             ReadOnlySpan<byte> slice = segment.Slice(consumed, length);
             return slice;
@@ -212,57 +224,43 @@ namespace MCServerSharp.NBT
 
         internal NbtReadStatus TryGetTagPayload(in DbRow row, out ReadOnlyMemory<byte> result)
         {
-            ReadOnlyMemory<byte> segment = Bytes[row.Location..];
+            result = Bytes[row.Location..];
 
             if (row.Flags.HasFlag(NbtFlags.Typed))
             {
-                var status = TrySkipTagType(segment, out segment);
+                var status = TrySkipTagType(result, out result);
                 if (status != NbtReadStatus.Done)
-                {
-                    result = default;
                     return status;
-                }
             }
 
             if (row.Flags.HasFlag(NbtFlags.Named))
             {
-                var status = TrySkipTagName(segment, Options, out segment);
+                var status = TrySkipTagName(result, Options, out result);
                 if (status != NbtReadStatus.Done)
-                {
-                    result = default;
                     return status;
-                }
             }
 
-            result = segment;
             return NbtReadStatus.Done;
         }
 
         internal NbtReadStatus TryGetTagPayloadSpan(in DbRow row, out ReadOnlySpan<byte> result)
         {
-            ReadOnlySpan<byte> segment = Bytes.Span[row.Location..];
+            result = Bytes.Span[row.Location..];
 
             if (row.Flags.HasFlag(NbtFlags.Typed))
             {
-                var status = TrySkipTagType(segment, out segment);
+                var status = TrySkipTagType(result, out result);
                 if (status != NbtReadStatus.Done)
-                {
-                    result = default;
                     return status;
-                }
             }
 
             if (row.Flags.HasFlag(NbtFlags.Named))
             {
-                var status = TrySkipTagName(segment, Options, out segment);
+                var status = TrySkipTagName(result, Options, out result);
                 if (status != NbtReadStatus.Done)
-                {
-                    result = default;
                     return status;
-                }
             }
 
-            result = segment;
             return NbtReadStatus.Done;
         }
 

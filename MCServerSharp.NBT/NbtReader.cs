@@ -523,7 +523,6 @@ namespace MCServerSharp.NBT
             return status;
         }
 
-
         internal static NbtReadStatus TrySkipTagName(
             ReadOnlySpan<byte> source, in NbtOptions options, out ReadOnlySpan<byte> result)
         {
