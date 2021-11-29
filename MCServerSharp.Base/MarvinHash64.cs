@@ -16,8 +16,7 @@ namespace MCServerSharp
         public static ulong GenerateSeed()
         {
             Span<byte> tmp = stackalloc byte[sizeof(ulong)];
-            using (var rng = new RNGCryptoServiceProvider())
-                rng.GetBytes(tmp);
+            RandomNumberGenerator.Fill(tmp);
             return BitConverter.ToUInt64(tmp);
         }
 
