@@ -20,6 +20,7 @@ namespace MCServerSharp
             Value = value;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int GetEncodedSize(ulong value)
         {
             ulong v = value;
@@ -37,6 +38,7 @@ namespace MCServerSharp
             return GetEncodedSize((ulong)value);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Encode(Span<byte> destination)
         {
             ulong value = (ulong)Value;
@@ -50,6 +52,7 @@ namespace MCServerSharp
             return index;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void EncodeUnsafe(ref int index, ref byte destination)
         {
             ulong value = (ulong)Value;
@@ -59,6 +62,21 @@ namespace MCServerSharp
                 value >>= 7;
             }
             Unsafe.Add(ref destination, index++) = (byte)value;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ref byte EncodeUnsafe(ref byte destination)
+        {
+            ulong value = (ulong)Value;
+            while (value >= 0x80)
+            {
+                destination = (byte)(value | 0x80);
+                destination = ref Unsafe.Add(ref destination, 1);
+                value >>= 7;
+            }
+            destination = (byte)value;
+            destination = ref Unsafe.Add(ref destination, 1);
+            return ref destination;
         }
 
         public static OperationStatus TryDecode(

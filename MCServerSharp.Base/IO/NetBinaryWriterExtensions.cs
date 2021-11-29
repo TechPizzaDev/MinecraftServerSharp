@@ -31,11 +31,11 @@ namespace MCServerSharp.Data.IO
                 {
                     // TODO: vectorize
 
-                    var slice = source.Slice(offset, Math.Min(buffer.Length, source.Length - offset));
+                    ReadOnlySpan<int> slice = source.Slice(offset, Math.Min(buffer.Length, source.Length - offset));
                     for (int i = 0; i < slice.Length; i++)
                         buffer[i] = BinaryPrimitives.ReverseEndianness(slice[i]);
 
-                    WriteBytes(writer, buffer.Slice(0, slice.Length));
+                    WriteBytes(writer, buffer[..slice.Length]);
                     offset += slice.Length;
                 }
                 while (offset < source.Length);
@@ -73,11 +73,11 @@ namespace MCServerSharp.Data.IO
                 do
                 {
                     int count = Math.Min(buffer.Length, source.Length - offset);
-                    var slice = source.Slice(offset, count);
+                    ReadOnlySpan<uint> slice = source.Slice(offset, count);
                     for (int i = 0; i < slice.Length; i++)
                         buffer[i] = BinaryPrimitives.ReverseEndianness(slice[i]);
 
-                    WriteBytes(writer, buffer.Slice(0, slice.Length));
+                    WriteBytes(writer, buffer[..slice.Length]);
                     offset += slice.Length;
 
                 }
@@ -116,11 +116,11 @@ namespace MCServerSharp.Data.IO
                 do
                 {
                     int count = Math.Min(buffer.Length, source.Length - offset);
-                    var slice = source.Slice(offset, count);
+                    ReadOnlySpan<ulong> slice = source.Slice(offset, count);
                     for (int i = 0; i < slice.Length; i++)
                         buffer[i] = BinaryPrimitives.ReverseEndianness(slice[i]);
 
-                    WriteBytes(writer, buffer.Slice(0, slice.Length));
+                    WriteBytes(writer, buffer[..slice.Length]);
                     offset += slice.Length;
 
                 }
@@ -160,11 +160,11 @@ namespace MCServerSharp.Data.IO
                 {
                     // TODO: vectorize
 
-                    var slice = source.Slice(offset, Math.Min(buffer.Length, source.Length));
+                    ReadOnlySpan<long> slice = source.Slice(offset, Math.Min(buffer.Length, source.Length));
                     for (int i = 0; i < slice.Length; i++)
                         buffer[i] = BinaryPrimitives.ReverseEndianness(slice[i]);
 
-                    WriteBytes(writer, buffer.Slice(0, slice.Length));
+                    WriteBytes(writer, buffer[..slice.Length]);
                     offset += slice.Length;
                 }
             }
@@ -191,28 +191,28 @@ namespace MCServerSharp.Data.IO
             const int MaxCount = 512;
             Span<byte> buffer = stackalloc byte[VarInt.MaxEncodedSize * MaxCount];
             ref byte destination = ref MemoryMarshal.GetReference(buffer);
-            int offset = 0;
+            ref byte dst = ref destination;
 
             while (values.Length >= MaxCount)
             {
-                ReadOnlySpan<int> slice = values.Slice(0, MaxCount);
+                ReadOnlySpan<int> slice = values[..MaxCount];
                 for (int i = 0; i < slice.Length; i++)
                 {
-                    new VarInt(slice[i]).EncodeUnsafe(ref offset, ref destination);
+                    dst = ref new VarInt(slice[i]).EncodeUnsafe(ref dst);
                 }
 
-                writer.Write(buffer.Slice(0, offset));
-                offset = 0;
+                writer.Write(buffer[..(int)Unsafe.ByteOffset(ref destination, ref dst)]);
+                dst = ref destination;
 
                 values = values[MaxCount..];
             }
 
             for (int i = 0; i < values.Length; i++)
             {
-                new VarInt(values[i]).EncodeUnsafe(ref offset, ref destination);
+                dst = ref new VarInt(values[i]).EncodeUnsafe(ref dst);
             }
 
-            writer.Write(buffer.Slice(0, offset));
+            writer.Write(buffer[..(int)Unsafe.ByteOffset(ref destination, ref dst)]);
         }
 
         public static void WriteVar(this NetBinaryWriter writer, ReadOnlySpan<uint> values)
@@ -226,28 +226,28 @@ namespace MCServerSharp.Data.IO
             const int MaxCount = 256;
             Span<byte> buffer = stackalloc byte[VarLong.MaxEncodedSize * MaxCount];
             ref byte destination = ref MemoryMarshal.GetReference(buffer);
-            int offset = 0;
+            ref byte dst = ref destination;
 
             while (values.Length >= MaxCount)
             {
-                ReadOnlySpan<long> slice = values.Slice(0, MaxCount);
+                ReadOnlySpan<long> slice = values[..MaxCount];
                 for (int i = 0; i < slice.Length; i++)
                 {
-                    new VarLong(slice[i]).EncodeUnsafe(ref offset, ref destination);
+                    dst = ref new VarLong(slice[i]).EncodeUnsafe(ref dst);
                 }
 
-                writer.Write(buffer.Slice(0, offset));
-                offset = 0;
+                writer.Write(buffer[..(int)Unsafe.ByteOffset(ref destination, ref dst)]);
+                dst = ref destination;
 
                 values = values[MaxCount..];
             }
 
             for (int i = 0; i < values.Length; i++)
             {
-                new VarLong(values[i]).EncodeUnsafe(ref offset, ref destination);
+                dst = new VarLong(values[i]).EncodeUnsafe(ref dst);
             }
 
-            writer.Write(buffer.Slice(0, offset));
+            writer.Write(buffer[..(int)Unsafe.ByteOffset(ref destination, ref dst)]);
         }
 
         public static void WriteVar(this NetBinaryWriter writer, ReadOnlySpan<ulong> values)
