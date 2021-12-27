@@ -2,7 +2,7 @@
 
 ![Build](https://github.com/TechnologicalPizza/MinecraftServerSharp/workflows/Build/badge.svg)
 
-Minecraft server implementation in C# and NET5, not affiliated with Mojang.  
+Minecraft server implementation in C# and latest .NET, not affiliated with Mojang.  
 
 This is currently just a passion project.
 
