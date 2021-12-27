@@ -38,9 +38,9 @@ The purpose of this project is to innovate where the vanilla server is lacking, 
     - Feel free to fork the project or contribute
 2. Set up submodules: `git submodule update --init`
 3. Open the solution 
-    - .NET 5 SDK is required to build the project
+    - .NET 6 SDK is required to build the project
 
-Latest Visual Studio 2019 with '.NET desktop development' should work out of the box.
+Latest Visual Studio 2022 with '.NET desktop development' should work out of the box.
 
 The server will require game data at runtime which needs to be [downloaded manually](https://github.com/Arcensoth/mcdata/tree/e82ef9224544edb712a06627bbb1d1de5211e5ed) for now.
 
