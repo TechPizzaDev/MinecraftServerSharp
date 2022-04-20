@@ -18,9 +18,8 @@ namespace MCServerSharp
     [SkipLocalsInit]
     public partial class Utf8String : IComparable<Utf8String>, IEquatable<Utf8String>, ILongHashable
     {
-        public static Utf8String Empty { get; } = new Utf8String(Array.Empty<byte>());
+        public static Utf8String Empty { get; } = new Utf8String(ReadOnlyMemory<byte>.Empty);
 
-        private byte[]? _byteArray;
         private ReadOnlyMemory<byte> _bytes;
 
         public ReadOnlySpan<byte> Bytes => _bytes.Span;
@@ -30,39 +29,26 @@ namespace MCServerSharp
 
         #region Constructors
 
-        private Utf8String(byte[] bytes)
-        {
-            _byteArray = bytes;
-            _bytes = _byteArray.AsMemory();
-        }
-
         private Utf8String(ReadOnlyMemory<byte> bytes)
         {
             _bytes = bytes;
         }
 
-        private Utf8String(int length) : this(length == 0 ? Array.Empty<byte>() : new byte[length])
+        public Utf8String(string value) : this(StringHelper.Utf8.GetBytes(value).AsMemory())
         {
         }
 
-        public Utf8String(string value) : this(StringHelper.Utf8.GetByteCount(value))
+        public Utf8String(ReadOnlySpan<char> utf16) : this(StringHelper.Utf8.GetBytes(utf16).AsMemory())
         {
-            StringHelper.Utf8.GetBytes(value, _byteArray);
         }
 
-        public Utf8String(ReadOnlySpan<char> chars) : this(StringHelper.Utf8.GetByteCount(chars))
+        public Utf8String(ReadOnlySpan<byte> utf8) : this(utf8.ToArray().AsMemory())
         {
-            StringHelper.Utf8.GetBytes(chars, _byteArray);
-        }
-
-        public Utf8String(ReadOnlySpan<byte> bytes) : this(bytes.Length)
-        {
-            bytes.CopyTo(_byteArray);
         }
 
         #endregion
 
-        public static Utf8String UnsafeWrap(ReadOnlyMemory<byte> data)
+        public static Utf8String WrapUnsafe(ReadOnlyMemory<byte> data)
         {
             return new Utf8String(data);
         }
@@ -74,26 +60,11 @@ namespace MCServerSharp
             return new Utf8String(utf8);
         }
 
-        public static Utf8String Create(ReadOnlyMemory<byte> utf8)
-        {
-            return Create(utf8.Span);
-        }
-
-        public static Utf8String Create(Utf8Memory utf8)
-        {
-            return Create(utf8.Span);
-        }
-
         public static Utf8String Create(ReadOnlySpan<char> utf16)
         {
             if (utf16.IsEmpty)
                 return Empty;
             return new Utf8String(utf16);
-        }
-
-        public static Utf8String Create(ReadOnlyMemory<char> utf16)
-        {
-            return Create(utf16.Span);
         }
 
         public static Utf8String Create<TState>(
@@ -105,8 +76,9 @@ namespace MCServerSharp
             if (length == 0)
                 return Empty;
 
-            var str = new Utf8String(length);
-            action.Invoke(str._byteArray, state);
+            byte[] buffer = new byte[length];
+            var str = new Utf8String(buffer.AsMemory());
+            action.Invoke(buffer, state);
             return str;
         }
 
@@ -244,9 +216,9 @@ namespace MCServerSharp
             dst = dst[value2.Length..];
 
             value3.CopyTo(dst);
-            dst = dst[value3.Length..];
+            //dst = dst[value3.Length..];
 
-            return new Utf8String(bytes);
+            return new Utf8String(bytes.AsMemory());
         }
 
         public static Utf8String Concat(Utf8String? value1, Utf8String? value2, Utf8String? value3)
