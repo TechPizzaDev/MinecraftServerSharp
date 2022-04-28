@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Buffers;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -9,7 +10,7 @@ using System.Text;
 namespace MCServerSharp.NBT
 {
     [DebuggerDisplay("{ToString(), nq}")]
-    public readonly partial struct NbtElement
+    public readonly partial struct NbtElement : IEnumerable<NbtElement>
     {
         private readonly NbtDocument _parent;
         private readonly int _index;
@@ -26,18 +27,16 @@ namespace MCServerSharp.NBT
 
         public NbtElement this[ReadOnlySpan<char> name] => GetCompoundElement(name);
 
-        public NbtElement this[string name] => this[name.AsSpan()];
-
         public NbtOptions Options => _parent.Options;
 
         public bool IsValid => _parent != null && _parent.Bytes.Length != 0;
 
-        public NbtType Type => _parent != null 
+        public NbtType Type => _parent != null
             ? _parent.GetTagType(_index)
             : NbtType.Undefined;
 
-        public NbtFlags Flags => _parent != null 
-            ? _parent.GetFlags(_index) 
+        public NbtFlags Flags => _parent != null
+            ? _parent.GetFlags(_index)
             : NbtFlags.None;
 
         public Utf8Memory Name => _parent != null
@@ -285,6 +284,26 @@ namespace MCServerSharp.NBT
                 throw new InvalidOperationException("This element is not a container.");
 
             return new ContainerEnumerator(this);
+        }
+
+        public ContainerEnumerator GetEnumerator()
+        {
+            AssertValidInstance();
+
+            if (!Type.IsContainer())
+                return default;
+
+            return new ContainerEnumerator(this);
+        }
+
+        IEnumerator<NbtElement> IEnumerable<NbtElement>.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
         }
 
         public ArrayEnumerator<T> EnumerateArray<T>()

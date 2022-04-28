@@ -20,7 +20,7 @@ namespace MCServerSharp.NBT
             {
                 get
                 {
-                    if (_currentIndex < 0)
+                    if (_currentIndex < 0 || _currentIndex >= _targetEndIndex)
                         return default;
                     return new NbtElement(_container._parent, _currentIndex);
                 }
