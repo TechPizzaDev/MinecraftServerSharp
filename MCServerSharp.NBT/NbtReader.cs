@@ -268,7 +268,8 @@ namespace MCServerSharp.NBT
 
                     if (status != NbtReadStatus.Done)
                         goto ClearReturn;
-                    if (listLength <= 0 && listType != NbtType.End)
+                    if (listLength <= 0 && 
+                        Options.TypeForEmptyList.HasValue && listType != Options.TypeForEmptyList.GetValueOrDefault())
                     {
                         status = NbtReadStatus.InvalidListLength;
                         goto ClearReturn;

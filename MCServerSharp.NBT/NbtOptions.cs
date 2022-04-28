@@ -10,12 +10,19 @@ namespace MCServerSharp.NBT
             IsBigEndian = true,
             IsVarArrayLength = false,
             IsVarStringLength = false,
-            MaxDepth = DefaultMaxDepth
+            MaxDepth = DefaultMaxDepth,
+            TypeForEmptyList = NbtType.End,
         };
 
         public bool IsBigEndian { get; set; }
         public bool IsVarArrayLength { get; set; }
         public bool IsVarStringLength { get; set; }
         public int MaxDepth { get; set; }
+
+        /// <summary>
+        /// The expected type for empty list tags. 
+        /// Can be <see langword="null"/> to skip validation.
+        /// </summary>
+        public NbtType? TypeForEmptyList { get; set; }
     }
 }
