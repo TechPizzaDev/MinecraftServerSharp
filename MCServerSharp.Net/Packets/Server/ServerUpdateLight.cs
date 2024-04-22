@@ -1,53 +1,50 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
+using MCServerSharp.Collections;
 
 namespace MCServerSharp.Net.Packets
 {
-    [PacketStruct(ServerPacketId.UpdateLight)]
-    public readonly struct ServerUpdateLight : IDisposable
+    [DataObject]
+    public readonly struct LightUpdate : IDisposable
     {
-        [DataProperty(0)] public VarInt ChunkX { get; }
-        [DataProperty(1)] public VarInt ChunkY { get; }
-        [DataProperty(2)] public bool TrustEdges { get; }
-        [DataProperty(3)] public VarInt SkyLightMask { get; }
-        [DataProperty(4)] public VarInt BlockLightMask { get; }
-        [DataProperty(5)] public VarInt EmptySkyLightMask { get; }
-        [DataProperty(6)] public VarInt EmptyBlockLightMask { get; }
+        [DataProperty(0)] public bool TrustEdges { get; }
+        [DataProperty(1)] public BitSet SkyLightMask { get; }
+        [DataProperty(2)] public BitSet BlockLightMask { get; }
+        [DataProperty(3)] public BitSet EmptySkyLightMask { get; }
+        [DataProperty(4)] public BitSet EmptyBlockLightMask { get; }
 
-        [DataProperty(7)]
+        [DataProperty(5)]
         [DataEnumerable]
+        [DataLengthPrefixed(typeof(VarInt))]
         public List<LightArray> SkyLightArrays { get; }
 
-        [DataProperty(8)]
+        [DataProperty(6)]
         [DataEnumerable]
+        [DataLengthPrefixed(typeof(VarInt))]
         public List<LightArray> BlockLightArrays { get; }
 
         public ArrayPool<byte>? Pool { get; }
 
-        public ServerUpdateLight(
-            VarInt chunkX,
-            VarInt chunkY,
+        public LightUpdate(
             bool trustEdges,
-            VarInt skyLightMask,
-            VarInt blockLightMask,
-            VarInt emptySkyLightMask,
-            VarInt emptyBlockLightMask,
+            BitSet skyLightMask,
+            BitSet blockLightMask,
+            BitSet emptySkyLightMask,
+            BitSet emptyBlockLightMask,
             List<LightArray> skyLightArrays,
             List<LightArray> blockLightArrays,
             ArrayPool<byte>? pool)
         {
             SkyLightArrays = skyLightArrays ?? throw new ArgumentNullException(nameof(skyLightArrays));
             BlockLightArrays = blockLightArrays ?? throw new ArgumentNullException(nameof(blockLightArrays));
+            SkyLightMask = skyLightMask ?? throw new ArgumentNullException(nameof(skyLightMask));
+            BlockLightMask = blockLightMask ?? throw new ArgumentNullException(nameof(blockLightMask));
+            EmptySkyLightMask = emptySkyLightMask ?? throw new ArgumentNullException(nameof(emptySkyLightMask));
+            EmptyBlockLightMask = emptyBlockLightMask ?? throw new ArgumentNullException(nameof(emptyBlockLightMask));
             Pool = pool ?? throw new ArgumentNullException(nameof(pool));
 
-            ChunkX = chunkX;
-            ChunkY = chunkY;
             TrustEdges = trustEdges;
-            SkyLightMask = skyLightMask;
-            BlockLightMask = blockLightMask;
-            EmptySkyLightMask = emptySkyLightMask;
-            EmptyBlockLightMask = emptyBlockLightMask;
         }
 
         public void Dispose()
@@ -60,6 +57,24 @@ namespace MCServerSharp.Net.Packets
                 foreach (var array in BlockLightArrays)
                     array.Return(Pool);
             }
+        }
+    }
+
+    [PacketStruct(ServerPacketId.UpdateLight)]
+    public readonly struct ServerUpdateLight
+    {
+        [DataProperty(0)] public VarInt ChunkX { get; }
+        [DataProperty(1)] public VarInt ChunkY { get; }
+        [DataProperty(2)] public LightUpdate Light { get; }
+
+        public ServerUpdateLight(
+            VarInt chunkX,
+            VarInt chunkY,
+            LightUpdate light)
+        {
+            ChunkX = chunkX;
+            ChunkY = chunkY;
+            Light = light;
         }
     }
 

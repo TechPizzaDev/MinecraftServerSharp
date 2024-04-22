@@ -72,6 +72,10 @@ namespace MCServerSharp.Server
             GetEnumSet<StructureBlockMode>(),
             GetEnumSet<WallExtension>(),
             GetEnumSet<Orientation>(),
+            GetEnumSet<SculkSensorPhase>(),
+            GetEnumSet<Thickness>(),
+            GetEnumSet<VerticalDirection>(),
+            GetEnumSet<Tilt>(),
         };
 
         private static void Main(string[] args)
@@ -236,11 +240,16 @@ namespace MCServerSharp.Server
 
                 _tagContainers = new Dictionary<string, TagContainer>();
                 Dictionary<string, List<Tag>> tagContainerBuilders = new();
-
-                tagContainerBuilders.Add("blocks", new());
-                tagContainerBuilders.Add("entity_types", new());
-                tagContainerBuilders.Add("fluids", new());
-                tagContainerBuilders.Add("items", new());
+                tagContainerBuilders.Add("minecraft:block", new());
+                tagContainerBuilders.Add("minecraft:entity_type", new());
+                tagContainerBuilders.Add("minecraft:fluid", new());
+                tagContainerBuilders.Add("minecraft:item", new());
+                
+                Dictionary<string, string> tagKeyToFile = new();
+                tagKeyToFile.Add("minecraft:block", "blocks");
+                tagKeyToFile.Add("minecraft:entity_type", "entity_types");
+                tagKeyToFile.Add("minecraft:fluid", "fluids");
+                tagKeyToFile.Add("minecraft:item", "items");
 
                 List<VarInt> tagEntryBuilder = new List<VarInt>();
                 int totalTagEntryCount = 0;
@@ -251,7 +260,8 @@ namespace MCServerSharp.Server
                     bool isBlocks = containerKey == "blocks";
                     bool isFluids = containerKey == "fluids";
 
-                    string[] tagFiles = Directory.GetFiles(Path.Combine(basePath, containerKey));
+                    string tagDirectory = Path.Combine(basePath, tagKeyToFile[containerKey]);
+                    string[] tagFiles = Directory.GetFiles(tagDirectory, "*.json", SearchOption.AllDirectories);
 
                     Dictionary<ReadOnlyMemory<char>, string?[]> tagLists = new(
                         tagFiles.Length,
@@ -260,7 +270,8 @@ namespace MCServerSharp.Server
                     for (int i = 0; i < tagFiles.Length; i++)
                     {
                         string tagFile = tagFiles[i];
-                        string tagName = Path.GetFileNameWithoutExtension(tagFile);
+                        string tagName = Path.GetFileNameWithoutExtension(tagFile.AsSpan(tagDirectory.Length + 1)).ToString();
+                        tagName = tagName.Replace(Path.DirectorySeparatorChar, '/');
 
                         using (Stream tagFs = File.OpenRead(tagFile))
                         using (JsonDocument tagDoc = JsonDocument.Parse(tagFs))
@@ -328,7 +339,7 @@ namespace MCServerSharp.Server
                         containerTags.Add(tag);
                     }
 
-                    _tagContainers.Add(containerKey, new TagContainer(containerTags.ToArray()));
+                    _tagContainers.Add(containerKey, new TagContainer(new Utf8Identifier(containerKey), containerTags.ToArray()));
                 }
 
                 int tagTypeCount = _tagContainers.Values.Sum(x => x.Tags.Length);
@@ -610,6 +621,13 @@ namespace MCServerSharp.Server
                 connection.EnqueuePacket(loginSuccess);
                 connection.ProtocolState = ProtocolState.Play;
 
+                connection.EnqueuePacket(new ServerUpdateTags(new[] {
+                    _tagContainers["minecraft:block"],
+                    _tagContainers["minecraft:item"],
+                    _tagContainers["minecraft:fluid"],
+                    _tagContainers["minecraft:entity_type"]
+                }));
+
                 var playerId = new EntityId(69);
 
                 var dimensionTag = new NbtMutCompound
@@ -617,13 +635,15 @@ namespace MCServerSharp.Server
                     { "piglin_safe"         , new NbtByte(0) },
                     { "natural"             , new NbtByte(1) },
                     { "ambient_light"       , new NbtFloat(0) },
-                    { "infiniburn"          , new NbtString("minecraft:infiniburn_overworld") },
+                    { "infiniburn"          , new NbtString("#minecraft:infiniburn_overworld") },
                     { "respawn_anchor_works", new NbtByte(0) },
                     { "has_skylight"        , new NbtByte(1) },
                     { "bed_works"           , new NbtByte(1) },
                     { "effects"             , new NbtString("minecraft:overworld") },
                     { "has_raids"           , new NbtByte(1) },
-                    { "logical_height"      , new NbtInt(256) },
+                    { "min_y"               , new NbtInt(_mainDimension.MinY) },
+                    { "height"              , new NbtInt(_mainDimension.Height) },
+                    { "logical_height"      , new NbtInt(_mainDimension.LogicalHeight) },
                     { "coordinate_scale"    , new NbtFloat(1f) },
                     { "ultrawarm"           , new NbtByte(0) },
                     { "has_ceiling"         , new NbtByte(0) },
@@ -660,7 +680,7 @@ namespace MCServerSharp.Server
                                 new NbtMutCompound
                                 {
                                     { "name", new NbtString("minecraft:plains") },
-                                    { "id", new NbtInt(1) },
+                                    { "id", new NbtInt(0) },
                                     { "element", new NbtMutCompound
                                     {
                                         { "precipitation", new NbtString("rain") },
@@ -687,11 +707,11 @@ namespace MCServerSharp.Server
                                         { "category"   , new NbtString("plains") }
                                     }
                                     },
-                                },
+                                },  
                                 new NbtMutCompound
                                 {
                                     { "name", new NbtString("minecraft:ocean") },
-                                    { "id", new NbtInt(2) },
+                                    { "id", new NbtInt(1) },
                                     { "element", new NbtMutCompound
                                     {
                                         { "precipitation", new NbtString("rain") },
@@ -729,6 +749,7 @@ namespace MCServerSharp.Server
                     0,
                     16,
                     32, // TODO: respect view distance in NetConnectionComponent
+                    16,
                     false,
                     true,
                     false,
@@ -738,19 +759,14 @@ namespace MCServerSharp.Server
                     new Utf8Identifier("minecraft:brand"),
                     (Utf8String)"MCServerSharp"));
 
-                connection.EnqueuePacket(new ServerUpdateTags(
-                    _tagContainers["blocks"],
-                    _tagContainers["items"],
-                    _tagContainers["fluids"],
-                    _tagContainers["entity_types"]));
-
                 int startY = 70;
 
                 connection.EnqueuePacket(new ServerSpawnPosition(
-                    new Position(0, startY, 0)));
+                    new Position(0, startY, 0),
+                    0));
 
                 connection.EnqueuePacket(new ServerPlayerPositionLook(
-                    0, startY, 0, 0, 0, ServerPlayerPositionLook.PositionRelatives.None, 1337));
+                    0, startY, 0, 0, 0, ServerPlayerPositionLook.PositionRelatives.None, 1337, false));
 
                 connection.EnqueuePacket(new ServerPlayerAbilities(
                     PlayerAbilityFlags.AllowFlying | PlayerAbilityFlags.Flying,

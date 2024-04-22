@@ -23,8 +23,8 @@ namespace MCServerSharp.Net
         public const int MaxClientPacketDataSize = 65536;
 
         // TODO: move these somewhere
-        public int ProtocolVersion { get; } = 754;
-        public MCVersion GameVersion { get; } = new MCVersion(1, 16, 5);
+        public int ProtocolVersion { get; } = 758;
+        public MCVersion GameVersion { get; } = new MCVersion(1, 18, 2);
         public bool Config_AppendGameVersionToBetaStatus { get; } = true;
 
         private HashSet<NetConnection> _connections;

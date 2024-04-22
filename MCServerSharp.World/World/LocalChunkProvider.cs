@@ -46,6 +46,12 @@ namespace MCServerSharp.World
             //_noise.SetFrequency(0.01f);
         }
 
+        private static Utf8String _blockStatesKey = "block_states".ToUtf8String();
+        private static Utf8String _paletteKey = "palette".ToUtf8String();
+        private static Utf8String _dataKey = "data".ToUtf8String();
+        private static Utf8String _skyLightKey = "SkyLight".ToUtf8String();
+        private static Utf8String _blockLightKey = "BlockLight".ToUtf8String();
+
         public async ValueTask<IChunk> GetOrAddChunk(ChunkColumnManager columnManager, ChunkPosition chunkPosition)
         {
             IChunkColumn column = await ColumnProvider.GetOrAddChunkColumn(columnManager, chunkPosition.Column).Unchain();
@@ -74,27 +80,28 @@ namespace MCServerSharp.World
 
                     LocalChunk chunk;
 
-                    if (chunkElement.TryGetCompoundElement("BlockStates", out NbtElement blockStatesNbt) &&
-                        chunkElement.TryGetCompoundElement("Palette", out NbtElement paletteNbt))
+                    if (chunkElement.TryGetCompoundElement(_blockStatesKey, out NbtElement blockStatesNbt) &&
+                        blockStatesNbt.TryGetCompoundElement(_paletteKey, out NbtElement paletteNbt))
                     {
                         IndirectBlockPalette palette = ParsePalette(columnManager.GlobalBlockPalette, paletteNbt);
                         chunk = new LocalChunk(column, chunkPosition.Y, palette, columnManager.Air);
 
-                        if (palette.Count == 1 &&
-                            palette.BlockForId(0) == columnManager.Air)
+                        bool hasData = blockStatesNbt.TryGetCompoundElement(_dataKey, out NbtElement dataNbt);
+                        if (!hasData)
                         {
-                            chunk.FillBlock(columnManager.Air);
+                            BlockState singleBlock = palette.BlockForId(0);
+                            chunk.FillBlock(singleBlock);
                         }
-                        else
+                        else if (hasData)
                         {
-                            ReadOnlyMemory<byte> blockStateRawData = blockStatesNbt.GetArrayData(out NbtType blockStateDataType);
+                            ReadOnlyMemory<byte> blockStateRawData = dataNbt.GetArrayData(out NbtType blockStateDataType);
                             if (blockStateDataType != NbtType.LongArray)
                                 throw new InvalidDataException();
 
                             SetBlocksFromData(chunk, palette, MemoryMarshal.Cast<byte, ulong>(blockStateRawData.Span));
                         }
 
-                        if (chunkElement.TryGetCompoundElement("BlockLight", out NbtElement blockLightNbt))
+                        if (chunkElement.TryGetCompoundElement(_blockLightKey, out NbtElement blockLightNbt))
                         {
                             ReadOnlyMemory<byte> blockLightData = blockLightNbt.GetArrayData(out NbtType blockLightDataType);
                             if (blockLightDataType != NbtType.ByteArray)
@@ -103,7 +110,7 @@ namespace MCServerSharp.World
                             chunk.BlockLight = blockLightData.ToArray();
                         }
 
-                        if (chunkElement.TryGetCompoundElement("SkyLight", out NbtElement skyLightNbt))
+                        if (chunkElement.TryGetCompoundElement(_skyLightKey, out NbtElement skyLightNbt))
                         {
                             ReadOnlyMemory<byte> skyLightData = skyLightNbt.GetArrayData(out NbtType skyLightDataType);
                             if (skyLightDataType != NbtType.ByteArray)
@@ -263,11 +270,11 @@ namespace MCServerSharp.World
 
                 foreach (NbtElement blockStateNbt in element.EnumerateContainer())
                 {
-                    Utf8Memory name = blockStateNbt[_paletteNameKey].GetUtf8Memory();
+                    Utf8Memory name = blockStateNbt[_paletteNameKey.AsSpan()].GetUtf8Memory();
                     BlockDescription blockDescription = globalPalette[name];
                     BlockState state = blockDescription.DefaultState;
 
-                    if (blockStateNbt.TryGetCompoundElement(_palettePropertiesKey, out NbtElement propertiesNbt))
+                    if (blockStateNbt.TryGetCompoundElement(_palettePropertiesKey.AsSpan(), out NbtElement propertiesNbt))
                     {
                         int propertyCount = blockDescription.PropertyCount;
                         if (propertyBuffer.Length < propertyCount)

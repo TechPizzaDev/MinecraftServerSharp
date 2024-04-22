@@ -1,4 +1,5 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
 using MCServerSharp.Maths;
 
@@ -13,5 +14,8 @@ namespace MCServerSharp.World
 
         bool ContainsChunk(int chunkY);
         bool TryGetChunk(int chunkY, [MaybeNullWhen(false)] out IChunk chunk);
+
+        int GetMaxChunkCount();
+        void TryGetChunks(Span<IChunk?> destination);
     }
 }

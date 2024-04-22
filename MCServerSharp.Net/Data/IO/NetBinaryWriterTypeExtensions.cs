@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
+using MCServerSharp.Collections;
 
 namespace MCServerSharp.Data.IO
 {
@@ -29,6 +30,13 @@ namespace MCServerSharp.Data.IO
         public static void Write(this NetBinaryWriter writer, Utf8Identifier identifier)
         {
             writer.Write(identifier.Value);
+        }
+
+        public static void Write(this NetBinaryWriter writer, BitSet bitSet)
+        {
+            Span<long> span = bitSet.AsSpan();
+            writer.WriteVar(span.Length);
+            writer.Write(span);
         }
 
         [SkipLocalsInit]

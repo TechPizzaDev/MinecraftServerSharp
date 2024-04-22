@@ -36,6 +36,10 @@ namespace MCServerSharp.World
 
         public bool HasSkylight => true;
 
+        public int MinY => -64;
+        public int Height => 320;
+        public int LogicalHeight => 256;
+
         public Dimension(ChunkColumnManager chunkColumnManager)
         {
             ChunkColumnManager = chunkColumnManager ?? throw new ArgumentNullException(nameof(chunkColumnManager));

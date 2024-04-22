@@ -199,19 +199,9 @@ namespace MCServerSharp.Data.IO
             WriteRawUtf8(value.Span);
         }
 
-        public void WriteUtf8(string? value)
-        {
-            WriteUtf8((ReadOnlySpan<char>)value);
-        }
-
-        public void WriteRawUtf8(string? value)
-        {
-            WriteRawUtf8((ReadOnlySpan<char>)value);
-        }
-
         private void WriteString(ReadOnlySpan<char> value, Encoding encoding)
         {
-            if (value == null)
+            if (value.IsEmpty)
             {
                 Write((VarInt)0);
                 return;
@@ -226,12 +216,11 @@ namespace MCServerSharp.Data.IO
         [SkipLocalsInit]
         private void WriteStringRaw(ReadOnlySpan<char> value, Encoding encoding)
         {
-            if (value.IsEmpty)
-                return;
-
             int sliceSize = 512;
-            int maxBytesPerSlice = encoding.GetMaxByteCount(sliceSize);
-            Span<byte> byteBuffer = stackalloc byte[maxBytesPerSlice];
+            Span<byte> byteBuffer = stackalloc byte[2048];
+
+            if (encoding.GetMaxByteCount(sliceSize) > byteBuffer.Length)
+                throw new ArgumentException(null, nameof(encoding));
 
             int charOffset = 0;
             int charsLeft = value.Length;

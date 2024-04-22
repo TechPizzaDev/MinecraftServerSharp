@@ -165,9 +165,8 @@ namespace MCServerSharp.AnvilStorage
 
         public static ChunkColumnPosition GetColumnPosition(NbtElement chunkRoot)
         {
-            NbtElement levelCompound = chunkRoot["Level"];
-            int columnX = levelCompound["xPos"].GetInt();
-            int columnZ = levelCompound["zPos"].GetInt();
+            int columnX = chunkRoot["xPos"].GetInt();
+            int columnZ = chunkRoot["zPos"].GetInt();
             return new ChunkColumnPosition(columnX, columnZ);
         }
 

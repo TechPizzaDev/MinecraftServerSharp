@@ -22,10 +22,11 @@ namespace MCServerSharp.Net.Packets
         [DataProperty(8)] public long HashedSeed { get; }
         [DataProperty(9)] public VarInt MaxPlayers { get; }
         [DataProperty(10)] public VarInt ViewDistance { get; }
-        [DataProperty(11)] public bool ReducedDebugInfo { get; }
-        [DataProperty(12)] public bool EnableRespawnScreen { get; }
-        [DataProperty(13)] public bool IsDebug { get; }
-        [DataProperty(14)] public bool IsFlat { get; }
+        [DataProperty(11)] public VarInt SimulationDistance { get; }
+        [DataProperty(12)] public bool ReducedDebugInfo { get; }
+        [DataProperty(13)] public bool EnableRespawnScreen { get; }
+        [DataProperty(14)] public bool IsDebug { get; }
+        [DataProperty(15)] public bool IsFlat { get; }
 
         public ServerJoinGame(
             int entityId,
@@ -39,6 +40,7 @@ namespace MCServerSharp.Net.Packets
             long hashedSeed,
             VarInt maxPlayers,
             VarInt viewDistance,
+            VarInt simulationDistance,
             bool reducedDebugInfo,
             bool enableRespawnScreen,
             bool isDebug,
@@ -59,6 +61,7 @@ namespace MCServerSharp.Net.Packets
             HashedSeed = hashedSeed;
             MaxPlayers = maxPlayers;
             ViewDistance = viewDistance;
+            SimulationDistance = simulationDistance;
             ReducedDebugInfo = reducedDebugInfo;
             EnableRespawnScreen = enableRespawnScreen;
             IsDebug = isDebug;

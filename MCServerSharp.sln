@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.29519.181
+# Visual Studio Version 17
+VisualStudioVersion = 17.1.32414.318
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Tests", "Tests\Tests.csproj", "{70408387-7D28-4500-A22F-A99F3CAF5F53}"
 EndProject
@@ -10,6 +10,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{E2E3F77B-956B-402C-8D75-D25CCAC0B3D2}"
 	ProjectSection(SolutionItems) = preProject
 		.editorconfig = .editorconfig
+		.gitignore = .gitignore
 	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MCServerSharp.NBT", "MCServerSharp.NBT\MCServerSharp.NBT.csproj", "{83B54FEE-D441-49F8-B8DC-5F0532F7D216}"
@@ -24,7 +25,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MCServerSharp.Net", "MCServ
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MCServerSharp.Net.SourceGen", "MCServerSharp.Net.SourceGen\MCServerSharp.Net.SourceGen.csproj", "{38DBA2E5-9266-4196-B2B7-38F7D4CB9901}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MCServerSharp.AnvilStorage", "MCServerSharp.AnvilStorage\MCServerSharp.AnvilStorage.csproj", "{123D8C6F-CDD9-4030-82B2-9829FAD3459C}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MCServerSharp.AnvilStorage", "MCServerSharp.AnvilStorage\MCServerSharp.AnvilStorage.csproj", "{123D8C6F-CDD9-4030-82B2-9829FAD3459C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

@@ -2,7 +2,10 @@
 using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Threading;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Sources;
+using MCServerSharp.Collections;
 using MCServerSharp.Components;
 using MCServerSharp.Entities.Mobs;
 using MCServerSharp.Maths;
@@ -13,12 +16,114 @@ namespace MCServerSharp.Net
 {
     // TODO: respect view distance
 
+    public class AsyncAutoResetEvent
+    {
+        private readonly Stack<ValueTaskSource> _pool = new();
+        private readonly Queue<ValueTaskSource> _waits = new();
+        private readonly bool _runContinuationsAsynchronously;
+        private bool _signaled;
+
+        public AsyncAutoResetEvent(bool runContinuationsAsynchronously = true)
+        {
+            _runContinuationsAsynchronously = runContinuationsAsynchronously;
+        }
+
+        public ValueTask WaitAsync()
+        {
+            lock (_waits)
+            {
+                if (_signaled)
+                {
+                    _signaled = false;
+                    return new ValueTask(Task.CompletedTask);
+                }
+                else
+                {
+                    ValueTaskSource? tcs;
+                    lock (_pool)
+                    {
+                        if (!_pool.TryPop(out tcs))
+                            tcs = new ValueTaskSource();
+                    }
+                    tcs.RunContinuationsAsynchronously = _runContinuationsAsynchronously;
+
+                    _waits.Enqueue(tcs);
+                    return tcs.RunAsync();
+                }
+            }
+        }
+
+        public void Set()
+        {
+            ValueTaskSource? toRelease = null;
+            lock (_waits)
+            {
+                if (!_waits.TryDequeue(out toRelease))
+                {
+                    if (!_signaled)
+                        _signaled = true;
+                }
+            }
+
+            if (toRelease != null)
+            {
+                toRelease.SetResult();
+
+                if (_pool.Count < 4)
+                {
+                    lock (_pool)
+                    {
+                        _pool.Push(toRelease);
+                    }
+                }
+            }
+        }
+
+        private sealed class ValueTaskSource : IValueTaskSource
+        {
+            private ManualResetValueTaskSourceCore<byte> _mrvtsc = new();
+
+            public bool RunContinuationsAsynchronously
+            {
+                get => _mrvtsc.RunContinuationsAsynchronously;
+                set => _mrvtsc.RunContinuationsAsynchronously = value;
+            }
+
+            public ValueTask RunAsync()
+            {
+                return new ValueTask(this, _mrvtsc.Version);
+            }
+
+            public void SetResult()
+            {
+                _mrvtsc.SetResult(0);
+            }
+
+            public void GetResult(short token)
+            {
+                _ = _mrvtsc.GetResult(token);
+                _mrvtsc.Reset();
+            }
+
+            public ValueTaskSourceStatus GetStatus(short token)
+            {
+                return _mrvtsc.GetStatus(token);
+            }
+
+            public void OnCompleted(Action<object?> continuation, object? state, short token, ValueTaskSourceOnCompletedFlags flags)
+            {
+                _mrvtsc.OnCompleted(continuation, state, token, flags);
+            }
+        }
+    }
+
     public class NetConnectionComponent : Component<NetConnection>, ITickable
     {
         public int SendRate = 12;
 
         private bool _firstSend = true;
-        private Task _sendTask = Task.CompletedTask;
+        private Task _sendTask;
+        private AsyncAutoResetEvent _sendEvent = new();
         private List<ValueTask<IChunk>> _taskBuffer = new();
 
         public GameTimeComponent GameTime { get; }
@@ -36,7 +141,7 @@ namespace MCServerSharp.Net
         {
             GameTime = this.GetComponent<GameTimeComponent>();
 
-
+            _sendTask = SendTask();
         }
 
         public void Tick()
@@ -56,13 +161,20 @@ namespace MCServerSharp.Net
 
             if (ProtocolState == ProtocolState.Play)
             {
-                if (_sendTask.IsCompleted)
+                _sendEvent.Set();
+            }
+        }
+
+        private async Task SendTask()
+        {
+            while (true)
+            {
+                await _sendEvent.WaitAsync();
+
+                if (this.GetPlayer(out Player? player))
                 {
-                    _sendTask = Task.Run(async () =>
-                    {
-                        GatherChunksToSend(player);
-                        await SendChunks(SendRate, player, _taskBuffer).Unchain();
-                    });
+                    GatherChunksToSend(player);
+                    await SendChunks(SendRate, player, _taskBuffer).Unchain();
                 }
             }
         }
@@ -317,67 +429,60 @@ namespace MCServerSharp.Net
             loadList.Add(position);
         }
 
-        [SuppressMessage("Reliability", "CA2012", Justification = "<Pending>")]
         private async ValueTask SendChunkColumn(LocalChunkColumn chunkColumn, List<ValueTask<IChunk>> taskBuffer)
         {
-            for (int i = 0; i < 16; i++)
-                taskBuffer.Add(chunkColumn.GetOrAddChunk(i));
-
-            foreach (ValueTask<IChunk> task in taskBuffer)
-                await task.Unchain();
-
-            taskBuffer.Clear();
+            ValueTask<IChunk>[] chunks = new ValueTask<IChunk>[chunkColumn.GetMaxChunkCount()];
+            chunkColumn.GetOrAddChunks(chunks);
 
             var skyLights = new List<LightArray>();
             var blockLights = new List<LightArray>();
 
-            int skyLightMask = 0;
-            int blockLightMask = 0;
-
-            int emptySkyLightMask = 0;
-            int emptyBlockLightMask = 0;
+            BitSet skyLightMask = new(chunks.Length);
+            BitSet blockLightMask = new(chunks.Length);
+            BitSet emptySkyLightMask = new(chunks.Length);
+            BitSet emptyBlockLightMask = new(chunks.Length);
 
             ArrayPool<byte> pool = ArrayPool<byte>.Shared;
 
-            for (int y = 0; y < 18; y++)
+            for (int i = 0; i < chunks.Length; i++)
             {
-                if (chunkColumn.TryGetChunk(y - 1, out LocalChunk? chunk))
-                {
-                    if (chunk.SkyLight == null)
-                    {
-                        emptySkyLightMask |= 1 << y;
-                    }
-                    else
-                    {
-                        skyLightMask |= 1 << y;
-                        var skyLight = new LightArray(pool);
-                        chunk.SkyLight.CopyTo(skyLight.Data);
-                        skyLights.Add(skyLight);
-                    }
+                LocalChunk chunk = (LocalChunk)await chunks[i].Unchain();
 
-                    if (chunk.BlockLight == null)
-                    {
-                        emptyBlockLightMask |= 1 << y;
-                    }
-                    else
-                    {
-                        blockLightMask |= 1 << y;
-                        var blockLight = new LightArray(pool);
-                        chunk.BlockLight.CopyTo(blockLight.Data);
-                        blockLights.Add(blockLight);
-                    }
+                if (chunk.SkyLight == null)
+                {
+                    emptySkyLightMask[i] = true;
+                }
+                else
+                {
+                    skyLightMask[i] = true;
+                    var skyLight = new LightArray(pool);
+                    chunk.SkyLight.CopyTo(skyLight.Data);
+                    skyLights.Add(skyLight);
+                }
+
+                if (chunk.BlockLight == null)
+                {
+                    emptyBlockLightMask[i] = true;
+                }
+                else
+                {
+                    blockLightMask[i] = true;
+                    var blockLight = new LightArray(pool);
+                    chunk.BlockLight.CopyTo(blockLight.Data);
+                    blockLights.Add(blockLight);
                 }
             }
 
-            var updateLight = new ServerUpdateLight(
-                chunkColumn.Position.X, chunkColumn.Position.Z, true,
-                skyLightMask, blockLightMask,
-                emptySkyLightMask, emptyBlockLightMask,
+            var light = new LightUpdate(
+                true,
+                skyLightMask,
+                blockLightMask,
+                emptySkyLightMask,
+                emptyBlockLightMask,
                 skyLights, blockLights, pool);
-            Connection.EnqueuePacket(updateLight);
+            //Connection.EnqueuePacket(light);
 
-            int chunkSectionMask = ServerChunkData.GetSectionMask(chunkColumn);
-            var chunkData = new ServerChunkData(chunkColumn, chunkSectionMask, true);
+            var chunkData = new ServerChunkData(chunkColumn, light);
             Connection.EnqueuePacket(chunkData);
         }
     }

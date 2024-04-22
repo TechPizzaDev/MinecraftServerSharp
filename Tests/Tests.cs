@@ -183,7 +183,7 @@ namespace Tests
             }
             else
             {
-                files = Directory.GetFiles($@"..\..\..\..\MCJarServer\1.16.5\world\region");
+                files = Directory.GetFiles($@"..\..\..\..\MCJarServer\1.18.2\world\region");
             }
 
             var compressedData = new MemoryStream();
@@ -215,7 +215,7 @@ namespace Tests
 
                 string dirname = "chunksnbt";
                 Directory.CreateDirectory(dirname);
-                using var filwriter = new FileStream($"{dirname}/{Path.GetFileName(file)}.chunksnbt", FileMode.Create);
+                using var filwriter = Stream.Null; //new FileStream($"{dirname}/{Path.GetFileName(file)}.chunksnbt", FileMode.Create);
                 using var binwriter = new BinaryWriter(filwriter);
 
                 binwriter.Write(regionReader.ChunkCount);

@@ -14,7 +14,7 @@ namespace MCServerSharp
         public static Chat Text(string text)
         {
             byte[] serialized = JsonSerializer.SerializeToUtf8Bytes(new { text });
-            return new Chat(new Utf8String(serialized));
+            return new Chat(Utf8String.WrapUnsafe(serialized));
         }
     }
 }

@@ -63,8 +63,8 @@ namespace MCServerSharp.World
             
             // TODO: move this to a Anvil parser
             {
-                NbtElement level = document.RootTag["Level"];
-                NbtElement sections = level["Sections"];
+                NbtElement root = document.RootTag;
+                NbtElement sections = root["sections"];
 
                 column._encodedColumn = document;
                 column._chunksToDecode = new(sections.GetLength());

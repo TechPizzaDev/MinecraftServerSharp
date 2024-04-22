@@ -23,11 +23,14 @@ namespace MCServerSharp.Net.Packets
         [DataProperty(4)] public float Pitch { get; }
         [DataProperty(5)] public PositionRelatives Flags { get; }
         [DataProperty(6)] public VarInt TeleportId { get; }
+        [DataProperty(7)] public bool DismountVehicle { get; }
 
         public ServerPlayerPositionLook(
             double x, double y, double z,
             float yaw, float pitch,
-            PositionRelatives flags, VarInt teleportId)
+            PositionRelatives flags, 
+            VarInt teleportId,
+            bool dismountVehicle)
         {
             X = x;
             Y = y;
@@ -36,6 +39,7 @@ namespace MCServerSharp.Net.Packets
             Pitch = pitch;
             Flags = flags;
             TeleportId = teleportId;
+            DismountVehicle = dismountVehicle;
         }
     }
 }

@@ -5,33 +5,31 @@ namespace MCServerSharp.Net.Packets
     [PacketStruct(ServerPacketId.UpdateTags)]
     public readonly struct ServerUpdateTags
     {
-        [DataProperty(0)] public TagContainer BlockTags { get; }
-        [DataProperty(1)] public TagContainer ItemTags { get; }
-        [DataProperty(2)] public TagContainer FluidTags { get; }
-        [DataProperty(3)] public TagContainer EntityTypeTags { get; }
+        [DataProperty(0)]
+        [DataEnumerable]
+        [DataLengthPrefixed(typeof(VarInt))] 
+        public TagContainer[] Containers { get; }
 
-        public ServerUpdateTags(
-            TagContainer blockTags, TagContainer itemTags, TagContainer fluidTags, TagContainer entityTypeTags)
+        public ServerUpdateTags(TagContainer[] containers)
         {
-            BlockTags = blockTags;
-            ItemTags = itemTags;
-            FluidTags = fluidTags;
-            EntityTypeTags = entityTypeTags;
+            Containers = containers;
         }
     }
 
     [DataObject]
     public readonly struct TagContainer
     {
-        public static TagContainer Empty => new TagContainer(Array.Empty<Tag>());
-
         [DataProperty(0)]
+        public Utf8Identifier Identifier { get; }
+
+        [DataProperty(1)]
         [DataEnumerable]
         [DataLengthPrefixed(typeof(VarInt))]
         public Tag[] Tags { get; }
 
-        public TagContainer(Tag[] tags)
+        public TagContainer(Utf8Identifier identifier, Tag[] tags)
         {
+            Identifier = identifier;
             Tags = tags ?? throw new ArgumentNullException(nameof(tags));
         }
     }

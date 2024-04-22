@@ -12,7 +12,7 @@ namespace MCServerSharp.World
     public class LocalChunkColumn : IChunkColumn
     {
         private ReaderWriterLockSlim _chunkLock = new();
-        private Dictionary<int, LocalChunk> _chunks = new(18); // 16 chunk + 2 empty light chunks
+        private Dictionary<int, LocalChunk> _chunks = new(24 + 2); // 24 chunks + 2 empty light chunks
 
         internal NbtDocument? _encodedColumn;
         internal Dictionary<int, NbtElement>? _chunksToDecode;
@@ -33,6 +33,14 @@ namespace MCServerSharp.World
         {
             ColumnManager = columnManager ?? throw new ArgumentNullException(nameof(columnManager));
             Position = position;
+        }
+
+        public int GetMaxChunkCount()
+        {
+            Dimension dimension = Dimension;
+            int diff = dimension.Height - dimension.MinY;
+            int representedCount = (diff + LocalChunk.Height - 1) / LocalChunk.Height;
+            return representedCount + 2;
         }
 
         public bool ContainsChunk(int chunkY)
@@ -61,6 +69,11 @@ namespace MCServerSharp.World
                 _chunkLock.ExitReadLock();
             }
 
+            return AddChunk(chunkY);
+        }
+
+        private ValueTask<IChunk> AddChunk(int chunkY)
+        {
             _chunkLock.EnterUpgradeableReadLock();
             try
             {
@@ -105,24 +118,66 @@ namespace MCServerSharp.World
 
         public bool TryGetChunk(int chunkY, [MaybeNullWhen(false)] out LocalChunk chunk)
         {
-            if (_chunks.TryGetValue(chunkY, out LocalChunk? mchunk))
+            _chunkLock.EnterReadLock();
+            try
             {
-                chunk = mchunk;
-                return true;
+                return _chunks.TryGetValue(chunkY, out chunk);
             }
-            chunk = default;
-            return false;
+            finally
+            {
+                _chunkLock.ExitReadLock();
+            }
         }
 
         bool IChunkColumn.TryGetChunk(int chunkY, [MaybeNullWhen(false)] out IChunk chunk)
         {
-            if (_chunks.TryGetValue(chunkY, out LocalChunk? mchunk))
+            bool result = TryGetChunk(chunkY, out LocalChunk? lchunk);
+            chunk = lchunk;
+            return result;
+        }
+
+        public void TryGetChunks(Span<IChunk?> chunks)
+        {
+            _chunkLock.EnterReadLock();
+            try
             {
-                chunk = mchunk;
-                return true;
+                int count = GetMaxChunkCount();
+                if (chunks.Length > count)
+                {
+                    chunks = chunks.Slice(0, count);
+                }
+
+                int offset = Dimension.MinY / LocalChunk.Height;
+
+                for (int i = 0; i < chunks.Length; i++)
+                {
+                    int y = i + offset;
+                    _chunks.TryGetValue(y, out LocalChunk? lchunk);
+                    chunks[i] = lchunk;
+                }
             }
-            chunk = default;
-            return false;
+            finally
+            {
+                _chunkLock.ExitReadLock();
+            }
+        }
+
+        [SuppressMessage("Reliability", "CA2012", Justification = "Performance")]
+        public void GetOrAddChunks(Span<ValueTask<IChunk>> chunks)
+        {
+            int count = GetMaxChunkCount();
+            if (chunks.Length > count)
+            {
+                chunks = chunks.Slice(0, count);
+            }
+
+            int offset = Dimension.MinY / LocalChunk.Height;
+
+            for (int i = 0; i < chunks.Length; i++)
+            {
+                int y = i + offset;
+                chunks[i] = GetOrAddChunk(y);
+            }
         }
     }
 }

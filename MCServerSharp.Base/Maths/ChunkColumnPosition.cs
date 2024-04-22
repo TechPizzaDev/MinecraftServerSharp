@@ -60,7 +60,7 @@ namespace MCServerSharp.Maths
 
         public override string ToString()
         {
-            return "{X:" + X + ", Z:" + Z + "}";
+            return $"{{X:{X}, Z:{Z}}}";
         }
 
         public static bool operator ==(ChunkColumnPosition a, ChunkColumnPosition b)

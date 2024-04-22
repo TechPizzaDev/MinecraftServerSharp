@@ -13,39 +13,16 @@ namespace MCServerSharp.Net.Packets
     [PacketStruct(ServerPacketId.ChunkData)]
     public readonly struct ServerChunkData : IDataWritable
     {
-        public const int ColumnHeight = 16;
-
-        public const int UnderlyingDataSize = 4096;
-
         public LocalChunkColumn ChunkColumn { get; }
-        public int IncludedSectionsMask { get; }
-        public bool FullChunk { get; }
+        public LightUpdate Light { get; }
 
         // TODO?: create flash-copying (fast deep-clone) of chunks for serialization purposes,
         // possibly with some kind of locking on end of dimension tick
 
-        public ServerChunkData(LocalChunkColumn chunkColumn, int includedSectionsMask, bool fullChunk)
+        public ServerChunkData(LocalChunkColumn chunkColumn, LightUpdate light)
         {
             ChunkColumn = chunkColumn;
-            IncludedSectionsMask = includedSectionsMask;
-            FullChunk = fullChunk;
-        }
-
-        public static int GetSectionMask(LocalChunkColumn chunkColumn)
-        {
-            if (chunkColumn == null)
-                throw new ArgumentNullException(nameof(chunkColumn));
-
-            int sectionMask = 0;
-            for (int sectionY = 0; sectionY < ColumnHeight; sectionY++)
-            {
-                if (chunkColumn.TryGetChunk(sectionY, out var chunk))
-                {
-                    if (!chunk.IsEmpty)
-                        sectionMask |= 1 << sectionY;
-                }
-            }
-            return sectionMask;
+            Light = light;
         }
 
         [SkipLocalsInit]
@@ -53,25 +30,28 @@ namespace MCServerSharp.Net.Packets
         {
             writer.Write(ChunkColumn.Position.X);
             writer.Write(ChunkColumn.Position.Z);
-            writer.Write(FullChunk);
-            writer.WriteVar(IncludedSectionsMask);
+            //writer.Write(FullChunk);
+            //writer.WriteVar(IncludedSectionsMask);
 
-            var heightmaps = new NbtMutLongArray(36);
+            var heightmaps = new NbtMutLongArray(37);
             var motionBlocking = heightmaps.ToCompound((Utf8String)"Heightmaps", (Utf8String)"MOTION_BLOCKING");
             writer.Write(motionBlocking);
 
-            if (FullChunk)
-            {
-                Span<int> biomes = stackalloc int[1024];
-                biomes.Fill(1); // 1=plains (defined in ServerMain)
+            //if (FullChunk)
+            //{
+            //    Span<int> biomes = stackalloc int[1024];
+            //    biomes.Fill(1); // 1=plains (defined in ServerMain)
+            //
+            //    writer.WriteVar(biomes.Length);
+            //    writer.WriteVar(biomes);
+            //}
 
-                writer.WriteVar(biomes.Length);
-                writer.WriteVar(biomes);
-            }
+            IChunk[] chunkBuffer = new IChunk[ChunkColumn.GetMaxChunkCount()];
+            ChunkColumn.TryGetChunks(chunkBuffer);
 
-            int sectionDataLength = GetChunkColumnDataLength(ChunkColumn, IncludedSectionsMask);
+            int sectionDataLength = GetChunkColumnDataLength(chunkBuffer);
             writer.WriteVar(sectionDataLength);
-            WriteChunk(writer, ChunkColumn, IncludedSectionsMask);
+            WriteChunk(writer, chunkBuffer);
 
             // If you don't support block entities yet, use 0
             // If you need to implement it by sending block entities later with the update block entity packet,
@@ -83,49 +63,105 @@ namespace MCServerSharp.Net.Packets
             //{
             //    WriteCompoundTag(data, tag);
             //}
+
+            WriteLight(writer);
+
+            Light.Dispose();
         }
 
-        public static int GetChunkColumnDataLength(LocalChunkColumn chunkColumn, int includeMask)
+        private void WriteLight(NetBinaryWriter writer)
         {
-            if (chunkColumn == null)
-                throw new ArgumentNullException(nameof(chunkColumn));
+            writer.Write(Light.TrustEdges);
+            writer.Write(Light.SkyLightMask);
+            writer.Write(Light.BlockLightMask);
+            writer.Write(Light.EmptySkyLightMask);
+            writer.Write(Light.EmptyBlockLightMask);
 
+            var skyLightArrays = Light.SkyLightArrays;
+            writer.WriteVar(skyLightArrays.Count);
+            for (int i = 0; i < skyLightArrays.Count; i++)
+            {
+                writer.WriteVar(2048);
+                writer.Write(skyLightArrays[i].Data);
+            }
+
+            var blockLightArrays = Light.BlockLightArrays;
+            writer.WriteVar(blockLightArrays.Count);
+            for (int i = 0; i < blockLightArrays.Count; i++)
+            {
+                writer.WriteVar(2048);
+                writer.Write(blockLightArrays[i].Data);
+            }
+        }
+
+        public static int GetChunkColumnDataLength(ReadOnlySpan<IChunk?> chunks)
+        {
             int length = 0;
 
-            for (int sectionY = 0; sectionY < ColumnHeight; sectionY++)
+            for (int i = 0; i < chunks.Length; i++)
             {
-                if ((includeMask & (1 << sectionY)) == 0)
-                    continue;
+                LocalChunk? chunk = chunks[i] as LocalChunk;
 
-                if (chunkColumn.TryGetChunk(sectionY, out LocalChunk? chunk))
+                if (chunk == null || chunk.IsEmpty)
                 {
-                    JavaCompatibleBlockPalette<IBlockPalette> javaPalette = new(chunk.BlockPalette);
-                    length += GetChunkDataLength(javaPalette);
+                    length += sizeof(short); // block count
+
+                    // Write single-value block palette
+                    length += 1; // Bits per entry
+                    length += VarInt.GetEncodedSize(0); // value palette
+                    length += VarInt.GetEncodedSize(0); // data array length
+
+                    // Write single-value biome palette
+                    length += 1; // Bits per entry
+                    length += VarInt.GetEncodedSize(0); // value palette
+                    length += VarInt.GetEncodedSize(0); // data array length
+                    continue;
                 }
+
+                JavaCompatibleBlockPalette<IBlockPalette> javaPalette = new(chunk.BlockPalette);
+                length += GetChunkDataLength(javaPalette);
+
+                // Write single-value biome palette
+                length += 1; // Bits per entry
+                length += VarInt.GetEncodedSize(0); // value palette
+                length += VarInt.GetEncodedSize(0); // data array length
             }
 
             return length;
         }
 
-        public static void WriteChunk(NetBinaryWriter writer, LocalChunkColumn chunkColumn, int includeMask)
+        public static void WriteChunk(NetBinaryWriter writer, ReadOnlySpan<IChunk?> chunks)
         {
-            if (chunkColumn == null)
-                throw new ArgumentNullException(nameof(chunkColumn));
-
-            for (int sectionY = 0; sectionY < ColumnHeight; sectionY++)
+            for (int i = 0; i < chunks.Length; i++)
             {
-                if ((includeMask & (1 << sectionY)) == 0)
-                    continue;
+                LocalChunk? chunk = chunks[i] as LocalChunk;
 
-                if (chunkColumn.TryGetChunk(sectionY, out LocalChunk? chunk))
+                if (chunk == null || chunk.IsEmpty)
                 {
-                    LocalChunk.BlockEnumerator blocks = chunk.EnumerateBlocks();
+                    writer.Write((short)0);
 
-                    JavaCompatibleBlockPalette<IBlockPalette> javaPalette = new(blocks.BlockPalette);
+                    // Write single-value block palette
+                    writer.Write((byte)0); // bits per entry
+                    writer.WriteVar(0); // value 
+                    writer.WriteVar(0); // data array length
 
-                    WritePalette(writer, javaPalette);
-                    WriteBlocks(writer, ref blocks, javaPalette.BitsPerBlock);
+                    // Write single-value biome palette
+                    writer.Write((byte)0);
+                    writer.WriteVar(0);
+                    writer.WriteVar(0);
+                    continue;
                 }
+
+                LocalChunk.BlockEnumerator blocks = chunk.EnumerateBlocks();
+
+                JavaCompatibleBlockPalette<IBlockPalette> javaPalette = new(blocks.BlockPalette);
+                WritePalette(writer, javaPalette);
+                WriteBlocks(writer, ref blocks, javaPalette.BitsPerBlock);
+
+                // Write single-value biome palette
+                writer.Write((byte)0); // bits per entry
+                writer.WriteVar(0); // value 
+                writer.WriteVar(0); // data array length
             }
         }
 
@@ -140,13 +176,13 @@ namespace MCServerSharp.Net.Packets
             where TPalette : IBlockPalette
         {
             int length = 0;
-            length += sizeof(short);
-            length += sizeof(byte);
+            length += sizeof(short); // block count
+            length += sizeof(byte); // bits per entry
             length += palette.GetEncodedSize();
 
-            int longCount = GetUnderlyingDataLength(UnderlyingDataSize, palette.BitsPerBlock);
-            length += VarInt.GetEncodedSize(longCount);
-            length += longCount * sizeof(ulong);
+            int longCount = GetUnderlyingDataLength(LocalChunk.BlockCount, palette.BitsPerBlock);
+            length += VarInt.GetEncodedSize(longCount); // data array length
+            length += longCount * sizeof(ulong); // data array
 
             return length;
         }
@@ -155,7 +191,7 @@ namespace MCServerSharp.Net.Packets
             where TPalette : IBlockPalette
         {
             int bitsPerBlock = palette.BitsPerBlock;
-            int dataLength = GetUnderlyingDataLength(UnderlyingDataSize, bitsPerBlock);
+            int dataLength = GetUnderlyingDataLength(LocalChunk.BlockCount, bitsPerBlock);
 
             writer.Write((short)LocalChunk.BlockCount);
             writer.Write((byte)bitsPerBlock);
@@ -227,7 +263,7 @@ namespace MCServerSharp.Net.Packets
 
                         Vector256<ulong> vBits0 = Vector256.Create(
                             blockBufferP0[j], blockBufferP1[j], blockBufferP2[j], blockBufferP3[j]).AsUInt64();
-                        
+
                         Vector256<ulong> vBits1 = Vector256.Create(
                             blockBufferP4[j], blockBufferP5[j], blockBufferP6[j], blockBufferP7[j]).AsUInt64();
 
@@ -246,19 +282,19 @@ namespace MCServerSharp.Net.Packets
                     Vector128<ulong> vBitBuffer1 = Vector128<ulong>.Zero;
                     Vector128<ulong> vBitBuffer2 = Vector128<ulong>.Zero;
                     Vector128<ulong> vBitBuffer3 = Vector128<ulong>.Zero;
-                
+
                     for (int j = 0; j < blocksPerLong; j++)
                     {
                         vBitBuffer0 = Sse2.ShiftRightLogical(vBitBuffer0, vBitsPerBlock);
                         vBitBuffer1 = Sse2.ShiftRightLogical(vBitBuffer1, vBitsPerBlock);
                         vBitBuffer2 = Sse2.ShiftRightLogical(vBitBuffer2, vBitsPerBlock);
                         vBitBuffer3 = Sse2.ShiftRightLogical(vBitBuffer3, vBitsPerBlock);
-                
+
                         Vector128<ulong> vBits0 = Vector128.Create(blockBufferP0[j], blockBufferP1[j]).AsUInt64();
                         Vector128<ulong> vBits1 = Vector128.Create(blockBufferP2[j], blockBufferP3[j]).AsUInt64();
                         Vector128<ulong> vBits2 = Vector128.Create(blockBufferP4[j], blockBufferP5[j]).AsUInt64();
                         Vector128<ulong> vBits3 = Vector128.Create(blockBufferP6[j], blockBufferP7[j]).AsUInt64();
-                
+
                         vBitBuffer0 = Sse2.Or(vBitBuffer0, Sse2.ShiftLeftLogical(vBits0, vValueShift));
                         vBitBuffer1 = Sse2.Or(vBitBuffer1, Sse2.ShiftLeftLogical(vBits1, vValueShift));
                         vBitBuffer2 = Sse2.Or(vBitBuffer2, Sse2.ShiftLeftLogical(vBits2, vValueShift));

@@ -29,29 +29,29 @@ namespace MCServerSharp.Net.Packets
         #region Play
 
         [Mapping(State.Play, 0x02)] SpawnLivingEntity,
-        [Mapping(State.Play, 0x0e)] ChatMessage,
+        [Mapping(State.Play, 0x0f)] ChatMessage,
 
-        [Mapping(State.Play, 0x14)] WindowProperty,
-        [Mapping(State.Play, 0x17)] PluginMessage,
-        [Mapping(State.Play, 0x19)] PlayDisconnect,
-        [Mapping(State.Play, 0x1c)] UnloadChunk,
-        [Mapping(State.Play, 0x1f)] KeepAlive,
+        [Mapping(State.Play, 0x15)] WindowProperty,
+        [Mapping(State.Play, 0x18)] PluginMessage,
+        [Mapping(State.Play, 0x1a)] PlayDisconnect,
+        [Mapping(State.Play, 0x1d)] UnloadChunk,
 
-        [Mapping(State.Play, 0x20)] ChunkData,
-        [Mapping(State.Play, 0x23)] UpdateLight,
-        [Mapping(State.Play, 0x24)] JoinGame,
-        [Mapping(State.Play, 0x29)] EntityRotation,
-        [Mapping(State.Play, 0x2d)] OpenWindow,
+        [Mapping(State.Play, 0x21)] KeepAlive,
+        [Mapping(State.Play, 0x22)] ChunkData,
+        [Mapping(State.Play, 0x25)] UpdateLight,
+        [Mapping(State.Play, 0x26)] JoinGame,
+        [Mapping(State.Play, 0x2b)] EntityRotation,
+        [Mapping(State.Play, 0x2e)] OpenWindow,
 
-        [Mapping(State.Play, 0x30)] PlayerAbilities,
-        [Mapping(State.Play, 0x34)] PlayerPositionLook,
+        [Mapping(State.Play, 0x32)] PlayerAbilities,
+        [Mapping(State.Play, 0x38)] PlayerPositionLook,
 
-        [Mapping(State.Play, 0x40)] UpdateViewPosition,
-        [Mapping(State.Play, 0x41)] UpdateViewDistance,
-        [Mapping(State.Play, 0x42)] SpawnPosition,
+        [Mapping(State.Play, 0x49)] UpdateViewPosition,
+        [Mapping(State.Play, 0x4a)] UpdateViewDistance,
+        [Mapping(State.Play, 0x4b)] SpawnPosition,
 
-        [Mapping(State.Play, 0x56)] EntityTeleport,
-        [Mapping(State.Play, 0x5b)] UpdateTags,
+        [Mapping(State.Play, 0x62)] EntityTeleport,
+        [Mapping(State.Play, 0x67)] UpdateTags,
 
         #endregion
     }
